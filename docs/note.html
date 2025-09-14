@@ -4,87 +4,102 @@
   <meta charset="utf-8" />
   <title>Note</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Markdown -> HTML -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    body {
+    :root{
+      --accent:#1e90ff;
+      --text:#1b1b1b;
+      --muted:#6b7280;
+      --bg:#ffffff;
+      --code:#f6f8fa;
+    }
+    html,body{ background:var(--bg); color:var(--text); }
+    body{
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      max-width: 800px;
+      max-width: 820px;
       margin: 40px auto;
-      padding: 0 20px;
-      line-height: 1.6;
+      padding: 0 22px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
-    h1, h2, h3 { margin-top: 1.5em; }
-    pre {
-      background: #f4f4f4;
-      padding: 10px;
-      border-radius: 6px;
-      overflow-x: auto;
+    a { color: var(--accent); }
+    .back-link{
+      display:inline-block; margin-bottom:22px; padding:8px 14px;
+      background:var(--accent); color:#fff; text-decoration:none; border-radius:8px;
+      font-size:14px; box-shadow:0 2px 10px rgba(30,144,255,.25);
     }
-    a { color: #1e90ff; }
-    .back-link {
-      display: inline-block;
-      margin-bottom: 20px;
-      padding: 8px 14px;
-      background: #1e90ff;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 6px;
-      font-size: 14px;
-      transition: background 0.2s ease;
+    .back-link:hover{ filter:brightness(.95); }
+    hr{ border:0; height:1px; background:#e5e7eb; margin:24px 0; }
+    h1,h2,h3{ line-height:1.25; margin:1.6em 0 .6em; }
+    pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre{ background:var(--code); padding:12px; border-radius:8px; overflow:auto; }
+    blockquote{
+      border-left:4px solid #e5e7eb; padding:8px 12px; color:var(--muted); background:#fafafa;
+      border-radius:6px; margin:12px 0;
     }
-    .back-link:hover { background: #1565c0; }
+    img{ max-width:100%; height:auto; border-radius:8px; }
+    /* Petites métadonnées (si tu veux en afficher plus tard) */
+    .meta{ color:var(--muted); font-size:14px; margin:8px 0 16px; }
   </style>
 </head>
 <body>
   <a href="index.html" class="back-link">⬅ Retour à la carte</a>
-  <div id="content">Chargement de la note...</div>
+  <div id="content">Chargement de la note…</div>
 
   <script>
-    // Récupère l'ID passé dans l'URL (ex: note.html?id=la-brise-de-mer)
+    // 1) Récupère ?id=xxx dans l’URL
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
-    const contentEl = document.getElementById("content");
 
-    function show(msg, color = "#333") {
-      contentEl.innerHTML = `<p style="color:${color}; font-size:18px;">${msg}</p>`;
+    // 2) Petites fonctions utilitaires
+    const $content = document.getElementById("content");
+    const show = (html) => { $content.innerHTML = html; };
+
+    // 3) Retire le front-matter YAML si présent (bloc tout en haut entre --- et ---)
+    //    Exemples masqués :
+    //    ---
+    //    id: ...
+    //    title: ...
+    //    ...
+    //    ---
+    function stripFrontMatter(text){
+      const fmAtStart = text.startsWith('---');
+      if(!fmAtStart) return text;
+      const end = text.indexOf('\n---', 3); // cherche la seconde barrière ---
+      if(end === -1) return text;          // pas de deuxième --- => on ne touche pas
+      return text.slice(end + 4).trimStart(); // +4 pour sauter \n---
     }
 
-    if (!id) {
-      show("Aucune note spécifiée (paramètre ?id=... manquant)", "red");
-    } else {
-      // URL brute GitHub (toujours accessible si le chemin est bon)
-      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${id}.md`;
-      console.log("ID détecté :", id);
-      console.log("URL chargée :", src);
+    // 4) Charge le .md depuis GitHub "raw" (fiable sur Pages)
+    async function loadNote(noteId){
+      // URL de ton fichier dans la branche main
+      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${noteId}.md`;
+      try{
+        const res = await fetch(src, { cache: "no-store" });
+        if(!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
+        const mdRaw = await res.text();
 
-      // Sécurité: timeout si ça traîne
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        show("Le chargement prend trop de temps… Vérifie l’URL de la note et ta connexion.");
-      }, 8000);
+        // a) On masque le front-matter
+        const md = stripFrontMatter(mdRaw);
 
-      fetch(src, { cache: "no-store" })
-        .then(res => {
-          console.log("HTTP status:", res.status);
-          if (!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
-          return res.text();
-        })
-        .then(md => {
-          clearTimeout(timer);
-          if (timedOut) return;
-          contentEl.innerHTML = marked.parse(md);
-        })
-        .catch(err => {
-          clearTimeout(timer);
-          console.error("Erreur fetch:", err);
-          show("Erreur : " + err.message, "red");
-          const hint = document.createElement("div");
-          hint.style.marginTop = "10px";
-          hint.style.fontSize = "14px";
-          hint.innerHTML = `Chemin attendu : <code>docs/notes/${id}.md</code>`;
-          contentEl.appendChild(hint);
-        });
+        // b) Conversion Markdown -> HTML
+        const html = marked.parse(md);
+
+        // c) Affichage
+        show(html);
+      }catch(err){
+        show(`<p style="color:#b91c1c;"><strong>Erreur :</strong> ${err.message}</p>
+              <p>Chemin attendu : <code>docs/notes/${noteId}.md</code></p>`);
+      }
+    }
+
+    // 5) Démarrage
+    if(!id){
+      show("<p style='color:#b91c1c;'>Aucune note spécifiée (<code>?id=...</code> manquant).</p>");
+    }else{
+      loadNote(id);
     }
   </script>
 </body>
