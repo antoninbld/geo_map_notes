@@ -8,12 +8,24 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root{
-      --accent:#1e90ff;
+      /* Thème clair */
+      --bg:#ffffff;
       --text:#1b1b1b;
       --muted:#6b7280;
-      --bg:#ffffff;
       --code:#f6f8fa;
+      --accent:#1e90ff;
+      --card:#ffffff;
     }
+    body.dark{
+      /* Thème sombre */
+      --bg:#0f172a;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --code:#0b1220;
+      --accent:#60a5fa;
+      --card:#111827;
+    }
+
     html,body{ background:var(--bg); color:var(--text); }
     body{
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -23,84 +35,144 @@
       line-height: 1.65;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
+      transition: background .2s ease, color .2s ease;
     }
+
     a { color: var(--accent); }
+    .topbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin-bottom:18px;
+    }
     .back-link{
-      display:inline-block; margin-bottom:22px; padding:8px 14px;
+      display:inline-block; padding:8px 14px;
       background:var(--accent); color:#fff; text-decoration:none; border-radius:8px;
       font-size:14px; box-shadow:0 2px 10px rgba(30,144,255,.25);
     }
     .back-link:hover{ filter:brightness(.95); }
+
+    .theme-toggle{
+      background:var(--card); color:var(--text); border:1px solid rgba(0,0,0,.1);
+      padding:8px 12px; border-radius:8px; cursor:pointer; font-size:14px;
+    }
+    body.dark .theme-toggle{ border-color: rgba(255,255,255,.15); }
+
     hr{ border:0; height:1px; background:#e5e7eb; margin:24px 0; }
+    body.dark hr{ background:#1f2937; }
+
+    /* Titre issu du front-matter */
+    #note-title{
+      margin: 6px 0 14px;
+      font-size: 26px;
+      line-height: 1.25;
+    }
+
     h1,h2,h3{ line-height:1.25; margin:1.6em 0 .6em; }
     pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    pre{ background:var(--code); padding:12px; border-radius:8px; overflow:auto; }
-    blockquote{
-      border-left:4px solid #e5e7eb; padding:8px 12px; color:var(--muted); background:#fafafa;
-      border-radius:6px; margin:12px 0;
+    pre{
+      background:var(--code); padding:12px; border-radius:8px; overflow:auto;
+      border:1px solid rgba(0,0,0,.06);
     }
+    body.dark pre{ border-color: rgba(255,255,255,.06); }
+    blockquote{
+      border-left:4px solid #e5e7eb; padding:8px 12px; color:var(--muted);
+      background:rgba(0,0,0,.02); border-radius:6px; margin:12px 0;
+    }
+    body.dark blockquote{ border-left-color:#334155; background:rgba(255,255,255,.04); }
     img{ max-width:100%; height:auto; border-radius:8px; }
-    /* Petites métadonnées (si tu veux en afficher plus tard) */
-    .meta{ color:var(--muted); font-size:14px; margin:8px 0 16px; }
   </style>
 </head>
 <body>
-  <a href="index.html" class="back-link">⬅ Retour à la carte</a>
+  <div class="topbar">
+    <a href="index.html" class="back-link">⬅ Retour à la carte</a>
+    <button id="toggleTheme" class="theme-toggle" type="button">🌙 Mode sombre</button>
+  </div>
+
+  <!-- Titre extrait du front-matter (gras + italique) -->
+  <div id="note-title" style="display:none;"><em><strong></strong></em></div>
+
   <div id="content">Chargement de la note…</div>
 
   <script>
-    // 1) Récupère ?id=xxx dans l’URL
+    // ---- Préférence de thème (persistée) ----
+    const savedTheme = localStorage.getItem('noteTheme');
+    if (savedTheme === 'dark') document.body.classList.add('dark');
+    const toggleBtn = document.getElementById('toggleTheme');
+    const updateToggleLabel = () => {
+      const dark = document.body.classList.contains('dark');
+      toggleBtn.textContent = dark ? '☀️ Mode clair' : '🌙 Mode sombre';
+    };
+    updateToggleLabel();
+    toggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('noteTheme', document.body.classList.contains('dark') ? 'dark' : 'light');
+      updateToggleLabel();
+    });
+
+    // ---- Récupération de l'ID de note ----
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
 
-    // 2) Petites fonctions utilitaires
     const $content = document.getElementById("content");
-    const show = (html) => { $content.innerHTML = html; };
+    const $titleWrap = document.getElementById("note-title");
+    const $titleStrong = $titleWrap.querySelector('strong');
 
-    // 3) Retire le front-matter YAML si présent (bloc tout en haut entre --- et ---)
-    //    Exemples masqués :
-    //    ---
-    //    id: ...
-    //    title: ...
-    //    ...
-    //    ---
-    function stripFrontMatter(text){
-      const fmAtStart = text.startsWith('---');
-      if(!fmAtStart) return text;
-      const end = text.indexOf('\n---', 3); // cherche la seconde barrière ---
-      if(end === -1) return text;          // pas de deuxième --- => on ne touche pas
-      return text.slice(end + 4).trimStart(); // +4 pour sauter \n---
-    }
-
-    // 4) Charge le .md depuis GitHub "raw" (fiable sur Pages)
-    async function loadNote(noteId){
-      // URL de ton fichier dans la branche main
-      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${noteId}.md`;
-      try{
-        const res = await fetch(src, { cache: "no-store" });
-        if(!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
-        const mdRaw = await res.text();
-
-        // a) On masque le front-matter
-        const md = stripFrontMatter(mdRaw);
-
-        // b) Conversion Markdown -> HTML
-        const html = marked.parse(md);
-
-        // c) Affichage
-        show(html);
-      }catch(err){
-        show(`<p style="color:#b91c1c;"><strong>Erreur :</strong> ${err.message}</p>
-              <p>Chemin attendu : <code>docs/notes/${noteId}.md</code></p>`);
+    // Extrait un front-matter YAML très simple (clé: valeur), et le retire du texte
+    function parseAndStripFrontMatter(text){
+      let meta = {};
+      if (text.startsWith('---')) {
+        const end = text.indexOf('\n---', 3);
+        if (end !== -1) {
+          const fm = text.slice(3, end).trim();         // contenu YAML entre les ---
+          text = text.slice(end + 4).trimStart();       // le reste du document
+          // Parsing minimal "clé: valeur" (une ligne par champ, sans objets imbriqués)
+          fm.split('\n').forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx > -1) {
+              const key = line.slice(0, idx).trim();
+              let val = line.slice(idx + 1).trim();
+              // enlève guillemets éventuels
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+              meta[key] = val;
+            }
+          });
+        }
       }
+      return { meta, body: text };
     }
 
-    // 5) Démarrage
-    if(!id){
-      show("<p style='color:#b91c1c;'>Aucune note spécifiée (<code>?id=...</code> manquant).</p>");
-    }else{
-      loadNote(id);
+    async function loadNote(noteId){
+      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${noteId}.md`;
+      const res = await fetch(src, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
+      const mdRaw = await res.text();
+
+      // 1) Front-matter -> meta + corps markdown
+      const { meta, body } = parseAndStripFrontMatter(mdRaw);
+
+      // 2) Titre : gras + italique si présent
+      if (meta.title && meta.title.trim()) {
+        $titleStrong.textContent = meta.title.trim();
+        $titleWrap.style.display = '';
+      } else {
+        $titleWrap.style.display = 'none';
+      }
+
+      // 3) Conversion Markdown -> HTML
+      const html = marked.parse(body);
+      $content.innerHTML = html;
     }
+
+    (async () => {
+      try{
+        if (!id) throw new Error("Aucune note spécifiée (?id=...)");
+        await loadNote(id);
+      }catch(err){
+        $content.innerHTML = `<p style="color:#b91c1c;"><strong>Erreur :</strong> ${err.message}</p>
+                              <p>Chemin attendu : <code>docs/notes/${id||'votre-id'}.md</code></p>`;
+      }
+    })();
   </script>
 </body>
 </html>
