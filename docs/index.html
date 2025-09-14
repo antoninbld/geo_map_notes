@@ -4,61 +4,119 @@
   <meta charset="utf-8" />
   <title>Carte de mes notes</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Feuille de style Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100vh; width: 100%; }
-    .popup-title { font-weight: bold; margin-bottom: 4px; }
+    .popup-title { font-weight: 600; margin-bottom: 4px; }
     .popup-link { display: inline-block; margin-top: 6px; text-decoration: underline; }
+    .leaflet-control-layers-expanded { max-height: 60vh; overflow: auto; } /* si la liste grandit */
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Script Leaflet -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // 1) Initialisation de la carte
+    // --- 1) Carte
     const map = L.map('map').setView([20, 0], 2);
 
-    // 2) Fond OpenStreetMap
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
+    // --- 2) FONDS (basemaps) ---
+    // CARTO Voyager (clair, moderne)
+    const voyagerNoLabels = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }
+    );
+    const voyagerLabels = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }
+    );
+    const voyagerFull = L.layerGroup([voyagerNoLabels, voyagerLabels]); // version "avec labels" groupée
 
-    // 3) Charger les données depuis data.json
+    // CARTO Positron (clair minimal)
+    const positronNoLabels = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }
+    );
+    const positronLabels = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }
+    );
+    const positronFull = L.layerGroup([positronNoLabels, positronLabels]);
+
+    // OpenStreetMap standard
+    const osm = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }
+    );
+
+    // Esri World Imagery (satellite)
+    const esriSat = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: 'Tiles &copy; Esri' }
+    );
+
+    // OpenTopoMap (relief/terrain)
+    const openTopo = L.tileLayer(
+      'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      { attribution: 'Map data: &copy; OpenStreetMap, SRTM | Map style: &copy; OpenTopoMap', maxZoom: 17 }
+    );
+
+    // --- 3) Choix du fond par défaut ---
+    // On démarre avec Voyager sans labels + on active l’overlay "Labels Voyager"
+    voyagerNoLabels.addTo(map);
+    voyagerLabels.addTo(map); // visible au démarrage
+
+    // --- 4) Contrôles couches (basemaps + overlays) ---
+    const baseMaps = {
+      "Voyager (avec labels)": voyagerFull,
+      "Voyager (sans labels)": voyagerNoLabels,
+      "Positron (avec labels)": positronFull,
+      "Positron (sans labels)": positronNoLabels,
+      "OSM classique": osm,
+      "Satellite (Esri)": esriSat,
+      "Terrain (OpenTopoMap)": openTopo
+    };
+
+    const overlays = {
+      "Labels Voyager (on/off)": voyagerLabels,
+      "Labels Positron (on/off)": positronLabels
+    };
+
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+
+    // --- 5) POPUP plus lisible ---
+    function popupHtml(item) {
+      const title = item.title || '(Sans titre)';
+      const where = item.locationName ? `<div style="margin:4px 0 6px; font-size:13px; color:#555;">${item.locationName}</div>` : '';
+      const summary = item.summary ? `<div style="font-size:13px; line-height:1.4; margin-bottom:6px;">${item.summary}</div>` : '';
+      const link = item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">📄 Ouvrir la note</a>` : '';
+      return `
+        <div style="width:240px; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+          <div class="popup-title" style="font-size:16px;">${title}</div>
+          ${where}
+          ${summary}
+          ${link}
+        </div>
+      `;
+    }
+
+    // --- 6) Charger tes points depuis data.json ---
     fetch('data.json')
-      .then(response => response.json())
+      .then(r => r.json())
       .then(items => {
         const bounds = [];
-
         items.forEach(item => {
-          if (typeof item.lat === "number" && typeof item.lon === "number") {
-            const marker = L.marker([item.lat, item.lon]).addTo(map);
-
-            // Contenu du popup
-            const popupHtml = `
-              <div class="popup-title">${item.title}</div>
-              ${item.locationName ? `<div>${item.locationName}</div>` : ""}
-              ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank">Voir la note ↗</a>` : ""}
-            `;
-            marker.bindPopup(popupHtml);
-
+          if (typeof item.lat === 'number' && typeof item.lon === 'number') {
+            const m = L.marker([item.lat, item.lon]).addTo(map);
+            m.bindPopup(popupHtml(item));
             bounds.push([item.lat, item.lon]);
           }
         });
-
-        // Ajuster la vue de la carte
-        if (bounds.length === 1) {
-          map.setView(bounds[0], 8);
-        } else if (bounds.length > 1) {
-          map.fitBounds(bounds, { padding: [20, 20] });
-        }
+        if (bounds.length === 1) map.setView(bounds[0], 8);
+        else if (bounds.length > 1) map.fitBounds(bounds, { padding: [20, 20] });
       })
-      .catch(err => console.error("Erreur de chargement de data.json", err));
+      .catch(err => console.error('Erreur de chargement de data.json', err));
   </script>
 </body>
 </html>
