@@ -32,9 +32,7 @@
       font-size: 14px;
       transition: background 0.2s ease;
     }
-    .back-link:hover {
-      background: #1565c0;
-    }
+    .back-link:hover { background: #1565c0; }
   </style>
 </head>
 <body>
@@ -45,28 +43,48 @@
     // Récupère l'ID passé dans l'URL (ex: note.html?id=la-brise-de-mer)
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
+    const contentEl = document.getElementById("content");
 
-    if (id) {
-  // Utilise l'URL brute de GitHub pour charger la note .md
-  const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${id}.md`;
+    function show(msg, color = "#333") {
+      contentEl.innerHTML = `<p style="color:${color}; font-size:18px;">${msg}</p>`;
+    }
 
-  fetch(src, { cache: "no-store" })
-    .then(res => {
-      if (!res.ok) throw new Error("Note introuvable");
-      return res.text();
-    })
-    .then(md => {
-      document.getElementById("content").innerHTML = marked.parse(md);
-    })
-    .catch(err => {
-      document.getElementById("content").innerHTML =
-        "<p style='color:red;'>Erreur : " + err.message + "</p>";
-    });
-} else {
-  document.getElementById("content").innerHTML =
-    "<p style='color:red;'>Aucune note spécifiée.</p>";
-}
-    
+    if (!id) {
+      show("Aucune note spécifiée (paramètre ?id=... manquant)", "red");
+    } else {
+      // URL brute GitHub (toujours accessible si le chemin est bon)
+      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${id}.md`;
+      console.log("ID détecté :", id);
+      console.log("URL chargée :", src);
+
+      // Sécurité: timeout si ça traîne
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        show("Le chargement prend trop de temps… Vérifie l’URL de la note et ta connexion.");
+      }, 8000);
+
+      fetch(src, { cache: "no-store" })
+        .then(res => {
+          console.log("HTTP status:", res.status);
+          if (!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
+          return res.text();
+        })
+        .then(md => {
+          clearTimeout(timer);
+          if (timedOut) return;
+          contentEl.innerHTML = marked.parse(md);
+        })
+        .catch(err => {
+          clearTimeout(timer);
+          console.error("Erreur fetch:", err);
+          show("Erreur : " + err.message, "red");
+          const hint = document.createElement("div");
+          hint.style.marginTop = "10px";
+          hint.style.fontSize = "14px";
+          hint.innerHTML = `Chemin attendu : <code>docs/notes/${id}.md</code>`;
+          contentEl.appendChild(hint);
+        });
     }
   </script>
 </body>
