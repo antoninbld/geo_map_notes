@@ -25,10 +25,11 @@
       background:#1e90ff; color:#fff; border:none; border-radius:8px;
       font-size:13px; cursor:pointer;
       box-shadow:0 2px 8px rgba(30,144,255,.35);
+      width:100%;
+      text-align:left;
     }
     .btn:hover { filter:brightness(.95); }
 
-    /* Popup (déjà stylée côté note.html, ici version simple) */
     .maplibregl-popup { max-width: 300px; font-family: system-ui, sans-serif; }
     .popup-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
     .popup-meta  { font-size: 13px; color: #666; margin-bottom: 6px; }
@@ -45,7 +46,9 @@
     <label><input type="radio" name="basemap" value="streets"> OSM classique (Streets)</label>
     <label><input type="radio" name="basemap" value="light" checked> Voyager-like (Light)</label>
     <label><input type="radio" name="basemap" value="dark"> Mode sombre (Dark)</label>
-    <button id="recenterEurope" class="btn" type="button">🌍 Recentrer Europe</button>
+
+    <button id="recenterEurope" class="btn" type="button">🇪🇺 Recentrer Europe</button>
+    <button id="recenterUSA" class="btn" type="button">🇺🇸 Recentrer États-Unis</button>
   </div>
 
   <script>
@@ -60,16 +63,17 @@
       dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
     };
 
-    // 🎯 Vue Europe par défaut
-    const EUROPE_CENTER = [10, 50]; // lon, lat
-    const EUROPE_ZOOM   = 4.2;
+    // 🎯 Vues par défaut
+    const DEFAULT_ZOOM   = 4.2;       // même zoom pour les deux boutons
+    const EUROPE_CENTER  = [10, 50];  // lon, lat
+    const USA_CENTER     = [-98.5, 39.8];
 
     // Carte
     const map = new maplibregl.Map({
       container: 'map',
       style: STYLES.light,   // ✅ Light par défaut
-      center: EUROPE_CENTER, // ✅ Europe
-      zoom:   EUROPE_ZOOM
+      center: EUROPE_CENTER, // ✅ Europe au démarrage
+      zoom:   DEFAULT_ZOOM
     });
 
     // Contrôles zoom
@@ -88,13 +92,21 @@
       });
     }
 
-    // Recentrer sur Europe (bouton + raccourci clavier "E")
+    // Recentrages
     function recenterEurope() {
-      map.easeTo({ center: EUROPE_CENTER, zoom: EUROPE_ZOOM, duration: 600 });
+      map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
+    }
+    function recenterUSA() {
+      map.easeTo({ center: USA_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
     document.getElementById('recenterEurope').addEventListener('click', recenterEurope);
+    document.getElementById('recenterUSA').addEventListener('click', recenterUSA);
+
+    // Raccourcis clavier : E (Europe), U (USA)
     window.addEventListener('keydown', (e) => {
-      if (e.key.toLowerCase() === 'e') recenterEurope();
+      const key = e.key.toLowerCase();
+      if (key === 'e') recenterEurope();
+      if (key === 'u') recenterUSA();
     });
 
     // Changement de fond
@@ -122,12 +134,12 @@
 
         items.forEach(item => {
           if (typeof item.lon === 'number' && typeof item.lat === 'number') {
-            // style du marqueur (tu peux changer taille/couleur ici)
+            // style du marqueur (modifiable)
             const el = document.createElement('div');
             el.style.width = '14px';
             el.style.height = '14px';
             el.style.borderRadius = '50%';
-            el.style.background = '#e63946';
+            el.style.background = '#1e90ff';
             el.style.border = '2px solid white';
             el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
             el.title = item.title || '';
@@ -150,7 +162,7 @@
           }
         });
 
-        // ❌ plus de fitBounds ici : on garde la vue Europe
+        // Pas de fitBounds : on garde la vue choisie (Europe/USA)
       } catch (e) {
         console.error('Erreur chargement data.json', e);
       }
