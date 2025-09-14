@@ -6,6 +6,7 @@
     "lon": 9.44965,
     "locationName": "Bastia, Corse",
     "summary": "Note de test avec un court résumé pour voir le rendu.",
+    "tags":["Corse", "France", "mafia"],
     "noteUrl": "note.html?id=la-brise-de-mer"
   }
 ]
