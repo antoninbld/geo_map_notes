@@ -2,8 +2,8 @@
 id: 
 title: La Brise de Mer
 date: 
-location: Bastia
-  name: 
+location:
+  name: Bar "La Brise de Mer", Bastia
   lat: 42.69642
   lon: 9.44965
 tags: [ ]
