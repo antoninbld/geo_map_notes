@@ -10,61 +10,106 @@
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
 
+    /* Panneau Map views + boutons recentrage (en haut à gauche) */
     .basemap-control {
       position:absolute; top:10px; left:10px; z-index:10;
       background:#fff; border-radius:12px; padding:10px;
       box-shadow:0 4px 16px rgba(0,0,0,.15);
       font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      font-size:14px;
+      font-size:14px; width: 240px;
     }
     .basemap-control strong { display:block; margin-bottom:6px; }
     .basemap-control label { display:block; margin:6px 0; cursor:pointer; }
-
     .btn {
       display:inline-block; margin-top:6px; padding:8px 10px;
       background:#1e90ff; color:#fff; border:none; border-radius:8px;
-      font-size:13px; cursor:pointer;
+      font-size:13px; cursor:pointer; width:100%; text-align:left;
       box-shadow:0 2px 8px rgba(30,144,255,.35);
-      width:100%;
-      text-align:left;
     }
     .btn:hover { filter:brightness(.95); }
 
+    /* Popup (carte) */
     .maplibregl-popup { max-width: 300px; font-family: system-ui, sans-serif; }
     .popup-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
     .popup-meta  { font-size: 13px; color: #666; margin-bottom: 6px; }
     .popup-link  { display:inline-block; margin-top:6px; font-size:13px; color:#1e90ff; text-decoration:none; }
     .popup-link:hover { text-decoration: underline; }
+
+    /* Bouton Filtres intégré au groupe de contrôles (en haut à droite) */
+    .maplibregl-ctrl.filters-ctrl .filters-btn{
+      width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+      font-size:14px; background:#fff; border:none; cursor:pointer;
+    }
+
+    /* Panneau de filtres (pop-up) en haut à droite */
+    .filters-panel{
+      position:absolute; top:60px; right:10px; z-index:10;
+      width:280px; max-height:60vh; overflow:auto;
+      background:#fff; border-radius:12px; padding:12px;
+      box-shadow:0 8px 24px rgba(0,0,0,.18); font-family:system-ui, sans-serif; font-size:14px;
+      display:none;
+    }
+    .filters-panel h3{ margin:0 0 8px; font-size:16px; }
+    .filters-panel .row{ margin:8px 0; }
+    .filters-panel input[type="text"]{ width:100%; padding:8px; border:1px solid #ddd; border-radius:8px; }
+    .filters-panel .tags{ display:flex; flex-wrap:wrap; gap:6px; }
+    .filters-panel .tag{
+      display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px;
+    }
+    .filters-actions{ display:flex; gap:8px; margin-top:10px; }
+    .filters-actions button{
+      flex:1; padding:8px; border:none; border-radius:8px; cursor:pointer;
+    }
+    .filters-apply{ background:#1e90ff; color:#fff; }
+    .filters-reset{ background:#f3f4f6; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
     <strong>Map views</strong>
     <label><input type="radio" name="basemap" value="hybrid"> Satellite</label>
     <label><input type="radio" name="basemap" value="streets"> Streets</label>
     <label><input type="radio" name="basemap" value="light" checked> Light</label>
     <label><input type="radio" name="basemap" value="dark"> Dark</label>
-  
+
     <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
     <button id="recenterUSA" class="btn" type="button">Recentrer États-Unis</button>
   </div>
 
+  <!-- Panneau Filtres (pop-up) -->
+  <div id="filtersPanel" class="filters-panel">
+    <h3>Filtres</h3>
+    <div class="row">
+      <label>Recherche</label>
+      <input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" />
+    </div>
+    <div class="row">
+      <label>Tags</label>
+      <div id="tagsBox" class="tags"></div>
+    </div>
+    <div class="filters-actions">
+      <button class="filters-apply" id="applyFilters">Appliquer</button>
+      <button class="filters-reset" id="resetFilters">Réinitialiser</button>
+    </div>
+  </div>
+
   <script>
-    // 🚨 Mets ta clé MapTiler ici
+    // 🔑 Mets ta clé MapTiler ici
     const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
 
     // Styles MapTiler (vector)
     const STYLES = {
       hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
-      street:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair
+      streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair (par défaut)
       dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
     };
 
     // 🎯 Vues par défaut
-    const DEFAULT_ZOOM   = 4.2;       // même zoom pour les deux boutons
+    const DEFAULT_ZOOM   = 4.2;       // même zoom pour EU & USA
     const EUROPE_CENTER  = [10, 50];  // lon, lat
     const USA_CENTER     = [-98.5, 39.8];
 
@@ -76,8 +121,36 @@
       zoom:   DEFAULT_ZOOM
     });
 
-    // Contrôles zoom
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+    // Contrôles zoom (en haut à droite)
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    // Bouton "Filtres" à côté du +/-
+    class FilterControl {
+      onAdd(map){
+        this._map = map;
+        const group = document.createElement('div');
+        group.className = 'maplibregl-ctrl maplibregl-ctrl-group filters-ctrl';
+
+        const btn = document.createElement('button');
+        btn.className = 'filters-btn';
+        btn.type = 'button';
+        btn.title = 'Filtres';
+        btn.textContent = 'Filtres';
+        btn.addEventListener('click', () => {
+          const panel = document.getElementById('filtersPanel');
+          panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+        });
+
+        group.appendChild(btn);
+        this._container = group;
+        return group;
+      }
+      onRemove(){
+        this._container.remove();
+        this._map = undefined;
+      }
+    }
+    map.addControl(new FilterControl(), 'top-right');
 
     // Labels visibles après changement de style
     function setLabelVisibility(visible) {
@@ -115,59 +188,136 @@
         const choice = e.target.value;
         map.setStyle(STYLES[choice]);
         map.once('styledata', () => setLabelVisibility(true));
-        map.once('load', () => addMarkersFromJSON()); // réapplique les marqueurs
+        map.once('load', () => {
+          // réapplique les marqueurs et réapplique les filtres après reload du style
+          addMarkersFromJSON().then(applyFilters);
+        });
       });
     });
 
-    // Marqueurs depuis data.json
-    let currentMarkers = [];
-    function clearMarkers() {
-      currentMarkers.forEach(m => m.remove());
-      currentMarkers = [];
-    }
+    // === Données & Marqueurs & Filtres ===
+    let allData = [];      // toutes les entrées JSON (chargées une fois)
+    let allMarkers = [];   // { item, marker }
+    let allTags = new Set();
 
     async function addMarkersFromJSON() {
-      clearMarkers();
-      try {
-        const res = await fetch('data.json');
-        const items = await res.json();
-
-        items.forEach(item => {
-          if (typeof item.lon === 'number' && typeof item.lat === 'number') {
-            // style du marqueur (modifiable)
-            const el = document.createElement('div');
-            el.style.width = '14px';
-            el.style.height = '14px';
-            el.style.borderRadius = '50%';
-            el.style.background = 'red';              // fond rouge
-            el.style.border = '2px solid darkred';    // bordure rouge foncé
-            el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
-            el.title = item.title || '';
-
-            const marker = new maplibregl.Marker({ element: el })
-              .setLngLat([item.lon, item.lat])
-              .addTo(map);
-
-            const html = `
-              <div style="width:240px;">
-                <div class="popup-title">${item.title || '(Sans titre)'}</div>
-                ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
-                ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${item.summary}</div>` : ''}
-                ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">📄 Ouvrir la note</a>` : ''}
-              </div>
-            `;
-            const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
-            marker.setPopup(popup);
-            currentMarkers.push(marker);
-          }
-        });
-
-        // Pas de fitBounds : on garde la vue choisie (Europe/USA)
-      } catch (e) {
-        console.error('Erreur chargement data.json', e);
+      // charge data.json une seule fois
+      if (allData.length === 0) {
+        try {
+          const res = await fetch('data.json', { cache: 'no-store' });
+          allData = await res.json();
+        } catch (e) {
+          console.error('Erreur chargement data.json', e);
+          return;
+        }
       }
+
+      // nettoie anciens marqueurs
+      allMarkers.forEach(({marker}) => marker.remove());
+      allMarkers = [];
+      allTags.clear();
+
+      // crée les marqueurs
+      allData.forEach(item => {
+        if (typeof item.lon === 'number' && typeof item.lat === 'number') {
+          // STYLE du marqueur (rouge + bordure rouge foncé)
+          const el = document.createElement('div');
+          el.style.width = '14px';
+          el.style.height = '14px';
+          el.style.borderRadius = '50%';
+          el.style.background = 'red';             // centre
+          el.style.border = '2px solid darkred';   // contour
+          el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
+          el.title = item.title || '';
+
+          const marker = new maplibregl.Marker({ element: el })
+            .setLngLat([item.lon, item.lat])
+            .addTo(map);
+
+          const html = `
+            <div style="width:240px;">
+              <div class="popup-title">${item.title || '(Sans titre)'}</div>
+              ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
+              ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${item.summary}</div>` : ''}
+              ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">📄 Ouvrir la note</a>` : ''}
+            </div>
+          `;
+          const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
+          marker.setPopup(popup);
+
+          allMarkers.push({ item, marker });
+
+          // collecte des tags
+          if (Array.isArray(item.tags)) item.tags.forEach(t => allTags.add(String(t)));
+        }
+      });
+
+      // construit la liste de tags (si des tags existent)
+      buildTagCheckboxes();
     }
 
+    function buildTagCheckboxes(){
+      const box = document.getElementById('tagsBox');
+      if (!box) return;
+      box.innerHTML = '';
+      if (allTags.size === 0) {
+        box.innerHTML = '<div style="color:#777; font-size:13px;">Aucun tag détecté</div>';
+        return;
+      }
+      Array.from(allTags).sort((a,b)=>a.localeCompare(b)).forEach(tag => {
+        const label = document.createElement('label');
+        label.className = 'tag';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = 'tag';
+        cb.value = tag;
+        const txt = document.createElement('span');
+        txt.textContent = tag;
+        label.appendChild(cb);
+        label.appendChild(txt);
+        box.appendChild(label);
+      });
+    }
+
+    function applyFilters(){
+      const q = (document.getElementById('filterQuery')?.value || '').toLowerCase().trim();
+      const selected = Array.from(document.querySelectorAll('input[name="tag"]:checked')).map(i => i.value);
+
+      allMarkers.forEach(({ item, marker }) => {
+        // filtre texte
+        let visible = true;
+        if (q) {
+          const hay = [
+            item.title || '',
+            item.locationName || '',
+            item.summary || ''
+          ].join(' ').toLowerCase();
+          visible = hay.includes(q);
+        }
+
+        // filtre tags (ET logique)
+        if (visible && selected.length) {
+          const itags = Array.isArray(item.tags) ? item.tags.map(String) : [];
+          visible = selected.every(t => itags.includes(t));
+        }
+
+        marker.getElement().style.display = visible ? '' : 'none';
+      });
+    }
+
+    function resetFilters(){
+      const q = document.getElementById('filterQuery');
+      if (q) q.value = '';
+      document.querySelectorAll('input[name="tag"]:checked').forEach(cb => cb.checked = false);
+      // réaffiche tout
+      allMarkers.forEach(({marker}) => marker.getElement().style.display = '');
+    }
+
+    // Branche les boutons du panneau filtres
+    document.getElementById('applyFilters')?.addEventListener('click', applyFilters);
+    document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
+
+    // Démarrage
     map.on('load', () => addMarkersFromJSON());
   </script>
 </body>
