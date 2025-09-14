@@ -211,7 +211,20 @@
         sel.appendChild(opt);
       });
     }
-    
+
+    // Permet de cocher/décocher les pays par simple clic (sans Ctrl/⌘)
+    const countrySel = document.getElementById('filterCountry');
+    if (countrySel) {
+      countrySel.addEventListener('mousedown', (e) => {
+        const opt = e.target;
+        if (opt.tagName === 'OPTION') {
+          e.preventDefault();            // évite la sélection exclusive
+          opt.selected = !opt.selected;  // toggle
+          countrySel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+
     function pointInBbox(lon, lat, bbox){
       const [minX, minY, maxX, maxY] = bbox;
       return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
