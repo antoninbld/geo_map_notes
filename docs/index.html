@@ -160,13 +160,14 @@
               .addTo(map);
 
             const html = `
-              <div style="width:240px;">
+              <div>
                 <div class="popup-title">${item.title || '(Sans titre)'}</div>
-                ${item.locationName ? `<div class="popup-meta">${item.locationName}</div>` : ''}
-                ${item.summary ? `<div style="font-size:13px; line-height:1.4;">${item.summary}</div>` : ''}
-                ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">📄 Ouvrir la note</a>` : ''}
+                ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
+                ${item.summary ? `<div class="popup-summary">${item.summary}</div>` : ''}
+                ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">Ouvrir la note</a>` : ''}
               </div>
             `;
+
             const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
             marker.setPopup(popup);
             currentMarkers.push(marker);
