@@ -5,6 +5,7 @@
     "lat": 42.69642,
     "lon": 9.44965,
     "locationName": "Bastia, Corse",
+    "summary": "Note de test avec un court résumé pour voir le rendu.",
     "noteUrl": "https://github.com/antoninbld/geo_map_notes/blob/main/La%20Brise%20de%20Mer.md"
   }
 ]
