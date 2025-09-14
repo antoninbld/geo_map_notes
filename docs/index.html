@@ -345,56 +345,71 @@
     }
 
     function applyFilters(){
-    const q = (document.getElementById('filterQuery')?.value || '').toLowerCase().trim();
-    const selected = Array.from(document.querySelectorAll('input[name="tag"]:checked')).map(i => i.value);
-  
-    // 🔽 Pays sélectionnés (multiselect)
-    const sel = document.getElementById('filterCountry');
-    const selectedCountries = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
-  
-    allMarkers.forEach(({ item, marker }) => {
-      let visible = true;
-  
-      // Filtre texte
-      if (q) {
-        const hay = [item.title||'', item.locationName||'', item.summary||''].join(' ').toLowerCase();
-        visible = hay.includes(q);
-      }
-  
-      // Filtre tags (ET logique)
-      if (visible && selected.length) {
-        const itags = Array.isArray(item.tags) ? item.tags.map(String) : [];
-        visible = selected.every(t => itags.includes(t));
-      }
-  
-      // 🔽 Filtre pays (OU logique entre pays sélectionnés)
-      if (visible && selectedCountries.length) {
-        const lon = item.lon, lat = item.lat;
-        visible = selectedCountries.some(countryName => {
-          const bbox = countriesBbox[countryName];
-          return bbox ? pointInBbox(lon, lat, bbox) : false;
-        });
-      }
-  
-      marker.getElement().style.display = visible ? '' : 'none';
-    });
-  }
- 
+      const q = (document.getElementById('filterQuery')?.value || '').toLowerCase().trim();
+      const selected = Array.from(document.querySelectorAll('input[name="tag"]:checked')).map(i => i.value);
+    
+      // 🔽 Pays sélectionnés (multiselect)
+      const sel = document.getElementById('filterCountry');
+      const selectedCountries = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+    
+      allMarkers.forEach(({ item, marker }) => {
+        let visible = true;
+    
+        // Filtre texte
+        if (q) {
+          const hay = [item.title||'', item.locationName||'', item.summary||''].join(' ').toLowerCase();
+          visible = hay.includes(q);
+        }
+    
+        // Filtre tags (ET logique)
+        if (visible && selected.length) {
+          const itags = Array.isArray(item.tags) ? item.tags.map(String) : [];
+          visible = selected.every(t => itags.includes(t));
+        }
+    
+        // 🔽 Filtre pays (OU logique entre pays sélectionnés)
+        if (visible && selectedCountries.length) {
+          const lon = item.lon, lat = item.lat;
+          visible = selectedCountries.some(countryName => {
+            const bbox = countriesBbox[countryName];
+            return bbox ? pointInBbox(lon, lat, bbox) : false;
+          });
+        }
+    
+        marker.getElement().style.display = visible ? '' : 'none';
+      });
+    }
+    
     function resetFilters(){
+      // Réinitialiser recherche
       const q = document.getElementById('filterQuery');
       if (q) q.value = '';
+    
+      // Réinitialiser tags
       document.querySelectorAll('input[name="tag"]:checked').forEach(cb => cb.checked = false);
-      // réaffiche tout
+    
+      // Réinitialiser pays
+      const sel = document.getElementById('filterCountry');
+      if (sel) Array.from(sel.options).forEach(o => o.selected = false);
+    
+      // Réafficher tous les marqueurs
       allMarkers.forEach(({marker}) => marker.getElement().style.display = '');
+    
+      // Fermer le panneau
+      const panel = document.getElementById('filtersPanel');
+      if (panel) panel.style.display = 'none';
+    
+      // 🔽 Recentrer sur l’Europe
+      map.easeTo({ center: [10, 50], zoom: 4.2, duration: 600 });
     }
-
+    
     // Branche les boutons du panneau filtres
     document.getElementById('applyFilters')?.addEventListener('click', () => {
       applyFilters();
       document.getElementById('filtersPanel').style.display = 'none'; // ferme le panneau
     });
     document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
-
+    
     // Pays: tout sélectionner / tout désélectionner
     document.getElementById('selectAllCountries')?.addEventListener('click', () => {
       const sel = document.getElementById('filterCountry');
@@ -410,6 +425,6 @@
     // Démarrage
     map.on('load', () => addMarkersFromJSON());
     loadCountries();
-  </script>
-</body>
-</html>
+    </script>
+    </body>
+    </html>
