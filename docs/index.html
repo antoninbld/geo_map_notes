@@ -2,95 +2,80 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Carte de mes notes (Vector)</title>
+  <title>Carte interactive</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
   <style>
-    html, body { height: 100%; margin: 0; }
-    #map { position: absolute; inset: 0; }
-    .control-panel {
-      position: absolute; top: 10px; left: 10px; z-index: 10;
-      background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
-      border-radius: 12px; padding: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px;
-    }
-    .control-panel label { display:block; margin:6px 0; cursor:pointer; }
-  
-    /* === POPUP STYLES === */
-    .maplibregl-popup-content{
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      padding:12px 16px;
-      border-radius:12px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.2);
-      max-width:300px;
-      background:#fff;
-    }
-    .popup-title{
-      font-size:16px;
-      font-weight:700;
-      margin-bottom:6px;
-      color:#111;
-    }
-    .popup-meta{
-      font-size:13px;
-      color:#666;
-      margin-bottom:10px;
-    }
-    .popup-summary{
-      font-size:12px;
-      line-height:1;
-      margin-bottom:10px;
-      color:#222;
-    }
-    .popup-link{
-      display:inline-block;
-      padding:6px 10px;
-      font-size:13px;
-      background:#1e90ff;
-      color:#fff;
-      border-radius:6px;
-      text-decoration:none;
-    }
-    .popup-link:hover{ background:#1565c0; }
+    html, body { margin:0; padding:0; height:100%; }
+    #map { width:100%; height:100%; }
 
+    .basemap-control {
+      position:absolute; top:10px; left:10px; z-index:10;
+      background:#fff; border-radius:12px; padding:10px;
+      box-shadow:0 4px 16px rgba(0,0,0,.15);
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size:14px;
+    }
+    .basemap-control strong { display:block; margin-bottom:6px; }
+    .basemap-control label { display:block; margin:6px 0; cursor:pointer; }
+
+    .btn {
+      display:inline-block; margin-top:6px; padding:8px 10px;
+      background:#1e90ff; color:#fff; border:none; border-radius:8px;
+      font-size:13px; cursor:pointer;
+      box-shadow:0 2px 8px rgba(30,144,255,.35);
+    }
+    .btn:hover { filter:brightness(.95); }
+
+    /* Popup (déjà stylée côté note.html, ici version simple) */
+    .maplibregl-popup { max-width: 300px; font-family: system-ui, sans-serif; }
+    .popup-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .popup-meta  { font-size: 13px; color: #666; margin-bottom: 6px; }
+    .popup-link  { display:inline-block; margin-top:6px; font-size:13px; color:#1e90ff; text-decoration:none; }
+    .popup-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <div class="control-panel">
-    <div style="font-weight:600; margin-bottom:6px;">Fond de carte</div>
-    <label><input type="radio" name="basemap" value="hybrid" checked> Satellite + frontières (Hybrid)</label>
+  <div class="basemap-control">
+    <strong>Fond de carte</strong>
+    <label><input type="radio" name="basemap" value="hybrid"> Satellite + frontières (Hybrid)</label>
     <label><input type="radio" name="basemap" value="streets"> OSM classique (Streets)</label>
-    <label><input type="radio" name="basemap" value="light"> Voyager-like (Light)</label>
+    <label><input type="radio" name="basemap" value="light" checked> Voyager-like (Light)</label>
     <label><input type="radio" name="basemap" value="dark"> Mode sombre (Dark)</label>
+    <button id="recenterEurope" class="btn" type="button">🌍 Recentrer Europe</button>
   </div>
 
-  <script src="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js"></script>
   <script>
-    // 👉 Mets ta clé MapTiler ici
+    // 🚨 Mets ta clé MapTiler ici
     const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
 
     // Styles MapTiler (vector)
     const STYLES = {
       hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
-      streets: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-      light:   `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair
-      dark:    `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
+      streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair
+      dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
     };
 
-    // Carte MapLibre
+    // 🎯 Vue Europe par défaut
+    const EUROPE_CENTER = [10, 50]; // lon, lat
+    const EUROPE_ZOOM   = 4.2;
+
+    // Carte
     const map = new maplibregl.Map({
       container: 'map',
-      style: STYLES.hybrid,           // défaut : Satellite + frontières
-      center: [0, 20],                // lon, lat
-      zoom: 2
+      style: STYLES.light,   // ✅ Light par défaut
+      center: EUROPE_CENTER, // ✅ Europe
+      zoom:   EUROPE_ZOOM
     });
 
-    // Contrôles zoom / rotation
+    // Contrôles zoom
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
-    // --- Masquer/Afficher les labels ---
+    // Labels visibles après changement de style
     function setLabelVisibility(visible) {
       const style = map.getStyle();
       if (!style || !style.layers) return;
@@ -103,34 +88,26 @@
       });
     }
 
-    // --- Gestion du sélecteur de fond ---
+    // Recentrer sur Europe (bouton + raccourci clavier "E")
+    function recenterEurope() {
+      map.easeTo({ center: EUROPE_CENTER, zoom: EUROPE_ZOOM, duration: 600 });
+    }
+    document.getElementById('recenterEurope').addEventListener('click', recenterEurope);
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'e') recenterEurope();
+    });
+
+    // Changement de fond
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         const choice = e.target.value;
-
-        if (choice === 'hybrid') {
-          map.setStyle(STYLES.hybrid);
-          map.once('styledata', () => setLabelVisibility(true));
-        }
-        if (choice === 'streets') {
-          map.setStyle(STYLES.streets);
-          map.once('styledata', () => setLabelVisibility(true));
-        }
-        if (choice === 'light') {
-          map.setStyle(STYLES.light);
-          map.once('styledata', () => setLabelVisibility(true));
-        }
-        if (choice === 'dark') {
-          map.setStyle(STYLES.dark);
-          map.once('styledata', () => setLabelVisibility(true));
-        }
-
-        // Ré-appliquer nos points quand le style change
-        map.once('load', () => addMarkersFromJSON());
+        map.setStyle(STYLES[choice]);
+        map.once('styledata', () => setLabelVisibility(true));
+        map.once('load', () => addMarkersFromJSON()); // réapplique les marqueurs
       });
     });
 
-    // --- Points depuis data.json ---
+    // Marqueurs depuis data.json
     let currentMarkers = [];
     function clearMarkers() {
       currentMarkers.forEach(m => m.remove());
@@ -142,15 +119,15 @@
       try {
         const res = await fetch('data.json');
         const items = await res.json();
-        const bounds = new maplibregl.LngLatBounds();
 
         items.forEach(item => {
           if (typeof item.lon === 'number' && typeof item.lat === 'number') {
+            // style du marqueur (tu peux changer taille/couleur ici)
             const el = document.createElement('div');
-            el.style.width = '12px';
-            el.style.height = '12px';
+            el.style.width = '14px';
+            el.style.height = '14px';
             el.style.borderRadius = '50%';
-            el.style.background = '#e63946';
+            el.style.background = '#1e90ff';
             el.style.border = '2px solid white';
             el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
             el.title = item.title || '';
@@ -160,32 +137,25 @@
               .addTo(map);
 
             const html = `
-              <div>
+              <div style="width:240px;">
                 <div class="popup-title">${item.title || '(Sans titre)'}</div>
                 ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
-                ${item.summary ? `<div class="popup-summary">${item.summary}</div>` : ''}
-                ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">Ouvrir la note</a>` : ''}
+                ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${item.summary}</div>` : ''}
+                ${item.noteUrl ? `<a class="popup-link" href="${item.noteUrl}" target="_blank" rel="noopener">📄 Ouvrir la note</a>` : ''}
               </div>
             `;
-
             const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
             marker.setPopup(popup);
             currentMarkers.push(marker);
-
-            bounds.extend([item.lon, item.lat]);
           }
         });
 
-        if (!bounds.isEmpty()) {
-          if (items.length === 1) map.easeTo({ center: bounds.getCenter(), zoom: 8 });
-          else map.fitBounds(bounds, { padding: 40, duration: 700 });
-        }
+        // ❌ plus de fitBounds ici : on garde la vue Europe
       } catch (e) {
         console.error('Erreur chargement data.json', e);
       }
     }
 
-    // Charger les points au démarrage
     map.on('load', () => addMarkersFromJSON());
   </script>
 </body>
