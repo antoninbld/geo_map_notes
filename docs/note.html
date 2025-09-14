@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Note</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 1.5em; }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    a { color: #1e90ff; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      padding: 8px 14px;
+      background: #1e90ff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+    .back-link:hover {
+      background: #1565c0;
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-link">⬅ Retour à la carte</a>
+  <div id="content">Chargement de la note...</div>
+
+  <script>
+    // Récupère l'ID passé dans l'URL (ex: note.html?id=la-brise-de-mer)
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+
+    if (id) {
+      fetch(`notes/${id}.md`)
+        .then(res => {
+          if (!res.ok) throw new Error("Note introuvable");
+          return res.text();
+        })
+        .then(md => {
+          document.getElementById("content").innerHTML = marked.parse(md);
+        })
+        .catch(err => {
+          document.getElementById("content").innerHTML = "<p style='color:red;'>Erreur : " + err.message + "</p>";
+        });
+    } else {
+      document.getElementById("content").innerHTML = "<p style='color:red;'>Aucune note spécifiée.</p>";
+    }
+  </script>
+</body>
+</html>
