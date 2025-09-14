@@ -91,6 +91,18 @@
       <div id="tagsBox" class="tags"></div>
     </div>
     <div class="filters-actions">
+
+    <div class="row">
+      <label>Pays</label>
+      <select id="filterCountry" multiple size="6" style="width:100%; border:1px solid #ddd; border-radius:8px; padding:6px;">
+        <!-- rempli dynamiquement -->
+      </select>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button id="selectAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
+        <button id="clearAllCountries"   class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
+      </div>
+    </div>
+      
       <button class="filters-apply" id="applyFilters">Appliquer</button>
       <button class="filters-reset" id="resetFilters">Réinitialiser</button>
     </div>
