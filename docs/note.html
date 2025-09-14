@@ -47,19 +47,26 @@
     const id = params.get("id");
 
     if (id) {
-      fetch(`notes/${id}.md`)
-        .then(res => {
-          if (!res.ok) throw new Error("Note introuvable");
-          return res.text();
-        })
-        .then(md => {
-          document.getElementById("content").innerHTML = marked.parse(md);
-        })
-        .catch(err => {
-          document.getElementById("content").innerHTML = "<p style='color:red;'>Erreur : " + err.message + "</p>";
-        });
-    } else {
-      document.getElementById("content").innerHTML = "<p style='color:red;'>Aucune note spécifiée.</p>";
+  // Utilise l'URL brute de GitHub pour charger la note .md
+  const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${id}.md`;
+
+  fetch(src, { cache: "no-store" })
+    .then(res => {
+      if (!res.ok) throw new Error("Note introuvable");
+      return res.text();
+    })
+    .then(md => {
+      document.getElementById("content").innerHTML = marked.parse(md);
+    })
+    .catch(err => {
+      document.getElementById("content").innerHTML =
+        "<p style='color:red;'>Erreur : " + err.message + "</p>";
+    });
+} else {
+  document.getElementById("content").innerHTML =
+    "<p style='color:red;'>Aucune note spécifiée.</p>";
+}
+    
     }
   </script>
 </body>
