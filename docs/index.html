@@ -177,6 +177,36 @@
       });
     }
 
+    // === Pays: bbox & helpers ===
+    let countriesBbox = {}; // nom -> [minLon, minLat, maxLon, maxLat]
+    
+    async function loadCountries(){
+      try{
+        const res = await fetch('countries-bbox.json', { cache: 'no-store' });
+        countriesBbox = await res.json();
+        buildCountrySelect();
+      }catch(e){
+        console.error('Erreur chargement countries-bbox.json', e);
+      }
+    }
+    
+    function buildCountrySelect(){
+      const sel = document.getElementById('filterCountry');
+      if (!sel) return;
+      sel.innerHTML = '';
+      Object.keys(countriesBbox).sort((a,b)=>a.localeCompare(b)).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+    }
+    
+    function pointInBbox(lon, lat, bbox){
+      const [minX, minY, maxX, maxY] = bbox;
+      return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
+    }
+  
     // Recentrages
     function recenterEurope() {
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
@@ -329,8 +359,21 @@
     document.getElementById('applyFilters')?.addEventListener('click', applyFilters);
     document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
 
+    // Pays: tout sélectionner / tout désélectionner
+    document.getElementById('selectAllCountries')?.addEventListener('click', () => {
+      const sel = document.getElementById('filterCountry');
+      if (!sel) return;
+      Array.from(sel.options).forEach(o => o.selected = true);
+    });
+    document.getElementById('clearAllCountries')?.addEventListener('click', () => {
+      const sel = document.getElementById('filterCountry');
+      if (!sel) return;
+      Array.from(sel.options).forEach(o => o.selected = false);
+    });
+    
     // Démarrage
     map.on('load', () => addMarkersFromJSON());
+    loadCountries();
   </script>
 </body>
 </html>
