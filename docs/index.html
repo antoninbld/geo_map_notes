@@ -37,13 +37,13 @@
 
     /* Bouton Filtres intégré au groupe de contrôles (en haut à droite) */
     .maplibregl-ctrl.filters-ctrl .filters-btn{
-      width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+      min-width:60px; height:30px; display:flex; align-items:center; justify-content:center;
       font-size:14px; background:#fff; border:none; cursor:pointer;
     }
 
     /* Panneau de filtres (pop-up) en haut à droite */
     .filters-panel{
-      position:absolute; top:60px; right:10px; z-index:10;
+      position:absolute; top:100px; right:10px; z-index:10;
       width:280px; max-height:60vh; overflow:auto;
       background:#fff; border-radius:12px; padding:12px;
       box-shadow:0 8px 24px rgba(0,0,0,.18); font-family:system-ui, sans-serif; font-size:14px;
@@ -153,6 +153,16 @@
           panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
         });
 
+        // Ferme le panneau filtres si on clique ailleurs
+        document.addEventListener('click', (e) => {
+          const panel = document.getElementById('filtersPanel');
+          const btn = document.querySelector('.filters-btn');
+          if (!panel || !btn) return;
+          if (panel.style.display === 'block' && !panel.contains(e.target) && !btn.contains(e.target)) {
+            panel.style.display = 'none';
+          }
+        });
+        
         group.appendChild(btn);
         this._container = group;
         return group;
@@ -366,7 +376,10 @@
     }
 
     // Branche les boutons du panneau filtres
-    document.getElementById('applyFilters')?.addEventListener('click', applyFilters);
+    document.getElementById('applyFilters')?.addEventListener('click', () => {
+      applyFilters();
+      document.getElementById('filtersPanel').style.display = 'none'; // ferme le panneau
+    });
     document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
 
     // Pays: tout sélectionner / tout désélectionner
