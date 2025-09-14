@@ -28,23 +28,21 @@
     <div style="font-weight:600; margin-bottom:6px;">Fond de carte</div>
     <label><input type="radio" name="basemap" value="hybrid" checked> Satellite + frontières (Hybrid)</label>
     <label><input type="radio" name="basemap" value="streets"> OSM classique (Streets)</label>
-    <label><input type="radio" name="basemap" value="light"> Voyager-like (Light, avec labels)</label>
-    <label><input type="radio" name="basemap" value="light-nolabels"> Voyager-like (Light, sans labels)</label>
+    <label><input type="radio" name="basemap" value="light"> Voyager-like (Light)</label>
+    <label><input type="radio" name="basemap" value="dark"> Mode sombre (Dark)</label>
   </div>
 
   <script src="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js"></script>
   <script>
     // 👉 Mets ta clé MapTiler ici
-    const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
+    const MAPTILER_KEY = "YOUR_MAPTILER_KEY";
 
-    // Styles MapTiler (vector) :
-    // - hybrid : satellite + labels/frontières prêts à l'emploi
-    // - streets : style OSM "classique"
-    // - basic/light : style clair proche d'un "Voyager-like"
+    // Styles MapTiler (vector)
     const STYLES = {
       hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
       streets: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-      light:   `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}` // clair
+      light:   `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair
+      dark:    `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
     };
 
     // Carte MapLibre
@@ -55,12 +53,11 @@
       zoom: 2
     });
 
-    // Ajout des contrôles natifs (zoom / rotation)
+    // Contrôles zoom / rotation
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
-    // --- Utilitaires pour (dés)activer les "labels" dans un style vectoriel ---
+    // --- Masquer/Afficher les labels ---
     function setLabelVisibility(visible) {
-      // Heuristique : masquer les couches de type symbole/texte communes
       const style = map.getStyle();
       if (!style || !style.layers) return;
       style.layers.forEach(layer => {
@@ -79,7 +76,7 @@
 
         if (choice === 'hybrid') {
           map.setStyle(STYLES.hybrid);
-          map.once('styledata', () => setLabelVisibility(true)); // hybrid a déjà ses labels
+          map.once('styledata', () => setLabelVisibility(true));
         }
         if (choice === 'streets') {
           map.setStyle(STYLES.streets);
@@ -89,9 +86,9 @@
           map.setStyle(STYLES.light);
           map.once('styledata', () => setLabelVisibility(true));
         }
-        if (choice === 'light-nolabels') {
-          map.setStyle(STYLES.light);
-          map.once('styledata', () => setLabelVisibility(false));
+        if (choice === 'dark') {
+          map.setStyle(STYLES.dark);
+          map.once('styledata', () => setLabelVisibility(true));
         }
 
         // Ré-appliquer nos points quand le style change
@@ -99,7 +96,7 @@
       });
     });
 
-    // --- Points depuis data.json (comme avant), sous forme de "Marker" DOM ---
+    // --- Points depuis data.json ---
     let currentMarkers = [];
     function clearMarkers() {
       currentMarkers.forEach(m => m.remove());
@@ -153,7 +150,7 @@
       }
     }
 
-    // Démarrer : attendre que le style soit prêt, puis charger les points
+    // Charger les points au démarrage
     map.on('load', () => addMarkersFromJSON());
   </script>
 </body>
