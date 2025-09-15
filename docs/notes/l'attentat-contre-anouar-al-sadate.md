@@ -44,7 +44,7 @@ URSS ne bronche pas ? Non -> période après-guerre du Kippour, relations avec l
 KGB: campagne de désinformation contre Sadate pour le salir (calomnies contre lui -> nazi) + faire croire à Sadate que les américains vont le lâcher au profit de Moubarak jugé plus fiable 
 Dans les services ont à cru très longtemps que les extrémistes ayant tue Sadate avaient été manipulé par Khadafi mais récemment preuves que le KGB a joué un rôle dans la mort de Sadate 
 -> a deux reprises à failli être liquidé (1980 avion transportant Sadate vers les US soudain dévié de sa route -> CIA lui a fait savoir qu’en avions de chasse libyen attendait le passage de l’avion) 
--> troisième tentative est la bonne et les vraies commanditaires se trouvaient à l’est: l’officier supérieur ayant donné les infos aux assassins sur le défilé était de longue date depuis l’époque Nasser enfaite un agent du KGB<img width="1213" height="1424" alt="image" src="https://github.com/user-attachments/assets/fc8877cc-2f9d-47a2-b0a4-7ec69c3cb598" />
+-> troisième tentative est la bonne et les vraies commanditaires se trouvaient à l’est: l’officier supérieur ayant donné les infos aux assassins sur le défilé était de longue date depuis l’époque Nasser enfaite un agent du KGB.
 
 
 ## Commentaires personnels
