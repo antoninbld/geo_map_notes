@@ -1,7 +1,7 @@
 ---
 id: 
 title: L'attentat contre Anouar al Sadate
-date: 
+date: 06/10/1981
 location:
   name: 
   lat: 30.064167
