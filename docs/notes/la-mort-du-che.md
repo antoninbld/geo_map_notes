@@ -10,7 +10,9 @@ tags: [ ]
 sources:
   - title: 
     url: 
-links: [ ]
+links: [[la-cia-et-le-putsch-de-septembre-1973-au-chili|Putsch au Chili (1973)]]
+Voir aussi : [[l'attentat-contre-anouar-al-sadate|Attentat contre Sadate]]
+
 ---
 
 ## Résumé
