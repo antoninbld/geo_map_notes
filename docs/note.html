@@ -79,6 +79,14 @@
     }
     body.dark blockquote{ border-left-color:#334155; background:rgba(255,255,255,.04); }
     img{ max-width:100%; height:auto; border-radius:8px; }
+
+    /* Style spécifique aux liens internes [[...]] */
+    .internal-link{
+      text-decoration: none;
+      border-bottom: 1px dashed currentColor;
+      padding-bottom: 1px;
+    }
+    .internal-link:hover{ text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -122,15 +130,13 @@
       if (text.startsWith('---')) {
         const end = text.indexOf('\n---', 3);
         if (end !== -1) {
-          const fm = text.slice(3, end).trim();         // contenu YAML entre les ---
-          text = text.slice(end + 4).trimStart();       // le reste du document
-          // Parsing minimal "clé: valeur" (une ligne par champ, sans objets imbriqués)
+          const fm = text.slice(3, end).trim();
+          text = text.slice(end + 4).trimStart();
           fm.split('\n').forEach(line => {
             const idx = line.indexOf(':');
             if (idx > -1) {
               const key = line.slice(0, idx).trim();
               let val = line.slice(idx + 1).trim();
-              // enlève guillemets éventuels
               if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
                 val = val.slice(1, -1);
               }
@@ -142,8 +148,19 @@
       return { meta, body: text };
     }
 
+    // Transforme les wiki-links [[id]] ou [[id|Label]] en liens Markdown classiques
+    function transformWikiLinks(md){
+      return md.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (match, rawId, label) => {
+        const id = String(rawId || '').trim();
+        if (!id) return match;
+        const text = String(label || id).trim();
+        const href = `note.html?id=${encodeURIComponent(id)}`;
+        return `[${text}](${href})`;
+      });
+    }
+
     async function loadNote(noteId){
-      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${noteId}.md`;
+      const src = `https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes/${encodeURIComponent(noteId)}.md`;
       const res = await fetch(src, { cache: "no-store" });
       if (!res.ok) throw new Error(`Note introuvable (HTTP ${res.status})`);
       const mdRaw = await res.text();
@@ -159,9 +176,17 @@
         $titleWrap.style.display = 'none';
       }
 
-      // 3) Conversion Markdown -> HTML
-      const html = marked.parse(body);
+      // 3) Support des liens internes [[...]]
+      const bodyWithLinks = transformWikiLinks(body);
+
+      // 4) Conversion Markdown -> HTML
+      const html = marked.parse(bodyWithLinks);
       $content.innerHTML = html;
+
+      // 5) Ajoute une classe CSS spéciale aux liens internes
+      $content.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+        a.classList.add('internal-link');
+      });
     }
 
     (async () => {
@@ -170,7 +195,7 @@
         await loadNote(id);
       }catch(err){
         $content.innerHTML = `<p style="color:#b91c1c;"><strong>Erreur :</strong> ${err.message}</p>
-                              <p>Chemin attendu : <code>docs/notes/${id||'votre-id'}.md</code></p>`;
+                              <p>Chemin attendu : <code>docs/notes/${(id?encodeURIComponent(id):'votre-id')}.md</code></p>`;
       }
     })();
   </script>
