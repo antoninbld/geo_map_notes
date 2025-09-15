@@ -10,7 +10,8 @@ tags: [ ]
 sources:
   - title: 
     url: 
-links: [ ]
+links:
+Voir aussi : [[la-mort-du-che|La mort du Che]]
 ---
 
 ## Résumé
