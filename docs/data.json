@@ -8,5 +8,45 @@
     "summary": "Note de test avec un court résumé pour voir le rendu.",
     "tags":["Corse", "France", "mafia"],
     "noteUrl": "note.html?id=la-brise-de-mer"
+  },
+  {
+    "id": "l'attentat-contre-anouar-al-sadate",
+    "title": "L'attentat contre Anouar al Sadate",
+    "lat": 30.064167,
+    "lon": 31.314722,
+    "locationName": "Le Caire, Egypte",
+    "summary": "",
+    "tags": [""],
+    "noteUrl": ""
+  },
+  {
+    "id": "l'affaire-conrad-kilian",
+    "title": "L'affaire Conrad Kilian",
+    "lat": 26.332778,
+    "lon": 13.425278,
+    "locationName": "Fezzan, Lybie",
+    "summary": "",
+    "tags": ["Pétrole"],
+    "noteUrl": ""
+  },
+  {
+    "id": "la-cia-et-le-putsch-de-septembre-1973-au-chili",
+    "title": "La CIA et le putsch de septembre 1973 au Chili",
+    "lat": -33.442410,
+    "lon": -70.653940,
+    "locationName": "Santiago, Chili",
+    "summary": "",
+    "tags": ["Coup d'État", "CIA", "USA"],
+    "noteUrl": ""
+  },
+  {
+    "id": "la-mort-du-che",
+    "title": "La mort du Che",
+    "lat": -18.79476,
+    "lon": -64.20143,
+    "locationName": "La Higuera, Bolivie",
+    "summary": "",
+    "tags": ["Cuba", "CIA", "USA", "URSS"],
+    "noteUrl": ""
   }
 ]
