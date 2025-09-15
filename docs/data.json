@@ -6,7 +6,7 @@
     "lon": 9.44965,
     "locationName": "Bastia, Corse",
     "summary": "Note de test avec un court résumé pour voir le rendu.",
-    "tags":["Corse", "France", "mafia"],
+    "tags": ["Corse", "France", "mafia"],
     "noteUrl": "note.html?id=la-brise-de-mer"
   },
   {
@@ -17,7 +17,7 @@
     "locationName": "Le Caire, Egypte",
     "summary": "",
     "tags": [""],
-    "noteUrl": ""
+    "noteUrl": "note.html?id=l'attentat-contre-anouar-al-sadate"
   },
   {
     "id": "l'affaire-conrad-kilian",
@@ -27,7 +27,7 @@
     "locationName": "Fezzan, Lybie",
     "summary": "",
     "tags": ["Pétrole"],
-    "noteUrl": ""
+    "noteUrl": "note.html?id=l'affaire-conrad-kilian"
   },
   {
     "id": "la-cia-et-le-putsch-de-septembre-1973-au-chili",
@@ -37,7 +37,7 @@
     "locationName": "Santiago, Chili",
     "summary": "",
     "tags": ["Coup d'État", "CIA", "USA"],
-    "noteUrl": ""
+    "noteUrl": "note.html?id=la-cia-et-le-putsch-de-septembre-1973-au-chili"
   },
   {
     "id": "la-mort-du-che",
@@ -47,6 +47,6 @@
     "locationName": "La Higuera, Bolivie",
     "summary": "",
     "tags": ["Cuba", "CIA", "USA", "URSS"],
-    "noteUrl": ""
+    "noteUrl": "note.html?id=la-mort-du-che"
   }
 ]
