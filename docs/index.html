@@ -71,8 +71,8 @@
   <div class="basemap-control">
     <strong>Map views</strong>
     <label><input type="radio" name="basemap" value="hybrid"> Satellite</label>
-    <label><input type="radio" name="basemap" value="streets"> Streets</label>
-    <label><input type="radio" name="basemap" value="light" checked> Light</label>
+    <label><input type="radio" name="basemap" value="streets" checked> Streets</label> <!-- ✅ checked ici -->
+    <label><input type="radio" name="basemap" value="light"> Light</label>
     <label><input type="radio" name="basemap" value="dark"> Dark</label>
 
     <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
@@ -121,14 +121,14 @@
     };
 
     // 🎯 Vues par défaut
-    const DEFAULT_ZOOM   = 4.2;       // même zoom pour EU & USA
+    const DEFAULT_ZOOM   = 3.8;       // même zoom pour EU & USA
     const EUROPE_CENTER  = [10, 50];  // lon, lat
     const USA_CENTER     = [-98.5, 39.8];
 
     // Carte
     const map = new maplibregl.Map({
       container: 'map',
-      style: STYLES.light,   // ✅ Light par défaut
+      style: STYLES.streets,   // ✅ Streets par défaut
       center: EUROPE_CENTER, // ✅ Europe au démarrage
       zoom:   DEFAULT_ZOOM
     });
