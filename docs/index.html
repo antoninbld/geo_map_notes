@@ -113,10 +113,9 @@
       <label>Tags</label>
       <div id="tagsBox" class="tags"></div>
     </div>
-    <div class="filters-actions">
-
     <div class="row">
-      <label>Pays</label>
+      <div class="filters-actions">
+          <label>Pays</label>
       <select id="filterCountry" multiple size="6" style="width:100%; border:1px solid #ddd; border-radius:8px; padding:6px;">
         <!-- rempli dynamiquement -->
       </select>
@@ -293,10 +292,8 @@
           drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
         }
       });
-
-        });
-      });
     });
+  });
 
     // === Données & Marqueurs & Filtres ===
     let allData = [];      // toutes les entrées JSON (chargées une fois)
