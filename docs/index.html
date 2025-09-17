@@ -65,8 +65,30 @@
     }
     .filters-apply{ background:#1e90ff; color:#fff; }
     .filters-reset{ background:#f3f4f6; }
+
+    /* Liens internes style Obsidian (panneau & popups) */
+    .internal-link {
+      text-decoration: none;
+      border-bottom: 1px dashed #1e90ff;
+    }
+    .internal-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Liens internes style Obsidian (utilisés dans les résumés et le panneau) */
+    .internal-link {
+      text-decoration: none;
+      border-bottom: 1px dashed #1e90ff;
+    }
+    .internal-link:hover {
+      text-decoration: underline;
+    }
+
+
+    
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
@@ -443,7 +465,17 @@
       document.getElementById('notePanel').style.display = 'none';
       clearLinks();
     };
-    
+
+    // --- Rendre les [[...]] cliquables dans les résumés (summary de data.json) ---
+    function renderWikiLinksInline(text){
+      if (!text) return '';
+      return text.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (m, rawId, label) => {
+        const id = String(rawId).trim();
+        const txt = (label || id).trim();
+        return `<a href="note.html?id=${encodeURIComponent(id)}" target="_blank" rel="noopener" class="internal-link">${txt}</a>`;
+      });
+    }
+  
     async function addMarkersFromJSON() {
       // charge data.json une seule fois
       if (allData.length === 0) {
@@ -488,7 +520,7 @@
             <div style="width:260px;">
               <div class="popup-title">${item.title || '(Sans titre)'}</div>
               ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
-              ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${item.summary}</div>` : ''}
+              ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${renderWikiLinksInline(item.summary)}</div>` : ''}
           
               <!-- Zone qui affichera les liens sortants détectés dans la note -->
               <div id="links-${item.id}" style="margin-top:8px; font-size:13px; color:#333;">
@@ -496,11 +528,12 @@
               </div>
           
           <button type="button"
-          onclick="openNoteInPanel('${item.id}')"
+          onclick="openNoteInPanel(${JSON.stringify(item.id)})"
           style="margin-top:6px;padding:8px 10px;background:#1e90ff;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(30,144,255,.35);">
-    🗂️ Ouvrir le résumé
-  </button>
-
+            🗂️ Ouvrir le résumé
+          </button>
+          </div>
+          
           `;
           const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
           marker.setPopup(popup);
