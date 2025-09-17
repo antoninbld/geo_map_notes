@@ -66,15 +66,6 @@
     .filters-apply{ background:#1e90ff; color:#fff; }
     .filters-reset{ background:#f3f4f6; }
 
-    /* Liens internes style Obsidian (panneau & popups) */
-    .internal-link {
-      text-decoration: none;
-      border-bottom: 1px dashed #1e90ff;
-    }
-    .internal-link:hover {
-      text-decoration: underline;
-    }
-
     /* Liens internes style Obsidian (utilisés dans les résumés et le panneau) */
     .internal-link {
       text-decoration: none;
@@ -84,8 +75,6 @@
       text-decoration: underline;
     }
 
-
-    
   </style>
 </head>
 
@@ -144,7 +133,7 @@
 
   <script>
     // 🔑 Mets ta clé MapTiler ici
-    const MAPTILER_KEY = "Ma clé";
+    const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
 
     // Styles MapTiler (vector)
     const STYLES = {
@@ -536,6 +525,12 @@
           
           `;
           const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
+          function offsetPopup([lon, lat]){
+            const c = map.getCenter();
+            const anchor = (lon < c.lng) ? 'right' : 'left';
+            popup.setOffset(anchor === 'right' ? [20, 0] : [-20, 0]).setAnchor(anchor);
+          }
+          popup.on('open', () => offsetPopup([item.lon, item.lat]));
           marker.setPopup(popup);
           
           // Quand la popup s’ouvre (ou au clic sur le marqueur), on calcule & dessine les liens
@@ -555,7 +550,13 @@
                     ${links.map(lid => {
                       const it = idToItem.get(lid);
                       const lbl = it?.title || lid;
-                      return `<li><a href="note.html?id=${encodeURIComponent(lid)}" target="_blank" rel="noopener">${lbl}</a></li>`;
+                      const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
+                        ? item.tags.filter(t => it.tags.includes(t))
+                        : [];
+                      const badge = commonTags.length
+                        ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
+                        : '';
+                      return `<li><a href="note.html?id=${encodeURIComponent(lid)}" target="_blank" rel="noopener">${lbl}</a>${badge}</li>`;
                     }).join('')}
                   </ul>
                   <div style="margin-top:6px;">
@@ -683,7 +684,7 @@
       if (panel) panel.style.display = 'none';
     
       // 🔽 Recentrer sur l’Europe
-      map.easeTo({ center: [10, 50], zoom: 4.2, duration: 600 });
+      map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
 
     
