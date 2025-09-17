@@ -737,6 +737,17 @@
       if (!sel) return;
       Array.from(sel.options).forEach(o => o.selected = false);
     });
+
+
+    // Fallback: délégation globale pour tous les boutons "Ouvrir le résumé"
+    document.addEventListener('click', (e) => {
+      const t = e.target;
+      if (!t || !t.id) return;
+      if (t.id.startsWith('open-')) {
+        const id = t.id.slice(5); // tout ce qui suit "open-"
+        if (id) openNoteInPanel(id);
+      }
+    });
     
     // Démarrage
     map.on('load', () => {
