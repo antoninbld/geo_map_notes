@@ -545,7 +545,14 @@
           const onOpen = async () => {
             // Récupère les ids liés présents en [[...]] dans le .md
             const links = await getOutgoingLinks(item.id);
-          
+
+            // Branche le bouton "Ouvrir le résumé" de cette popup
+            const openBtn = document.getElementById(`open-${item.id}`);
+            if (openBtn) {
+              openBtn.onclick = () => openNoteInPanel(item.id);
+            }
+
+            
             // Affiche la liste dans la popup (si toujours ouverte)
             const box = document.getElementById(`links-${item.id}`);
             if (box) {
