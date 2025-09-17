@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <!-- Pour rendre le Markdown dans le panneau interne -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
   <style>
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
@@ -67,6 +70,15 @@
 <body>
   <div id="map"></div>
 
+  <!-- Panneau de lecture interne -->
+  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:360px;max-height:80vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px;display:none;z-index:12;font-family:system-ui;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <strong id="npTitle" style="font-size:16px;">Résumé</strong>
+      <button id="npClose" type="button" style="border:none;background:#f3f4f6;border-radius:8px;padding:6px 10px;cursor:pointer;">✖</button>
+    </div>
+    <div id="npBody" style="font-size:14px;line-height:1.5;"></div>
+  </div>
+  
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
     <strong>Map views</strong>
@@ -340,6 +352,97 @@
       const src = map.getSource('note-links');
       if (src) src.setData({ type:'FeatureCollection', features:[] });
     } 
+
+
+    // --- Helpers "Obsidian" pour le panneau interne ---
+    
+    // Front-matter simple "clé: valeur"
+    function parseAndStripFrontMatter(text){
+      let meta = {};
+      if (text.startsWith('---')) {
+        const end = text.indexOf('\n---', 3);
+        if (end !== -1) {
+          const fm = text.slice(3, end).trim();
+          text = text.slice(end + 4).trimStart();
+          fm.split('\n').forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx > -1) {
+              const key = line.slice(0, idx).trim();
+              let val = line.slice(idx + 1).trim();
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+              meta[key] = val;
+            }
+          });
+        }
+      }
+      return { meta, body: text };
+    }
+    
+    // Transforme [[id]] ou [[id|Libellé]] en [texte](note.html?id=id)
+    // (puis Marked rendra en <a>)
+    function transformWikiLinks(md){
+      return md.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (m, rawId, label) => {
+        const id = String(rawId||'').trim();
+        if (!id) return m;
+        const txt = String(label||id).trim();
+        return `[${txt}](note.html?id=${encodeURIComponent(id)})`;
+      });
+    }
+    
+    // Ouvre une note dans le panneau (Markdown → HTML + navigation interne interceptée)
+    async function openNoteInPanel(noteId){
+      try{
+        const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+        const res = await fetch(url, { cache:'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const md = await res.text();
+        const { meta, body } = parseAndStripFrontMatter(md);
+        const html = marked.parse(transformWikiLinks(body));
+    
+        // Affichage
+        document.getElementById('npTitle').textContent =
+          (meta.title && meta.title.trim()) || (idToItem.get(noteId)?.title || noteId);
+        const $npBody = document.getElementById('npBody');
+        $npBody.innerHTML = html;
+        document.getElementById('notePanel').style.display = 'block';
+    
+        // Interception des liens internes du panneau
+        $npBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+          a.classList.add('internal-link');
+          a.addEventListener('click', (e) => {
+            e.preventDefault();
+            const href = a.getAttribute('href');
+            const id = decodeURIComponent(href.split('id=')[1] || '');
+            if (!id) return;
+    
+            // Charge la nouvelle note dans le panneau
+            openNoteInPanel(id);
+    
+            // Dessine les liens sur la carte + recadre
+            getOutgoingLinks(id).then(links => {
+              drawLinksFrom(id, links);
+              window.__lastLinksState = { id, links };
+              const b = new maplibregl.LngLatBounds();
+              const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
+              links.forEach(l => { const t = idToItem.get(l); if (t) b.extend([t.lon, t.lat]); });
+              if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+            });
+          });
+        });
+      }catch(err){
+        document.getElementById('npTitle').textContent = noteId;
+        document.getElementById('npBody').innerHTML = `<em style="color:#b91c1c;">Note introuvable (${err.message})</em>`;
+        document.getElementById('notePanel').style.display = 'block';
+      }
+    }
+    
+    // Fermer le panneau
+    document.getElementById('npClose').onclick = () => { 
+      document.getElementById('notePanel').style.display = 'none';
+      clearLinks();
+    };
     
     async function addMarkersFromJSON() {
       // charge data.json une seule fois
@@ -392,10 +495,12 @@
                 <em style="color:#666;">Liens sortants…</em>
               </div>
           
-              <a class="popup-link" 
-                 href="${item.noteUrl || `note.html?id=${encodeURIComponent(item.id)}`}" 
-                 target="_blank" rel="noopener">📄 Ouvrir la note</a>
-            </div>
+          <button type="button"
+          onclick="openNoteInPanel('${item.id}')"
+          style="margin-top:6px;padding:8px 10px;background:#1e90ff;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(30,144,255,.35);">
+    🗂️ Ouvrir le résumé
+  </button>
+
           `;
           const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
           marker.setPopup(popup);
