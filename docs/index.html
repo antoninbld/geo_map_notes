@@ -105,30 +105,40 @@
   <!-- Panneau Filtres (pop-up) -->
   <div id="filtersPanel" class="filters-panel">
     <h3>Filtres</h3>
+  
+    <!-- Recherche -->
     <div class="row">
       <label>Recherche</label>
       <input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" />
     </div>
+  
+    <!-- Tags -->
     <div class="row">
       <label>Tags</label>
       <div id="tagsBox" class="tags"></div>
     </div>
+  
+    <!-- Pays -->
     <div class="row">
-      <div class="filters-actions">
-          <label>Pays</label>
+      <label>Pays</label>
       <select id="filterCountry" multiple size="6" style="width:100%; border:1px solid #ddd; border-radius:8px; padding:6px;">
         <!-- rempli dynamiquement -->
       </select>
       <div style="display:flex; gap:8px; margin-top:6px;">
-        <button id="selectAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
-        <button id="clearAllCountries"   class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
+        <button id="selectAllCountries" class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
+        <button id="clearAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
       </div>
     </div>
-      
-      <button class="filters-apply" id="applyFilters">Appliquer</button>
-      <button class="filters-reset" id="resetFilters">Réinitialiser</button>
+  
+    <!-- Actions -->
+    <div class="row">
+      <div class="filters-actions">
+        <button class="filters-apply" id="applyFilters" type="button">Appliquer</button>
+        <button class="filters-reset" id="resetFilters" type="button">Réinitialiser</button>
+      </div>
     </div>
   </div>
+
 
   <script>
     // 🔑 Mets ta clé MapTiler ici
