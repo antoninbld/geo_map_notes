@@ -4,9 +4,12 @@
   <meta charset="utf-8" />
   <title>Carte interactive</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
-  <!-- Pour rendre le Markdown dans le panneau interne -->
+
+  <!-- Marked (pour le panneau interne Markdown) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
@@ -66,18 +69,14 @@
     .filters-apply{ background:#1e90ff; color:#fff; }
     .filters-reset{ background:#f3f4f6; }
 
-    /* Liens internes style Obsidian (utilisés dans les résumés et le panneau) */
+    /* Panneau interne (lecture des notes) */
     .internal-link {
       text-decoration: none;
       border-bottom: 1px dashed #1e90ff;
     }
-    .internal-link:hover {
-      text-decoration: underline;
-    }
-
+    .internal-link:hover { text-decoration: underline; }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
 
@@ -89,12 +88,12 @@
     </div>
     <div id="npBody" style="font-size:14px;line-height:1.5;"></div>
   </div>
-  
+
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
     <strong>Map views</strong>
     <label><input type="radio" name="basemap" value="hybrid"> Satellite</label>
-    <label><input type="radio" name="basemap" value="streets" checked> Streets</label> <!-- ✅ checked ici -->
+    <label><input type="radio" name="basemap" value="streets" checked> Streets</label>
     <label><input type="radio" name="basemap" value="light"> Light</label>
     <label><input type="radio" name="basemap" value="dark"> Dark</label>
 
@@ -103,21 +102,21 @@
   </div>
 
   <!-- Panneau Filtres (pop-up) -->
-  <div id="filtersPanel" class="filters-panel">
+  <div id="filtersPanel" class="filters-panel s-panel">
     <h3>Filtres</h3>
-  
+
     <!-- Recherche -->
     <div class="row">
       <label>Recherche</label>
       <input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" />
     </div>
-  
+
     <!-- Tags -->
     <div class="row">
       <label>Tags</label>
       <div id="tagsBox" class="tags"></div>
     </div>
-  
+
     <!-- Pays -->
     <div class="row">
       <label>Pays</label>
@@ -125,11 +124,11 @@
         <!-- rempli dynamiquement -->
       </select>
       <div style="display:flex; gap:8px; margin-top:6px;">
-        <button id="selectAllCountries" class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
-        <button id="clearAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
+        <button id="selectAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
+        <button id="clearAllCountries"   class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
       </div>
     </div>
-  
+
     <!-- Actions -->
     <div class="row">
       <div class="filters-actions">
@@ -139,37 +138,40 @@
     </div>
   </div>
 
-
   <script>
     // 🔑 Mets ta clé MapTiler ici
-    const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
+    const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN"; // remplace si besoin
 
     // Styles MapTiler (vector)
     const STYLES = {
       hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
       streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`, // clair (par défaut)
-      dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}` // sombre
+      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
+      dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
     };
 
-    // === Liens façon Obsidian entre notes ===
+    // === Liens façon Obsidian entre notes (globals) ===
     const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
     const idToItem = new Map();     // id -> item (depuis data.json)
     const linksCache = new Map();   // id -> [linkedId, ...]
     let linksSourceReady = false;   // source/layer pour les traits
-    
+    window.__lastLinksState = null; // dernier état dessiné
+
     // 🎯 Vues par défaut
-    const DEFAULT_ZOOM   = 3.8;       // même zoom pour EU & USA
-    const EUROPE_CENTER  = [10, 50];  // lon, lat
+    const DEFAULT_ZOOM   = 3.8;
+    const EUROPE_CENTER  = [10, 50];
     const USA_CENTER     = [-98.5, 39.8];
 
     // Carte
     const map = new maplibregl.Map({
       container: 'map',
-      style: STYLES.streets,   // ✅ Streets par défaut
-      center: EUROPE_CENTER, // ✅ Europe au démarrage
+      style: STYLES.streets,   // Streets par défaut
+      center: EUROPE_CENTER,   // Europe au démarrage
       zoom:   DEFAULT_ZOOM
     });
+
+    // (debug utile)
+    map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
 
     // Contrôles zoom (en haut à droite)
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
@@ -200,15 +202,12 @@
             panel.style.display = 'none';
           }
         });
-        
+
         group.appendChild(btn);
         this._container = group;
         return group;
       }
-      onRemove(){
-        this._container.remove();
-        this._map = undefined;
-      }
+      onRemove(){ this._container.remove(); this._map = undefined; }
     }
     map.addControl(new FilterControl(), 'top-right');
 
@@ -227,7 +226,7 @@
 
     // === Pays: bbox & helpers ===
     let countriesBbox = {}; // nom -> [minLon, minLat, maxLon, maxLat]
-    
+
     async function loadCountries(){
       try{
         const res = await fetch('countries-bbox.json', { cache: 'no-store' });
@@ -237,7 +236,7 @@
         console.error('Erreur chargement countries-bbox.json', e);
       }
     }
-    
+
     function buildCountrySelect(){
       const sel = document.getElementById('filterCountry');
       if (!sel) return;
@@ -267,7 +266,7 @@
       const [minX, minY, maxX, maxY] = bbox;
       return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
     }
-  
+
     // Recentrages
     function recenterEurope() {
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
@@ -285,96 +284,32 @@
       if (key === 'u') recenterUSA();
     });
 
-    // Changement de fond
+    // Changement de fond (robuste pour recréer la couche liens)
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         const choice = e.target.value;
         map.setStyle(STYLES[choice]);
-        map.once('styledata', () => setLabelVisibility(true));
-        map.once('load', () => {
-        // 1) Recrée les marqueurs et filtres
-        addMarkersFromJSON().then(applyFilters);
-      
-        // 2) ✅ Recrée la couche des liens et ré-affiche le dernier état
-        linksSourceReady = false;   // force la recréation
-        ensureLinksLayer();
-        if (window.__lastLinksState) {
-          drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
-        }
+
+        const rebuild = () => {
+          // 1) Recrée les marqueurs et filtres
+          addMarkersFromJSON().then(applyFilters);
+
+          // 2) Recrée la couche des liens + réaffiche le dernier état
+          linksSourceReady = false;
+          ensureLinksLayer();
+
+          if (window.__lastLinksState) {
+            const { id, links } = window.__lastLinksState;
+            drawLinksFrom(id, links);
+          }
+        };
+
+        map.once('load', rebuild);
+        map.once('styledata', rebuild);
       });
     });
-  });
 
-    // === Données & Marqueurs & Filtres ===
-    let allData = [];      // toutes les entrées JSON (chargées une fois)
-    let allMarkers = [];   // { item, marker }
-    let allTags = new Set();
-
-    function extractWikiLinks(mdText){
-      const found = new Set();
-      const re = /\[\[([^\]\|]+)(?:\|[^\]]+)?\]\]/g;
-      let m;
-      while ((m = re.exec(mdText)) !== null) {
-        const id = m[1].trim();
-        if (id) found.add(id);
-      }
-      return Array.from(found);
-    }
-    
-    async function getOutgoingLinks(noteId){
-      if (linksCache.has(noteId)) return linksCache.get(noteId);
-      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
-      const res = await fetch(url, { cache:'no-store' });
-      if (!res.ok) { linksCache.set(noteId, []); return []; }
-      const md = await res.text();
-      const ids = extractWikiLinks(md).filter(id => idToItem.has(id));
-      linksCache.set(noteId, ids);
-      return ids;
-    }
-    
-    function ensureLinksLayer(){
-      if (linksSourceReady) return;
-      if (!map.getSource('note-links')) {
-        map.addSource('note-links', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
-      }
-      if (!map.getLayer('note-links-line')) {
-        map.addLayer({
-          id:'note-links-line',
-          type:'line',
-          source:'note-links',
-          paint:{ 'line-color':'#1e90ff', 'line-width':2, 'line-opacity':0.8 }
-        });
-      }
-      linksSourceReady = true;
-    }
-    
-    function drawLinksFrom(noteId, linkedIds){
-      ensureLinksLayer();
-      const from = idToItem.get(noteId);
-      if (!from) return;
-      const features = [];
-      linkedIds.forEach(lid => {
-        const to = idToItem.get(lid);
-        if (!to) return;
-        features.push({
-          type:'Feature',
-          geometry:{ type:'LineString', coordinates:[[from.lon, from.lat],[to.lon, to.lat]] },
-          properties:{ from: noteId, to: lid }
-        });
-      });
-      const src = map.getSource('note-links');
-      src.setData({ type:'FeatureCollection', features });
-    }
-    
-    function clearLinks(){
-      const src = map.getSource('note-links');
-      if (src) src.setData({ type:'FeatureCollection', features:[] });
-    } 
-
-
-    // --- Helpers "Obsidian" pour le panneau interne ---
-    
-    // Front-matter simple "clé: valeur"
+    // === Helpers Obsidian/panneau ===
     function parseAndStripFrontMatter(text){
       let meta = {};
       if (text.startsWith('---')) {
@@ -397,9 +332,7 @@
       }
       return { meta, body: text };
     }
-    
-    // Transforme [[id]] ou [[id|Libellé]] en [texte](note.html?id=id)
-    // (puis Marked rendra en <a>)
+
     function transformWikiLinks(md){
       return md.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (m, rawId, label) => {
         const id = String(rawId||'').trim();
@@ -408,8 +341,7 @@
         return `[${txt}](note.html?id=${encodeURIComponent(id)})`;
       });
     }
-    
-    // Ouvre une note dans le panneau (Markdown → HTML + navigation interne interceptée)
+
     async function openNoteInPanel(noteId){
       try{
         const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
@@ -418,14 +350,13 @@
         const md = await res.text();
         const { meta, body } = parseAndStripFrontMatter(md);
         const html = marked.parse(transformWikiLinks(body));
-    
-        // Affichage
+
         document.getElementById('npTitle').textContent =
           (meta.title && meta.title.trim()) || (idToItem.get(noteId)?.title || noteId);
         const $npBody = document.getElementById('npBody');
         $npBody.innerHTML = html;
         document.getElementById('notePanel').style.display = 'block';
-    
+
         // Interception des liens internes du panneau
         $npBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
           a.classList.add('internal-link');
@@ -434,11 +365,9 @@
             const href = a.getAttribute('href');
             const id = decodeURIComponent(href.split('id=')[1] || '');
             if (!id) return;
-    
-            // Charge la nouvelle note dans le panneau
+
             openNoteInPanel(id);
-    
-            // Dessine les liens sur la carte + recadre
+
             getOutgoingLinks(id).then(links => {
               drawLinksFrom(id, links);
               window.__lastLinksState = { id, links };
@@ -455,14 +384,15 @@
         document.getElementById('notePanel').style.display = 'block';
       }
     }
-    
-    // Fermer le panneau
-    document.getElementById('npClose').onclick = () => { 
+    // rendre accessible globalement si besoin
+    window.openNoteInPanel = openNoteInPanel;
+
+    document.getElementById('npClose').onclick = () => {
       document.getElementById('notePanel').style.display = 'none';
       clearLinks();
     };
 
-    // --- Rendre les [[...]] cliquables dans les résumés (summary de data.json) ---
+    // --- [[...]] cliquables dans les résumés (summary de data.json) ---
     function renderWikiLinksInline(text){
       if (!text) return '';
       return text.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (m, rawId, label) => {
@@ -471,7 +401,94 @@
         return `<a href="note.html?id=${encodeURIComponent(id)}" target="_blank" rel="noopener" class="internal-link">${txt}</a>`;
       });
     }
-  
+
+    // === Liens façon Obsidian entre notes ===
+    function extractWikiLinks(mdText){
+      const found = new Set();
+      const re = /\[\[([^\]\|]+)(?:\|[^\]]+)?\]\]/g;
+      let m;
+      while ((m = re.exec(mdText)) !== null) {
+        const id = m[1].trim();
+        if (id) found.add(id);
+      }
+      return Array.from(found);
+    }
+
+    async function getOutgoingLinks(noteId){
+      if (linksCache.has(noteId)) return linksCache.get(noteId);
+      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+      const res = await fetch(url, { cache:'no-store' });
+      if (!res.ok) { linksCache.set(noteId, []); return []; }
+      const md = await res.text();
+      const ids = extractWikiLinks(md).filter(id => idToItem.has(id));
+      linksCache.set(noteId, ids);
+      return ids;
+    }
+
+    function ensureLinksLayer(){
+      // Ajoute/replace la source + layer quand le style est prêt
+      const add = () => {
+        if (!map.getSource('note-links')) {
+          map.addSource('note-links', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+        if (!map.getLayer('note-links-line')) {
+          map.addLayer({
+            id: 'note-links-line',
+            type: 'line',
+            source: 'note-links',
+            paint: {
+              'line-color': '#1e90ff',
+              'line-width': 2,
+              'line-opacity': 0.85
+            }
+          });
+        }
+        try { map.moveLayer('note-links-line'); } catch {}
+        linksSourceReady = true;
+      };
+
+      if (!map.isStyleLoaded()) {
+        const onceAdd = () => { add(); map.off('styledata', onceAdd); };
+        map.once('load', add);
+        map.on('styledata', onceAdd);
+        return;
+      }
+      add();
+    }
+
+    function drawLinksFrom(noteId, linkedIds){
+      if (!map.getSource('note-links') || !map.getLayer('note-links-line')) {
+        ensureLinksLayer();
+      }
+      const from = idToItem.get(noteId);
+      if (!from) return;
+      const features = [];
+      linkedIds.forEach(lid => {
+        const to = idToItem.get(lid);
+        if (!to) return;
+        features.push({
+          type:'Feature',
+          geometry:{ type:'LineString', coordinates:[[from.lon, from.lat],[to.lon, to.lat]] },
+          properties:{ from: noteId, to: lid }
+        });
+      });
+      const src = map.getSource('note-links');
+      src.setData({ type:'FeatureCollection', features });
+    }
+
+    function clearLinks(){
+      const src = map.getSource('note-links');
+      if (src) src.setData({ type:'FeatureCollection', features:[] });
+    }
+
+    // === Données & Marqueurs & Filtres ===
+    let allData = [];      // toutes les entrées JSON (chargées une fois)
+    let allMarkers = [];   // { item, marker }
+    let allTags = new Set();
+
     async function addMarkersFromJSON() {
       // charge data.json une seule fois
       if (allData.length === 0) {
@@ -488,7 +505,6 @@
       idToItem.clear();
       allData.forEach(it => { if (it && it.id) idToItem.set(it.id, it); });
 
-      
       // nettoie anciens marqueurs
       allMarkers.forEach(({marker}) => marker.remove());
       allMarkers = [];
@@ -511,48 +527,48 @@
             .setLngLat([item.lon, item.lat])
             .addTo(map);
 
-
           const html = `
             <div style="width:260px;">
               <div class="popup-title">${item.title || '(Sans titre)'}</div>
               ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
               ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${renderWikiLinksInline(item.summary)}</div>` : ''}
-          
-              <!-- Zone qui affichera les liens sortants détectés dans la note -->
+
+              <!-- Zone liens sortants -->
               <div id="links-${item.id}" style="margin-top:8px; font-size:13px; color:#333;">
                 <em style="color:#666;">Liens sortants…</em>
               </div>
-          
-          <button type="button"
-                  id="open-${item.id}"
-                  style="margin-top:6px;padding:8px 10px;background:#1e90ff;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(30,144,255,.35);">
-            🗂️ Ouvrir le résumé
-          </button>
 
-          </div>
-          
+              <button type="button"
+                      id="open-${item.id}"
+                      style="margin-top:6px;padding:8px 10px;background:#1e90ff;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(30,144,255,.35);">
+                🗂️ Ouvrir le résumé
+              </button>
+            </div>
           `;
           const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
+
+          // Décaler la popup pour moins masquer les traits
           function offsetPopup([lon, lat]){
             const c = map.getCenter();
             const anchor = (lon < c.lng) ? 'right' : 'left';
             popup.setOffset(anchor === 'right' ? [20, 0] : [-20, 0]).setAnchor(anchor);
           }
           popup.on('open', () => offsetPopup([item.lon, item.lat]));
+
           marker.setPopup(popup);
-          
-          // Quand la popup s’ouvre (ou au clic sur le marqueur), on calcule & dessine les liens
+
+          // collecte des tags
+          if (Array.isArray(item.tags)) item.tags.forEach(t => allTags.add(String(t)));
+
+          // Quand la popup s’ouvre (ou au clic), on calcule & dessine les liens
           const onOpen = async () => {
+            // Branche le bouton interne
+            const openBtn = document.getElementById(`open-${item.id}`);
+            if (openBtn) openBtn.onclick = () => openNoteInPanel(item.id);
+
             // Récupère les ids liés présents en [[...]] dans le .md
             const links = await getOutgoingLinks(item.id);
 
-            // Branche le bouton "Ouvrir le résumé" de cette popup
-            const openBtn = document.getElementById(`open-${item.id}`);
-            if (openBtn) {
-              openBtn.onclick = () => openNoteInPanel(item.id);
-            }
-
-            
             // Affiche la liste dans la popup (si toujours ouverte)
             const box = document.getElementById(`links-${item.id}`);
             if (box) {
@@ -575,14 +591,13 @@
                     }).join('')}
                   </ul>
                   <div style="margin-top:6px;">
-                    <button type="button" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;">
+                    <button type="button" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;" id="zoom-links-${item.id}">
                       🔎 Voir les liés
                     </button>
                   </div>
                 `;
-          
-                // Branche le bouton pour recadrer sur le groupe (source + liés)
-                const btn = box.querySelector('button');
+
+                const btn = box.querySelector(`#zoom-links-${item.id}`);
                 if (btn) {
                   btn.onclick = () => {
                     const b = new maplibregl.LngLatBounds();
@@ -593,26 +608,18 @@
                 }
               }
             }
-          
+
             // Trace les segments sur la carte
             drawLinksFrom(item.id, links);
-            // Mémorise le dernier état pour ré-afficher après changement de style
+            // Mémorise l’état pour recréer après changement de style
             window.__lastLinksState = { id: item.id, links };
-
           };
-          
-          // Déclenche au clic sur le marqueur et à l’ouverture de la popup
+
           el.addEventListener('click', onOpen);
           try { popup.on('open', onOpen); } catch {}
-          
-          // Efface les traits à la fermeture
           try { popup.on('close', clearLinks); } catch {}
-          
 
           allMarkers.push({ item, marker });
-
-          // collecte des tags
-          if (Array.isArray(item.tags)) item.tags.forEach(t => allTags.add(String(t)));
         }
       });
 
@@ -646,26 +653,26 @@
     function applyFilters(){
       const q = (document.getElementById('filterQuery')?.value || '').toLowerCase().trim();
       const selected = Array.from(document.querySelectorAll('input[name="tag"]:checked')).map(i => i.value);
-    
+
       // 🔽 Pays sélectionnés (multiselect)
       const sel = document.getElementById('filterCountry');
       const selectedCountries = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
-    
+
       allMarkers.forEach(({ item, marker }) => {
         let visible = true;
-    
+
         // Filtre texte
         if (q) {
           const hay = [item.title||'', item.locationName||'', item.summary||''].join(' ').toLowerCase();
           visible = hay.includes(q);
         }
-    
+
         // Filtre tags (ET logique)
         if (visible && selected.length) {
           const itags = Array.isArray(item.tags) ? item.tags.map(String) : [];
           visible = selected.every(t => itags.includes(t));
         }
-    
+
         // 🔽 Filtre pays (OU logique entre pays sélectionnés)
         if (visible && selectedCountries.length) {
           const lon = item.lon, lat = item.lat;
@@ -674,50 +681,49 @@
             return bbox ? pointInBbox(lon, lat, bbox) : false;
           });
         }
-    
+
         marker.getElement().style.display = visible ? '' : 'none';
       });
     }
-    
+
     function resetFilters(){
       // Réinitialiser recherche
       const q = document.getElementById('filterQuery');
       if (q) q.value = '';
-    
+
       // Réinitialiser tags
       document.querySelectorAll('input[name="tag"]:checked').forEach(cb => cb.checked = false);
-    
+
       // Réinitialiser pays
       const sel = document.getElementById('filterCountry');
       if (sel) Array.from(sel.options).forEach(o => o.selected = false);
-    
+
       // Réafficher tous les marqueurs
       allMarkers.forEach(({marker}) => marker.getElement().style.display = '');
-    
+
       // Fermer le panneau
       const panel = document.getElementById('filtersPanel');
       if (panel) panel.style.display = 'none';
-    
-      // 🔽 Recentrer sur l’Europe
+
+      // 🔽 Recentrer sur l’Europe (constants)
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
 
-    
     function zoomToVisibleMarkers(){
       const visibles = allMarkers.filter(({marker}) => marker.getElement().style.display !== 'none');
-      if (visibles.length === 0) return; // rien à recadrer
-    
+      if (visibles.length === 0) return;
+
       if (visibles.length === 1) {
         const [lon, lat] = visibles[0].marker.getLngLat().toArray();
         map.easeTo({ center: [lon, lat], zoom: 8, duration: 600 });
         return;
       }
-    
+
       const bounds = new maplibregl.LngLatBounds();
       visibles.forEach(({marker}) => bounds.extend(marker.getLngLat()));
       map.fitBounds(bounds, { padding: 60, duration: 700 });
     }
-    
+
     // Branche les boutons du panneau filtres
     document.getElementById('applyFilters')?.addEventListener('click', () => {
       applyFilters();
@@ -725,7 +731,7 @@
       document.getElementById('filtersPanel').style.display = 'none'; // ferme le panneau
     });
     document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
-    
+
     // Pays: tout sélectionner / tout désélectionner
     document.getElementById('selectAllCountries')?.addEventListener('click', () => {
       const sel = document.getElementById('filterCountry');
@@ -738,23 +744,15 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-
-    // Fallback: délégation globale pour tous les boutons "Ouvrir le résumé"
+    // Fallback global pour les boutons "Ouvrir le résumé" si jamais
     document.addEventListener('click', (e) => {
       const t = e.target;
       if (!t || !t.id) return;
       if (t.id.startsWith('open-')) {
-        const id = t.id.slice(5); // tout ce qui suit "open-"
+        const id = t.id.slice(5);
         if (id) openNoteInPanel(id);
       }
     });
-    
-    // Démarrage
-    map.on('load', () => {
-      addMarkersFromJSON();
-      ensureLinksLayer(); // 🔧 prépare la couche des liens dès le début
-    });
-    loadCountries();
 
     // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
     map.on('click', (e) => {
@@ -764,7 +762,16 @@
         clearLinks();
       }
     });
-    </script>
-    </body>
-    </html>
 
+    // Démarrage
+    map.on('load', () => {
+      addMarkersFromJSON().then(applyFilters);
+      ensureLinksLayer();
+      if (window.__lastLinksState) {
+        drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
+      }
+    });
+    loadCountries();
+  </script>
+</body>
+</html>
