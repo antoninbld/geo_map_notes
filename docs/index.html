@@ -260,8 +260,17 @@
         map.setStyle(STYLES[choice]);
         map.once('styledata', () => setLabelVisibility(true));
         map.once('load', () => {
-          // réapplique les marqueurs et réapplique les filtres après reload du style
-          addMarkersFromJSON().then(applyFilters);
+        // 1) Recrée les marqueurs et filtres
+        addMarkersFromJSON().then(applyFilters);
+      
+        // 2) ✅ Recrée la couche des liens et ré-affiche le dernier état
+        linksSourceReady = false;   // force la recréation
+        ensureLinksLayer();
+        if (window.__lastLinksState) {
+          drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
+        }
+      });
+
         });
       });
     });
@@ -433,6 +442,9 @@
           
             // Trace les segments sur la carte
             drawLinksFrom(item.id, links);
+            // Mémorise le dernier état pour ré-afficher après changement de style
+            window.__lastLinksState = { id: item.id, links };
+
           };
           
           // Déclenche au clic sur le marqueur et à l’ouverture de la popup
@@ -573,9 +585,12 @@
     });
     
     // Démarrage
-    map.on('load', () => addMarkersFromJSON());
+    map.on('load', () => {
+      addMarkersFromJSON();
+      ensureLinksLayer(); // 🔧 prépare la couche des liens dès le début
+    });
     loadCountries();
-    
+
     // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
     map.on('click', (e) => {
       const path = e.originalEvent?.composedPath?.() || [];
