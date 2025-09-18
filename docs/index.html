@@ -75,19 +75,46 @@
       border-bottom: 1px dashed #1e90ff;
     }
     .internal-link:hover { text-decoration: underline; }
+
+    /* Liens internes style Obsidian (panel + résumés) */
+    .internal-link{ text-decoration:none; border-bottom:1px dashed #1e90ff; }
+    .internal-link:hover{ text-decoration:underline; }
+    
   </style>
 </head>
 <body>
   <div id="map"></div>
 
   <!-- Panneau de lecture interne -->
-  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:360px;max-height:80vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px;display:none;z-index:12;font-family:system-ui;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <strong id="npTitle" style="font-size:16px;">Résumé</strong>
-      <button id="npClose" type="button" style="border:none;background:#f3f4f6;border-radius:8px;padding:6px 10px;cursor:pointer;">✖</button>
-    </div>
-    <div id="npBody" style="font-size:14px;line-height:1.5;"></div>
+  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:380px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
+  <!-- En-tête jaune -->
+  <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:2px solid #0f172a33;">
+    <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
+    <div id="npMeta"  style="font-size:12px;opacity:.8;margin-top:2px;">Pays, ville</div>
+    <div id="npRecap" style="font-size:13px;margin-top:8px;">—</div>
   </div>
+
+  <!-- Corps clair -->
+  <div style="padding:10px 12px;">
+    <div style="border:2px solid #0f172a33;border-radius:10px;padding:10px;background:#fef9c3;">
+      <div style="font-weight:700;margin-bottom:6px;">Résumé</div>
+      <div id="npSummary" style="font-size:14px;line-height:1.55;"></div>
+      <hr style="border:none;height:1px;background:#0f172a22;margin:10px 0;">
+      <div style="font-weight:700;margin-bottom:6px;">Note complète</div>
+      <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
+    </div>
+
+    <div id="npLinksWrap" style="margin-top:12px;">
+      <div style="font-weight:700;margin:10px 0 6px;">Liens sortants</div>
+      <div id="npLinks" style="font-size:14px;"></div>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
+        <button id="npClose" type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;margin-left:auto;">✖ Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
@@ -387,72 +414,98 @@
     // rendre accessible globalement si besoin
     window.openNoteInPanel = openNoteInPanel;
 
-    // Ouvre le RÉSUMÉ (depuis data.json) dans le panneau, avec liens [[...]] cliquables
+    // Ouvre le RÉSUMÉ + la NOTE COMPLÈTE (Markdown) dans le panneau
     async function openSummaryInPanel(noteId){
-      const item = idToItem.get(noteId);
+      const item   = idToItem.get(noteId);
       const $panel = document.getElementById('notePanel');
       const $title = document.getElementById('npTitle');
-      const $body  = document.getElementById('npBody');
+      const $meta  = document.getElementById('npMeta');
+      const $recap = document.getElementById('npRecap');
+      const $sum   = document.getElementById('npSummary');
+      const $md    = document.getElementById('npMd');
+      const $links = document.getElementById('npLinks');
+      const $fit   = document.getElementById('npFit');
     
+      // Sécurité
       if (!item) {
         $title.textContent = noteId;
-        $body.innerHTML = `<em style="color:#b91c1c;">Résumé introuvable pour cet id.</em>`;
+        $meta.textContent  = '';
+        $recap.textContent = '';
+        $sum.innerHTML = `<em style="color:#b91c1c;">Résumé introuvable pour cet id.</em>`;
+        $md.innerHTML  = '';
+        $links.innerHTML = '';
         $panel.style.display = 'block';
         return;
       }
     
-      // 1) Titre + résumé (avec [[...]] -> liens)
+      // ---- En-tête : titre + meta + recap
       $title.textContent = item.title || noteId;
-      const summaryHTML = item.summary
-        ? renderWikiLinksInline(item.summary)
-        : '<em style="color:#777;">Aucun résumé.</em>';
+      $meta.textContent  = item.locationName || '';
+      // "recap" optionnel depuis data.json (sinon vide)
+      $recap.innerHTML   = item.recap ? renderWikiLinksInline(item.recap) : '';
     
-      // 2) Liens sortants (issus des [[...]] du FICHIER .md complet)
-      const links = await getOutgoingLinks(noteId);
-      const linksListHTML = links.length
-        ? `
-          <div style="font-weight:600; margin:14px 0 6px;">Liens sortants</div>
+      // ---- Résumé (data.json) avec [[...]] cliquables
+      $sum.innerHTML = item.summary
+        ? renderWikiLinksInline(item.summary)
+        : '<em style="color:#777;">—</em>';
+    
+      // ---- NOTE COMPLÈTE : on va lire le .md, transformer [[...]], puis marked.parse
+      let links = [];
+      try {
+        const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+        const res = await fetch(url, { cache:'no-store' });
+        if (res.ok) {
+          const mdRaw = await res.text();
+          const { body } = parseAndStripFrontMatter(mdRaw);
+    
+          // Liste des ids liés (pour traits + section "Liens sortants")
+          links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
+    
+          // Rendu HTML de la note
+          const htmlNote = marked.parse(transformWikiLinks(body));
+          $md.innerHTML = htmlNote;
+        } else {
+          $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
+        }
+      } catch(err){
+        $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
+      }
+    
+      // ---- Section "Liens sortants"
+      if (!links.length) {
+        $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
+      } else {
+        $links.innerHTML = `
           <ul style="margin:0; padding-left:18px;">
             ${links.map(lid => {
               const it = idToItem.get(lid);
               const lbl = it?.title || lid;
-              // Tags partagés (pour "pourquoi c'est lié")
               const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
-                  ? item.tags.filter(t => it.tags.includes(t))
-                  : [];
+                ? item.tags.filter(t => it.tags.includes(t))
+                : [];
               const badge = commonTags.length
-                  ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
-                  : '';
+                ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
+                : '';
               return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
             }).join('')}
           </ul>
-          <div style="margin-top:8px;">
-            <button type="button" id="fit-links-${noteId}"
-                    style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;">
-              🔎 Voir les liés
-            </button>
-            <button type="button" id="open-full-${noteId}"
-                    style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer; margin-left:6px;">
-              📄 Note complète
-            </button>
-          </div>
-        `
-        : `<div style="margin-top:12px; color:#888;">Aucun lien sortant.</div>`;
+        `;
+      }
     
-      $body.innerHTML = `
-        <div style="font-size:14px; line-height:1.55;">${summaryHTML}</div>
-        ${linksListHTML}
-      `;
+      // ---- Affichage panneau
       $panel.style.display = 'block';
     
-      // 3) Navigation interne dans le panneau (les <a href="note.html?id=...">)
-      $body.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+      // ---- Navigation interne dans TOUT le panneau (résumé + note complète + liens)
+      const $panelBody = document.getElementById('notePanel');
+      $panelBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+        a.classList.add('internal-link');
         a.addEventListener('click', (e) => {
           e.preventDefault();
           const href = a.getAttribute('href');
           const id = decodeURIComponent(href.split('id=')[1] || '');
           if (!id) return;
-          openSummaryInPanel(id); // 🔁 navigue de résumé en résumé
+          openSummaryInPanel(id); // navigue vers l'autre note dans le panneau
+          // dessine traits + recadre
           getOutgoingLinks(id).then(lnk => {
             drawLinksFrom(id, lnk);
             window.__lastLinksState = { id, links: lnk };
@@ -464,30 +517,25 @@
         });
       });
     
-      // 4) Bouton "Voir les liés" => recadrer
-      const fitBtn = document.getElementById(`fit-links-${noteId}`);
-      if (fitBtn) {
-        fitBtn.onclick = () => {
+      // ---- Boutons "Voir les liés" & "Fermer"
+      if ($fit) {
+        $fit.onclick = () => {
           const b = new maplibregl.LngLatBounds();
           const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
           links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
           if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
         };
       }
+      document.getElementById('npClose').onclick = () => {
+        document.getElementById('notePanel').style.display = 'none';
+        clearLinks();
+      };
     
-      // 5) Bouton "Note complète" (ouvre note.html dans un onglet)
-      const fullBtn = document.getElementById(`open-full-${noteId}`);
-      if (fullBtn) fullBtn.onclick = () => window.open(`note.html?id=${encodeURIComponent(noteId)}`, '_blank');
-    
-      // 6) Dessiner/ mémoriser les traits pour la note courante
+      // ---- Traits & état mémorisé
       drawLinksFrom(noteId, links);
       window.__lastLinksState = { id: noteId, links };
-    }   
-    
-    document.getElementById('npClose').onclick = () => {
-      document.getElementById('notePanel').style.display = 'none';
-      clearLinks();
-    };
+    }
+
 
     // --- [[...]] cliquables dans les résumés (summary de data.json) ---
     function renderWikiLinksInline(text){
