@@ -86,35 +86,39 @@
   <div id="map"></div>
 
   <!-- Panneau de lecture interne -->
-  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:380px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
-  <!-- En-tête jaune -->
-  <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:2px solid #0f172a33;">
-    <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
-    <div id="npMeta"  style="font-size:12px;opacity:.8;margin-top:2px;">Pays, ville</div>
-    <div id="npRecap" style="font-size:13px;margin-top:8px;">—</div>
-  </div>
-
-  <!-- Corps clair -->
-  <div style="padding:10px 12px;">
-    <div style="border:2px solid #0f172a33;border-radius:10px;padding:10px;background:#fef9c3;">
-      <div style="font-weight:700;margin-bottom:6px;">Résumé</div>
-      <div id="npSummary" style="font-size:14px;line-height:1.55;"></div>
-      <hr style="border:none;height:1px;background:#0f172a22;margin:10px 0;">
-      <div style="font-weight:700;margin-bottom:6px;">Note complète</div>
-      <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
+  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:420px;max-height:90vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
+    <!-- En-tête jaune -->
+    <div id="npHeader" style="background:#facc15;padding:12px 14px;border-radius:12px 12px 0 0;border-bottom:2px solid #0f172a22;">
+      <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+        <div id="npMeta"  style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:14px;line-height:1">📍</span><span id="npPlace">Pays, ville</span>
+        </div>
+        <div id="npDate"  style="font-size:12px;opacity:.8;margin-left:auto;">—</div>
+      </div>
+      <div id="npRecap" style="font-size:13px;margin-top:8px;"> </div>
     </div>
-
-    <div id="npLinksWrap" style="margin-top:12px;">
-      <div style="font-weight:700;margin:10px 0 6px;">Liens sortants</div>
-      <div id="npLinks" style="font-size:14px;"></div>
-      <div style="margin-top:8px;display:flex;gap:8px;">
-        <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
-        <button id="npClose" type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;margin-left:auto;">✖ Fermer</button>
+  
+    <!-- Corps clair (marges homogènes) -->
+    <div style="padding:12px 14px;">
+      <div id="npCard" style="border:2px solid #0f172a22;border-radius:10px;padding:12px;background:#fef9c3;">
+        <!-- Petite phrase “récap” (optionnelle) -->
+        <div id="npSummary" style="font-size:14px;line-height:1.55;margin-bottom:10px;"></div>
+        <!-- Markdown complet de la note -->
+        <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
+      </div>
+  
+      <!-- Liens sortants -->
+      <div id="npLinksWrap" style="margin-top:12px;">
+        <div style="font-weight:700;margin:10px 0 6px;">Liens sortants</div>
+        <div id="npLinks" style="font-size:14px;"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
+          <button id="npClose" type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;margin-left:auto;">✖ Fermer</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
 
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
@@ -414,127 +418,145 @@
     // rendre accessible globalement si besoin
     window.openNoteInPanel = openNoteInPanel;
 
-    // Ouvre le RÉSUMÉ + la NOTE COMPLÈTE (Markdown) dans le panneau
-    async function openSummaryInPanel(noteId){
-      const item   = idToItem.get(noteId);
-      const $panel = document.getElementById('notePanel');
-      const $title = document.getElementById('npTitle');
-      const $meta  = document.getElementById('npMeta');
-      const $recap = document.getElementById('npRecap');
-      const $sum   = document.getElementById('npSummary');
-      const $md    = document.getElementById('npMd');
-      const $links = document.getElementById('npLinks');
-      const $fit   = document.getElementById('npFit');
-    
-      // Sécurité
-      if (!item) {
-        $title.textContent = noteId;
-        $meta.textContent  = '';
-        $recap.textContent = '';
-        $sum.innerHTML = `<em style="color:#b91c1c;">Résumé introuvable pour cet id.</em>`;
-        $md.innerHTML  = '';
-        $links.innerHTML = '';
-        $panel.style.display = 'block';
-        return;
-      }
-    
-      // ---- En-tête : titre + meta + recap
-      $title.textContent = item.title || noteId;
-      $meta.textContent  = item.locationName || '';
-      // "recap" optionnel depuis data.json (sinon vide)
-      $recap.innerHTML   = item.recap ? renderWikiLinksInline(item.recap) : '';
-    
-      // ---- Résumé (data.json) avec [[...]] cliquables
-      $sum.innerHTML = item.summary
-        ? renderWikiLinksInline(item.summary)
-        : '<em style="color:#777;">—</em>';
-    
-      // ---- NOTE COMPLÈTE : on va lire le .md, transformer [[...]], puis marked.parse
-      let links = [];
-      try {
-        const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
-        const res = await fetch(url, { cache:'no-store' });
-        if (res.ok) {
-          const mdRaw = await res.text();
-          const { body } = parseAndStripFrontMatter(mdRaw);
-    
-          // Liste des ids liés (pour traits + section "Liens sortants")
-          links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
-    
-          // Rendu HTML de la note
-          const htmlNote = marked.parse(transformWikiLinks(body));
-          $md.innerHTML = htmlNote;
-        } else {
-          $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
-        }
-      } catch(err){
-        $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
-      }
-    
-      // ---- Section "Liens sortants"
-      if (!links.length) {
-        $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
-      } else {
-        $links.innerHTML = `
-          <ul style="margin:0; padding-left:18px;">
-            ${links.map(lid => {
-              const it = idToItem.get(lid);
-              const lbl = it?.title || lid;
-              const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
-                ? item.tags.filter(t => it.tags.includes(t))
-                : [];
-              const badge = commonTags.length
-                ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
-                : '';
-              return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
-            }).join('')}
-          </ul>
-        `;
-      }
-    
-      // ---- Affichage panneau
+    // Formatte une date "YYYY-MM-DD" / "YYYY/MM/DD" -> "6 juin 1981" (fr)
+function formatDateFR(s){
+  if (!s) return '';
+  const t = s.replace(/\//g,'-');
+  const d = new Date(t);
+  if (isNaN(d)) return s; // fallback brut
+  const f = new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+  return f.format(d);
+}
+
+  // Ouvre le RÉSUMÉ (petite phrase) + NOTE COMPLÈTE (Markdown) dans le panneau
+  async function openSummaryInPanel(noteId){
+    const item   = idToItem.get(noteId);
+    const $panel = document.getElementById('notePanel');
+    const $title = document.getElementById('npTitle');
+    const $place = document.getElementById('npPlace');
+    const $date  = document.getElementById('npDate');
+    const $recap = document.getElementById('npRecap');
+    const $sum   = document.getElementById('npSummary');
+    const $md    = document.getElementById('npMd');
+    const $links = document.getElementById('npLinks');
+    const $fit   = document.getElementById('npFit');
+  
+    // Sécurité
+    if (!item) {
+      $title.textContent = noteId;
+      $place.textContent = '';
+      $date.textContent  = '';
+      $recap.innerHTML   = '';
+      $sum.innerHTML     = '';
+      $md.innerHTML      = '';
+      $links.innerHTML   = '';
       $panel.style.display = 'block';
-    
-      // ---- Navigation interne dans TOUT le panneau (résumé + note complète + liens)
-      const $panelBody = document.getElementById('notePanel');
-      $panelBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
-        a.classList.add('internal-link');
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          const href = a.getAttribute('href');
-          const id = decodeURIComponent(href.split('id=')[1] || '');
-          if (!id) return;
-          openSummaryInPanel(id); // navigue vers l'autre note dans le panneau
-          // dessine traits + recadre
-          getOutgoingLinks(id).then(lnk => {
-            drawLinksFrom(id, lnk);
-            window.__lastLinksState = { id, links: lnk };
-            const b = new maplibregl.LngLatBounds();
-            const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
-            lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
-            if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
-          });
+      return;
+    }
+  
+    // ---- En-tête : titre + 📍 lieu + date
+    $title.textContent = item.title || noteId;
+    $place.textContent = item.locationName || '';
+    $date.textContent  = ''; // sera rempli depuis le .md (front-matter)
+  
+    // ---- Petite phrase "récap" (où l'écrire ?)
+    // -> mets-la dans data.json: item.recap: "1 phrase récapitulative"
+    // sinon, si tu préfères, ajoute `recap:` dans le front-matter du .md (on le lit aussi plus bas)
+    $recap.innerHTML = item.recap ? renderWikiLinksInline(item.recap) : '';
+  
+    // ---- Phrase courte juste avant la note (optionnelle) : on affiche item.summary si tu l'utilises
+    $sum.innerHTML = item.summary ? renderWikiLinksInline(item.summary) : '';
+  
+    // ---- NOTE COMPLÈTE : on lit le .md, on récupère la date du front-matter, on rend le contenu
+    let links = [];
+    try {
+      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+      const res = await fetch(url, { cache:'no-store' });
+      if (res.ok) {
+        const mdRaw = await res.text();
+        const { meta, body } = parseAndStripFrontMatter(mdRaw);
+  
+        // 1) date (front-matter: `date: 1981-10-06` par ex.)
+        if (!$date.textContent && meta.date) $date.textContent = formatDateFR(meta.date);
+        // 2) recap depuis le .md si pas donné dans data.json
+        if (!$recap.innerHTML && meta.recap) $recap.innerHTML = renderWikiLinksInline(meta.recap);
+  
+        // 3) Liste des ids liés (pour traits + section "Liens sortants")
+        links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
+  
+        // 4) Rendu HTML de la note complète
+        const htmlNote = marked.parse(transformWikiLinks(body));
+        $md.innerHTML = htmlNote;
+      } else {
+        $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
+      }
+    } catch(err){
+      $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
+    }
+  
+    // ---- Section "Liens sortants"
+    if (!links.length) {
+      $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
+    } else {
+      $links.innerHTML = `
+        <ul style="margin:0; padding-left:18px;">
+          ${links.map(lid => {
+            const it = idToItem.get(lid);
+            const lbl = it?.title || lid;
+            const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
+              ? item.tags.filter(t => it.tags.includes(t))
+              : [];
+            const badge = commonTags.length
+              ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
+              : '';
+            return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
+          }).join('')}
+        </ul>
+      `;
+    }
+  
+    // ---- Affichage panneau
+    $panel.style.display = 'block';
+  
+    // ---- Navigation interne dans tout le panneau
+    $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+      a.classList.add('internal-link');
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = a.getAttribute('href');
+        const id = decodeURIComponent(href.split('id=')[1] || '');
+        if (!id) return;
+        openSummaryInPanel(id);
+        getOutgoingLinks(id).then(lnk => {
+          drawLinksFrom(id, lnk);
+          window.__lastLinksState = { id, links: lnk };
+          const b = new maplibregl.LngLatBounds();
+          const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
+          lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
+          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
         });
       });
-    
-      // ---- Boutons "Voir les liés" & "Fermer"
-      if ($fit) {
-        $fit.onclick = () => {
-          const b = new maplibregl.LngLatBounds();
-          const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
-          links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
-          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
-        };
-      }
-      document.getElementById('npClose').onclick = () => {
-        document.getElementById('notePanel').style.display = 'none';
-        clearLinks();
+    });
+  
+    // ---- Boutons “Voir les liés” & “Fermer”
+    if ($fit) {
+      $fit.onclick = () => {
+        const b = new maplibregl.LngLatBounds();
+        const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
+        links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
+        if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
       };
-    
-      // ---- Traits & état mémorisé
-      drawLinksFrom(noteId, links);
-      window.__lastLinksState = { id: noteId, links };
     }
+    document.getElementById('npClose').onclick = () => {
+      document.getElementById('notePanel').style.display = 'none';
+      clearLinks();
+    };
+  
+    // ---- Traits & état mémorisé
+    drawLinksFrom(noteId, links);
+    window.__lastLinksState = { id: noteId, links };
+  }
+
 
 
     // --- [[...]] cliquables dans les résumés (summary de data.json) ---
