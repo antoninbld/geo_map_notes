@@ -387,6 +387,103 @@
     // rendre accessible globalement si besoin
     window.openNoteInPanel = openNoteInPanel;
 
+    // Ouvre le RÉSUMÉ (depuis data.json) dans le panneau, avec liens [[...]] cliquables
+    async function openSummaryInPanel(noteId){
+      const item = idToItem.get(noteId);
+      const $panel = document.getElementById('notePanel');
+      const $title = document.getElementById('npTitle');
+      const $body  = document.getElementById('npBody');
+    
+      if (!item) {
+        $title.textContent = noteId;
+        $body.innerHTML = `<em style="color:#b91c1c;">Résumé introuvable pour cet id.</em>`;
+        $panel.style.display = 'block';
+        return;
+      }
+    
+      // 1) Titre + résumé (avec [[...]] -> liens)
+      $title.textContent = item.title || noteId;
+      const summaryHTML = item.summary
+        ? renderWikiLinksInline(item.summary)
+        : '<em style="color:#777;">Aucun résumé.</em>';
+    
+      // 2) Liens sortants (issus des [[...]] du FICHIER .md complet)
+      const links = await getOutgoingLinks(noteId);
+      const linksListHTML = links.length
+        ? `
+          <div style="font-weight:600; margin:14px 0 6px;">Liens sortants</div>
+          <ul style="margin:0; padding-left:18px;">
+            ${links.map(lid => {
+              const it = idToItem.get(lid);
+              const lbl = it?.title || lid;
+              // Tags partagés (pour "pourquoi c'est lié")
+              const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
+                  ? item.tags.filter(t => it.tags.includes(t))
+                  : [];
+              const badge = commonTags.length
+                  ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
+                  : '';
+              return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
+            }).join('')}
+          </ul>
+          <div style="margin-top:8px;">
+            <button type="button" id="fit-links-${noteId}"
+                    style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;">
+              🔎 Voir les liés
+            </button>
+            <button type="button" id="open-full-${noteId}"
+                    style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer; margin-left:6px;">
+              📄 Note complète
+            </button>
+          </div>
+        `
+        : `<div style="margin-top:12px; color:#888;">Aucun lien sortant.</div>`;
+    
+      $body.innerHTML = `
+        <div style="font-size:14px; line-height:1.55;">${summaryHTML}</div>
+        ${linksListHTML}
+      `;
+      $panel.style.display = 'block';
+    
+      // 3) Navigation interne dans le panneau (les <a href="note.html?id=...">)
+      $body.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const href = a.getAttribute('href');
+          const id = decodeURIComponent(href.split('id=')[1] || '');
+          if (!id) return;
+          openSummaryInPanel(id); // 🔁 navigue de résumé en résumé
+          getOutgoingLinks(id).then(lnk => {
+            drawLinksFrom(id, lnk);
+            window.__lastLinksState = { id, links: lnk };
+            const b = new maplibregl.LngLatBounds();
+            const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
+            lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
+            if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+          });
+        });
+      });
+    
+      // 4) Bouton "Voir les liés" => recadrer
+      const fitBtn = document.getElementById(`fit-links-${noteId}`);
+      if (fitBtn) {
+        fitBtn.onclick = () => {
+          const b = new maplibregl.LngLatBounds();
+          const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
+          links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
+          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+        };
+      }
+    
+      // 5) Bouton "Note complète" (ouvre note.html dans un onglet)
+      const fullBtn = document.getElementById(`open-full-${noteId}`);
+      if (fullBtn) fullBtn.onclick = () => window.open(`note.html?id=${encodeURIComponent(noteId)}`, '_blank');
+    
+      // 6) Dessiner/ mémoriser les traits pour la note courante
+      drawLinksFrom(noteId, links);
+      window.__lastLinksState = { id: noteId, links };
+    }   
+    
     document.getElementById('npClose').onclick = () => {
       document.getElementById('notePanel').style.display = 'none';
       clearLinks();
@@ -527,97 +624,11 @@
             .setLngLat([item.lon, item.lat])
             .addTo(map);
 
-          const html = `
-            <div style="width:260px;">
-              <div class="popup-title">${item.title || '(Sans titre)'}</div>
-              ${item.locationName ? `<div class="popup-meta">📍 ${item.locationName}</div>` : ''}
-              ${item.summary ? `<div style="font-size:12px; line-height:1.4; font-style:italic; color:#444;">${renderWikiLinksInline(item.summary)}</div>` : ''}
+          // Clic sur le marqueur => ouvre le panneau RÉSUMÉ direct + traits
+          el.addEventListener('click', async () => {
+            await openSummaryInPanel(item.id); // affiche le résumé + liens + traits
+          });
 
-              <!-- Zone liens sortants -->
-              <div id="links-${item.id}" style="margin-top:8px; font-size:13px; color:#333;">
-                <em style="color:#666;">Liens sortants…</em>
-              </div>
-
-              <button type="button"
-                      id="open-${item.id}"
-                      style="margin-top:6px;padding:8px 10px;background:#1e90ff;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(30,144,255,.35);">
-                🗂️ Ouvrir le résumé
-              </button>
-            </div>
-          `;
-          const popup = new maplibregl.Popup({ offset: 12 }).setHTML(html);
-
-          // Décaler la popup pour moins masquer les traits
-          function offsetPopup([lon, lat]){
-            const c = map.getCenter();
-            const anchor = (lon < c.lng) ? 'right' : 'left';
-            popup.setOffset(anchor === 'right' ? [20, 0] : [-20, 0]).setAnchor(anchor);
-          }
-          popup.on('open', () => offsetPopup([item.lon, item.lat]));
-
-          marker.setPopup(popup);
-
-          // collecte des tags
-          if (Array.isArray(item.tags)) item.tags.forEach(t => allTags.add(String(t)));
-
-          // Quand la popup s’ouvre (ou au clic), on calcule & dessine les liens
-          const onOpen = async () => {
-            // Branche le bouton interne
-            const openBtn = document.getElementById(`open-${item.id}`);
-            if (openBtn) openBtn.onclick = () => openNoteInPanel(item.id);
-
-            // Récupère les ids liés présents en [[...]] dans le .md
-            const links = await getOutgoingLinks(item.id);
-
-            // Affiche la liste dans la popup (si toujours ouverte)
-            const box = document.getElementById(`links-${item.id}`);
-            if (box) {
-              if (links.length === 0) {
-                box.innerHTML = `<span style="color:#888;">Aucun lien sortant</span>`;
-              } else {
-                box.innerHTML = `
-                  <div style="font-weight:600; margin-bottom:4px;">Liens sortants</div>
-                  <ul style="margin:0; padding-left:18px;">
-                    ${links.map(lid => {
-                      const it = idToItem.get(lid);
-                      const lbl = it?.title || lid;
-                      const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
-                        ? item.tags.filter(t => it.tags.includes(t))
-                        : [];
-                      const badge = commonTags.length
-                        ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
-                        : '';
-                      return `<li><a href="note.html?id=${encodeURIComponent(lid)}" target="_blank" rel="noopener">${lbl}</a>${badge}</li>`;
-                    }).join('')}
-                  </ul>
-                  <div style="margin-top:6px;">
-                    <button type="button" style="padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;" id="zoom-links-${item.id}">
-                      🔎 Voir les liés
-                    </button>
-                  </div>
-                `;
-
-                const btn = box.querySelector(`#zoom-links-${item.id}`);
-                if (btn) {
-                  btn.onclick = () => {
-                    const b = new maplibregl.LngLatBounds();
-                    b.extend([item.lon, item.lat]);
-                    links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
-                    map.fitBounds(b, { padding: 80, duration: 650 });
-                  };
-                }
-              }
-            }
-
-            // Trace les segments sur la carte
-            drawLinksFrom(item.id, links);
-            // Mémorise l’état pour recréer après changement de style
-            window.__lastLinksState = { id: item.id, links };
-          };
-
-          el.addEventListener('click', onOpen);
-          try { popup.on('open', onOpen); } catch {}
-          try { popup.on('close', clearLinks); } catch {}
 
           allMarkers.push({ item, marker });
         }
@@ -742,16 +753,6 @@
       const sel = document.getElementById('filterCountry');
       if (!sel) return;
       Array.from(sel.options).forEach(o => o.selected = false);
-    });
-
-    // Fallback global pour les boutons "Ouvrir le résumé" si jamais
-    document.addEventListener('click', (e) => {
-      const t = e.target;
-      if (!t || !t.id) return;
-      if (t.id.startsWith('open-')) {
-        const id = t.id.slice(5);
-        if (id) openNoteInPanel(id);
-      }
     });
 
     // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
