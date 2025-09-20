@@ -8,6 +8,7 @@
   <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <!-- Marked (pour le panneau interne Markdown) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -254,6 +255,10 @@
       sectionTitle: "Liens sortants", // Titre affiché au-dessus de la liste des liens
       internalLinkColor: "#1e90ff",   // Couleur des liens internes [[...]]
       internalLinkUnderline: "dashed" // Style de soulignement des liens internes (dashed, solid, none)
+      curveStyle: "bezier",     // "bezier" | "geodesic"
+      curveStrength: 0.25,      // Bézier : 0.15 (léger) à 0.5 (prononcé)
+      curveSteps: 64            // nombre de points par courbe (qualité vs perf)
+
     },
     
     buttons: {
@@ -1084,6 +1089,70 @@
       add();
     }
 
+    // === Courbes entre points =====================================================
+    // Bézier quadratique en coord. géo (approx locale), force = écart au milieu
+    function bezierCurveCoords(from, to, strength = 0.25, steps = 64){
+      const p0 = [from.lon, from.lat];
+      const p2 = [to.lon,   to.lat];
+    
+      // milieu
+      const mx = (p0[0] + p2[0]) / 2;
+      const my = (p0[1] + p2[1]) / 2;
+    
+      // vecteur p0->p2
+      const vx = p2[0] - p0[0];
+      const vy = p2[1] - p0[1];
+    
+      // vecteur normal (perpendiculaire) pour bomber la courbe
+      const nx = -vy;
+      const ny =  vx;
+    
+      // normaliser
+      const len = Math.sqrt(nx*nx + ny*ny) || 1;
+      const ux = nx / len;
+      const uy = ny / len;
+    
+      // amplitude en degrés (~, reste raisonnable pour petites distances)
+      const amp = strength * Math.hypot(vx, vy);
+      const cx  = mx + ux * amp;
+      const cy  = my + uy * amp;
+    
+      const coords = [];
+      for (let i = 0; i <= steps; i++){
+        const t = i / steps;           // 0..1
+        const it = 1 - t;
+        // Quadratic Bézier : B(t) = (1−t)^2 P0 + 2(1−t)t C + t^2 P2
+        const x = it*it*p0[0] + 2*it*t*cx + t*t*p2[0];
+        const y = it*it*p0[1] + 2*it*t*cy + t*t*p2[1];
+        coords.push([x, y]);
+      }
+      return coords;
+    }
+    
+    // Arc géodésique (grand cercle) via Turf (si dispo)
+    function geodesicCoords(from, to, steps = 64){
+      if (!(window.turf && turf.greatCircle)) {
+        // fallback : simple segment si Turf n'est pas chargé
+        return [[from.lon, from.lat],[to.lon, to.lat]];
+      }
+      const fc = turf.greatCircle(
+        [from.lon, from.lat],
+        [to.lon, to.lat],
+        { npoints: Math.max(2, steps), properties: {} }
+      );
+      return fc.geometry.coordinates;
+    }
+    
+    // Wrapper selon UI_CONFIG
+    function curveBetween(from, to){
+      const L = (UI_CONFIG && UI_CONFIG.links) || {};
+      const style  = L.curveStyle || "bezier";
+      const steps  = L.curveSteps || 64;
+      if (style === "geodesic") return geodesicCoords(from, to, steps);
+      const strength = L.curveStrength ?? 0.25;
+      return bezierCurveCoords(from, to, strength, steps);
+    }
+    
     function drawLinksFrom(noteId, linkedIds){
       if (!map.getSource('note-links') || !map.getLayer('note-links-line')) {
         ensureLinksLayer();
@@ -1094,9 +1163,10 @@
       linkedIds.forEach(lid => {
         const to = idToItem.get(lid);
         if (!to) return;
+        const coords = curveBetween(from, to);
         features.push({
           type:'Feature',
-          geometry:{ type:'LineString', coordinates:[[from.lon, from.lat],[to.lon, to.lat]] },
+          geometry:{ type:'LineString', coordinates: coords },
           properties:{ from: noteId, to: lid }
         });
       });
