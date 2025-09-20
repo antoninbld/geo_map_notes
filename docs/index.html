@@ -757,8 +757,7 @@
         }
       });
     });
-    });
-
+    
     // === Helpers Obsidian/panneau ===
     function parseAndStripFrontMatter(text){
       let meta = {};
@@ -839,7 +838,7 @@
 
         document.getElementById('npTitle').textContent =
           (meta.title && meta.title.trim()) || (idToItem.get(noteId)?.title || noteId);
-        const $npBody = document.getElementById('npBody');
+        const $npBody = document.getElementById('npMd');
         $npBody.innerHTML = html;
         document.getElementById('notePanel').style.display = 'block';
 
