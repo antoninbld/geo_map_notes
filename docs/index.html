@@ -161,6 +161,16 @@
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
     <strong>Map views</strong>
+
+    <!-- Fournisseur -->
+    <strong style="display:block;margin-top:8px;">Fournisseur</strong>
+    <label><input type="radio" name="provider" value="maptiler" checked> MapTiler</label>
+    <label><input type="radio" name="provider" value="carto"> Carto</label>
+    <!-- Projection -->
+    <strong style="display:block;margin-top:8px;">Projection</strong>
+    <label><input type="radio" name="projection" value="mercator" checked> 2D</label>
+    <label><input type="radio" name="projection" value="globe"> 3D</label>
+    
     <label><input type="radio" name="basemap" value="hybrid"> Satellite</label>
     <label><input type="radio" name="basemap" value="streets" checked> Streets</label>
     <label><input type="radio" name="basemap" value="light"> Light</label>
@@ -517,10 +527,6 @@
     }
 
 
-
-
-
-
     // Styles MapTiler (vector)
     const STYLES = {
       hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
@@ -528,6 +534,26 @@
       light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
       dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
     };
+
+    // Provider & style courants
+    let CURRENT_PROVIDER = 'maptiler';   // 'maptiler' | 'carto'
+    let CURRENT_BASEMAP  = 'streets';    // 'hybrid' | 'streets' | 'light' | 'dark'
+    
+    // Résout l'URL du style selon provider + basemap
+    function getStyleURL(provider, basemap){
+      if (provider === 'carto') {
+        // Carto: mapping simple de nos 4 choix
+        const cartoId = ({
+          streets: 'voyager',
+          light:   'positron',
+          dark:    'dark-matter',
+          hybrid:  'voyager' // pas de satellite chez Carto → fallback
+        })[basemap] || 'voyager';
+        return `https://basemaps.cartocdn.com/gl/${cartoId}-gl-style/style.json`;
+      }
+      // MapTiler par défaut
+      return STYLES[basemap] || STYLES.streets;
+    }
 
     // === Liens façon Obsidian entre notes (globals) ===
     const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
@@ -544,10 +570,12 @@
     // Carte
     const map = new maplibregl.Map({
       container: 'map',
-      style: STYLES.streets,   // Streets par défaut
-      center: EUROPE_CENTER,   // Europe au démarrage
-      zoom:   DEFAULT_ZOOM
+      style: getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP),
+      center: EUROPE_CENTER,
+      zoom:   DEFAULT_ZOOM,
+      projection: 'mercator' // 2D par défaut ; on togglera en live
     });
+
 
     // (debug utile)
     map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
@@ -666,25 +694,64 @@
     // Changement de fond (robuste pour recréer la couche liens)
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
-        const choice = e.target.value;
-        map.setStyle(STYLES[choice]);
-
+        const choice = e.target.value;          // 'hybrid' | 'streets' | 'light' | 'dark'
+        CURRENT_BASEMAP = choice;
+        map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
+        
+        // Rebuild exactement comme tu fais déjà :
         const rebuild = () => {
-          // 1) Recrée les marqueurs et filtres
           addMarkersFromJSON().then(applyFilters);
-
-          // 2) Recrée la couche des liens + réaffiche le dernier état
           linksSourceReady = false;
           ensureLinksLayer();
-
           if (window.__lastLinksState) {
             const { id, links } = window.__lastLinksState;
             drawLinksFrom(id, links);
           }
         };
-
         map.once('load', rebuild);
         map.once('styledata', rebuild);
+      });
+      document.querySelectorAll('input[name="provider"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          CURRENT_PROVIDER = e.target.value;  // 'maptiler' | 'carto'
+          map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
+      
+          const rebuild = () => {
+            addMarkersFromJSON().then(applyFilters);
+            linksSourceReady = false;
+            ensureLinksLayer();
+            if (window.__lastLinksState) {
+              const { id, links } = window.__lastLinksState;
+              drawLinksFrom(id, links);
+            }
+          };
+          map.once('load', rebuild);
+          map.once('styledata', rebuild);
+      
+          // (optionnel) désactiver "Satellite" si provider = Carto
+          refreshBasemapOptionsForProvider?.();
+        });
+      });
+      function refreshBasemapOptionsForProvider(){
+        const sat = document.querySelector('input[name="basemap"][value="hybrid"]');
+        if (!sat) return;
+        const isCarto = CURRENT_PROVIDER === 'carto';
+        sat.disabled = isCarto;
+        if (isCarto && sat.checked) {
+          const streets = document.querySelector('input[name="basemap"][value="streets"]');
+          if (streets) { streets.checked = true; streets.dispatchEvent(new Event('change', { bubbles:true })); }
+        }
+      }
+      window.addEventListener('load', refreshBasemapOptionsForProvider);
+      document.querySelectorAll('input[name="projection"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const proj = e.target.value; // 'mercator' | 'globe'
+          try {
+            map.setProjection(proj);
+          } catch (err) {
+            console.warn('Projection non supportée par cette version de MapLibre:', err);
+          }
+        });
       });
     });
 
