@@ -376,8 +376,8 @@
       const span = document.createElement('span');
       span.id = 'npRecapText';
       // ⬇️ IMPORTANT pour une mesure fiable de la hauteur
-      span.style.display = 'inline-block';
-      span.style.maxWidth = '100%';
+      span.style.display = 'block';   // prend toute la ligne
+      span.style.width = '100%';      // largeur 100% du conteneur -> wrapping réel
       span.style.boxSizing = 'border-box';
       span.style.whiteSpace = 'normal';
       span.style.wordBreak = 'break-word';
