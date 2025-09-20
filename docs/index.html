@@ -652,7 +652,7 @@
       zoom:   DEFAULT_ZOOM,
       projection: 'mercator' // 2D par défaut ; on togglera en live
     });
-    window.map = map;   // ← rend 'map' accessible depuis la console
+    map.on('style.load', applyProjection); // réapplique la projection à chaque changement de style
 
     // 🔹 Au tout premier chargement du style, on crée les marqueurs et la couche des liens
     map.on('load', () => {
@@ -782,20 +782,26 @@
         const choice = e.target.value;          // 'hybrid' | 'streets' | 'light' | 'dark'
         CURRENT_BASEMAP = choice;
         updateMapBackgroundClass();
+        
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
-    
+        
         const rebuild = () => {
-          applyProjection(); // ← re-applique 2D/3D + fog
+          applyProjection();
           ensureTerrain();
-          addMarkersFromJSON().then(applyFilters);
-          linksSourceReady = false;
-          ensureLinksLayer();
-          if (window.__lastLinksState) {
-            const { id, links } = window.__lastLinksState;
-            drawLinksFrom(id, links);
-          }
+          addMarkersFromJSON().then(() => {
+            applyFilters?.();
+            ensureLinksLayer();
+            if (window.__lastLinksState) {
+              const { id, links } = window.__lastLinksState;
+              drawLinksFrom(id, links);
+            }
+          });
         };
+        
+        // 🔁 certains styles déclenchent différemment : on écoute les trois
+        map.once('load', rebuild);
         map.once('styledata', rebuild);
+        map.once('style.load', rebuild);
       });
     });
     
@@ -1335,33 +1341,35 @@
     }
     
     function drawLinksFrom(noteId, linkedIds) {
-  // S’assure que la source + le layer existent
-  ensureLinksLayer();
-
-  const from = idToItem.get(noteId);
-  if (!from) return;
-
-  const features = linkedIds
-    .map(lid => {
-      const to = idToItem.get(lid);
-      if (!to) return null;
-      return {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: curveBetween(from, to) },
-        properties: { from: noteId, to: lid }
-      };
-    })
-    .filter(Boolean);
-
-  // ✅ Injection dans la source GeoJSON
-  const src = map.getSource('note-links');
-  if (src) {
-    src.setData({
-      type: 'FeatureCollection',
-      features
-    });
+    // S’assure que la source + layers existent (crée si besoin)
+    ensureLinksLayer();
+  
+    const src = map.getSource('note-links');
+    if (!src) {
+      // ⏳ Style pas encore prêt : rejoue quand la carte est prête
+      const retry = () => drawLinksFrom(noteId, linkedIds);
+      map.once('idle', retry);
+      map.once('style.load', retry);
+      return;
+    }
+  
+    const from = idToItem.get(noteId);
+    if (!from) return;
+  
+    const features = (Array.isArray(linkedIds) ? linkedIds : [])
+      .map(lid => {
+        const to = idToItem.get(lid);
+        if (!to) return null;
+        return {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: curveBetween(from, to) },
+          properties: { from: noteId, to: lid }
+        };
+      })
+      .filter(Boolean);
+  
+    src.setData({ type: 'FeatureCollection', features });
   }
-}
 
     function clearLinks(){
       const src = map.getSource('note-links');
