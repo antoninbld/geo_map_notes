@@ -15,7 +15,17 @@
 
   <style>
     html, body { margin:0; padding:0; height:100%; }
-    #map { width:100%; height:100%; }
+    #map {
+      width: 100%;
+      height: 100%;
+      /* Donne un halo bleuté autour du globe (extérieur du cercle) */
+      background: radial-gradient(circle at 50% 45%, #cfe4ff 0%, #e9f3ff 60%, #ffffff 100%);
+    }
+
+    #map.dark {
+    /* Halo sombre/bleuté autour du globe */
+    background: radial-gradient(circle at 50% 45%, #0a0f1f 0%, #0d1b2a 60%, #000000 100%);
+  }
 
     /* Panneau Map views + boutons recentrage (en haut à gauche) */
     .basemap-control {
@@ -619,22 +629,28 @@
     let __linksRafId = null;
     
     function animateLinks() {
-      __linksAnimT = (__linksAnimT + 0.006) % 1; // vitesse
-      const w = 0.12;                             // largeur du "glow"
+      __linksAnimT = (__linksAnimT + 0.012) % 1;   // vitesse x2
+      const w = 0.22;                               // largeur du "glow" plus large
       const a = Math.max(0, __linksAnimT - w/2);
       const b = Math.min(1, __linksAnimT + w/2);
     
+      // Dégradé: transparent → lumineux doré → transparent
       const gradient = [
         'interpolate', ['linear'], ['line-progress'],
-        0.0, ['rgba', 30, 144, 255, 0.0],
-        a,   ['rgba', 30, 144, 255, 0.0],
-        __linksAnimT, ['rgba', 30, 144, 255, 0.95],
-        b,   ['rgba', 30, 144, 255, 0.0],
-        1.0, ['rgba', 30, 144, 255, 0.0]
+        0.0, ['rgba', 255, 215, 0, 0.0],   // or (gold)
+        a,   ['rgba', 255, 215, 0, 0.0],
+        __linksAnimT, ['rgba', 255, 215, 0, 0.95],
+        b,   ['rgba', 255, 215, 0, 0.0],
+        1.0, ['rgba', 255, 215, 0, 0.0]
       ];
     
       try {
+        // épaissit un peu la couche animée et ajoute un léger blur
         map.setPaintProperty('note-links-anim', 'line-gradient', gradient);
+        map.setPaintProperty('note-links-anim', 'line-width', [
+          'interpolate', ['linear'], ['zoom'], 3, 2.5, 6, 3.5, 10, 4.5
+        ]);
+        map.setPaintProperty('note-links-anim', 'line-blur', 0.5);
       } catch {}
     
       __linksRafId = requestAnimationFrame(animateLinks);
@@ -886,7 +902,7 @@
     
         // Pour bien voir la sphère la 1ère fois :
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
-          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 30, bearing: 0, duration: 400 });
+          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 40, bearing: 0, duration: 500 });
         }
       });
     });
