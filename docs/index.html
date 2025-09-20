@@ -567,7 +567,6 @@
           });
           // Si on est très zoomé, dézoome un peu pour bien voir la sphère
           if (map.getZoom() > 2) {
-            map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 300 });
           }
         } else {
           map.setFog(null);
@@ -597,7 +596,10 @@
       zoom:   DEFAULT_ZOOM,
       projection: 'mercator' // 2D par défaut ; on togglera en live
     });
-
+    // Réapplique la projection (2D/3D) à CHAQUE changement de style
+    map.on('styledata', () => {
+      applyProjection();
+    });
 
     // (debug utile)
     map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
@@ -778,17 +780,13 @@
     // Projection (2D / 3D)
     document.querySelectorAll('input[name="projection"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
-        const proj = e.target.value; // 'mercator' | 'globe'
-        try {
-          const proj = e.target.value; // 'mercator' | 'globe'
-          CURRENT_PROJECTION = proj;
-          applyProjection();
-        } catch (err) {
-          console.warn('Projection non supportée par cette version de MapLibre:', err);
-        }
-      });
+       // ⬇⬇ remplace tout l'intérieur par ceci
+      const proj = e.target.value;           // 'mercator' | 'globe'
+      CURRENT_PROJECTION = proj;
+      applyProjection();
     });
-    
+  }); 
+      
     // === Helpers Obsidian/panneau ===
     function parseAndStripFrontMatter(text){
       let meta = {};
