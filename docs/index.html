@@ -630,22 +630,20 @@
     
     function animateLinks() {
       __linksAnimT = (__linksAnimT + 0.012) % 1;   // vitesse x2
-      const w = 0.22;                               // largeur du "glow" plus large
+      const w = 0.22;                               // fenêtre plus large
       const a = Math.max(0, __linksAnimT - w/2);
       const b = Math.min(1, __linksAnimT + w/2);
     
-      // Dégradé: transparent → lumineux doré → transparent
       const gradient = [
         'interpolate', ['linear'], ['line-progress'],
-        0.0, ['rgba', 255, 215, 0, 0.0],   // or (gold)
+        0.0, ['rgba', 255, 215, 0, 0.0],    // or (gold) transparent
         a,   ['rgba', 255, 215, 0, 0.0],
-        __linksAnimT, ['rgba', 255, 215, 0, 0.95],
+        __linksAnimT, ['rgba', 255, 215, 0, 0.95],  // pointe lumineuse
         b,   ['rgba', 255, 215, 0, 0.0],
         1.0, ['rgba', 255, 215, 0, 0.0]
       ];
     
       try {
-        // épaissit un peu la couche animée et ajoute un léger blur
         map.setPaintProperty('note-links-anim', 'line-gradient', gradient);
         map.setPaintProperty('note-links-anim', 'line-width', [
           'interpolate', ['linear'], ['zoom'], 3, 2.5, 6, 3.5, 10, 4.5
