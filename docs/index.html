@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- MapLibre -->
-  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <!-- Marked (pour le panneau interne Markdown) -->
@@ -557,21 +557,9 @@
     }
 
     function applyProjection() {
+      const type = (CURRENT_PROJECTION === 'globe') ? 'globe' : 'mercator';
       try {
-        map.setProjection(CURRENT_PROJECTION);
-        if (CURRENT_PROJECTION === 'globe') {
-          map.setFog({
-            range: [0.5, 10],
-            color: 'rgba(200, 210, 230, 0.6)',
-            'horizon-blend': 0.2
-          });
-          // Si on est très zoomé, dézoome un peu pour bien voir la sphère
-          if (map.getZoom() > 2) {
-            map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 400 });
-          }
-        } else {
-          map.setFog(null);
-        }
+        map.setProjection({ type }); // API v5
       } catch (err) {
         console.warn('Projection non supportée:', err);
       }
@@ -598,9 +586,7 @@
       projection: 'mercator' // 2D par défaut ; on togglera en live
     });
     // Réapplique la projection (2D/3D) à CHAQUE changement de style
-    map.on('styledata', () => {
-      applyProjection();
-    });
+    map.on('style.load', applyProjection);
 
     // (debug utile)
     map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
@@ -781,12 +767,15 @@
     // Projection (2D / 3D)
     document.querySelectorAll('input[name="projection"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
-       // ⬇⬇ remplace tout l'intérieur par ceci
-      const proj = e.target.value;           // 'mercator' | 'globe'
-      CURRENT_PROJECTION = proj;
-      applyProjection();
+        CURRENT_PROJECTION = e.target.value; // 'mercator' | 'globe'
+        applyProjection();
+    
+        // Pour bien voir la sphère la 1ère fois :
+        if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
+          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 400 });
+        }
+      });
     });
-  }); 
       
     // === Helpers Obsidian/panneau ===
     function parseAndStripFrontMatter(text){
