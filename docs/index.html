@@ -183,88 +183,52 @@
     const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN"; // remplace si besoin
 
 
-
-    // === UI: descriptions (aide) — ne sert qu’à toi pour comprendre ===
-    const UI_HELP = {
-      panel: {
-        width: "Largeur du panneau (ex. 400px ou 30vw)",
-        marginRight: "Marge entre le panneau et le bord droit de la carte",
-        marginTop: "Marge entre le haut du panneau et le haut de la carte",
-        background: "Couleur de fond du panneau",
-        shadow: "Ombre du panneau (box-shadow)",
-        borderRadius: "Arrondi des coins du panneau"
-      },
-      header: {
-        background: "Couleur de fond du bandeau jaune",
-        textColor: "Couleur du texte dans l’en-tête",
-        titleSize: "Taille du titre (ex. 16px)",
-        locationIcon: "Icône/emoji affiché avant la localisation (ex. 📍)",
-        dateIndent: "Décalage gauche de la date pour l’aligner sous la localisation",
-        dateFormat: "Format Intl de la date (locale fr-FR par défaut)",
-        recapStyle: "Style CSS appliqué à la phrase récap (gras/italique, etc.)"
-      },
-      card: {
-        background: "Couleur du bloc de contenu (jaune clair)",
-        border: "Bordure du bloc (épaisseur/couleur)",
-        borderRadius: "Arrondi du bloc",
-        outerPadding: "Espace BLANC autour du bloc (entre bloc et bords du panneau)",
-        innerPadding: "Espace INTERNE du bloc (entre texte et bord du bloc)",
-        fontSize: "Taille de police du contenu",
-        lineHeight: "Interligne du contenu"
-      },
-      links: {
-        sectionTitle: "Titre de la section des liens sortants",
-        internalLinkColor: "Couleur des liens internes [[...]]",
-        internalLinkUnderline: "Style de soulignement (dashed/solid/none)"
-      },
-      buttons: {
-        fitText: "Texte du bouton de recadrage",
-        closeText: "Texte du bouton de fermeture",
-        background: "Couleur de fond des boutons",
-        borderRadius: "Arrondi des boutons"
-      }
-    };
-    
-    // === UI: configuration réellement utilisée par le code ===
+ 
     const UI_CONFIG = {
-      panel: {
-        width: "400px",
-        marginRight: "10px",
-        marginTop: "10px",
-        background: "#fff",
-        shadow: "0 8px 24px rgba(0,0,0,.18)",
-        borderRadius: "12px"
+    panel: {
+      width: "400px",            // Largeur du panneau latéral (ex: "400px" ou "30vw")
+      marginRight: "10px",       // Espace entre le panneau et le bord droit de la carte
+      marginTop: "10px",         // Espace entre le haut du panneau et la carte
+      background: "#fff",        // Couleur de fond du panneau
+      shadow: "0 8px 24px rgba(0,0,0,.18)", // Ombre portée (box-shadow)
+      borderRadius: "12px"       // Arrondi des coins du panneau
+    },
+    header: {
+      background: "#facc15",     // Couleur de fond du bandeau jaune (en-tête)
+      textColor: "#000",         // Couleur du texte dans l’en-tête
+      titleSize: "16px",         // Taille du titre (px)
+      locationIcon: "📍",        // Icône affichée avant la localisation
+      dateIndent: "20px",        // Décalage gauche de la date (alignement sous la localisation)
+      dateFormat: {              // Format de la date (Intl API)
+        day: "numeric",
+        month: "long",
+        year: "numeric"
       },
-      header: {
-        background: "#facc15",
-        textColor: "#000",
-        titleSize: "16px",
-        locationIcon: "📍",
-        dateIndent: "20px",
-        dateFormat: { day: "numeric", month: "long", year: "numeric" },
-        recapStyle: "font-weight:600; font-style:italic;"
-      },
-      card: {
-        background: "#fef9c3",
-        border: "1px solid #0f172a22",
-        borderRadius: "10px",
-        outerPadding: "8px 10px",   // ← marge BLANCHE autour du bloc
-        innerPadding: "10px",       // ← marge INTERNE du bloc
-        fontSize: "14px",
-        lineHeight: "1.55"
-      },
-      links: {
-        sectionTitle: "Liens sortants",
-        internalLinkColor: "#1e90ff",
-        internalLinkUnderline: "dashed"
-      },
-      buttons: {
-        fitText: "🔎 Voir les liés",
-        closeText: "✖ Fermer",
-        background: "#fff",
-        borderRadius: "6px"
-      }
-    };
+      recapStyle: "font-weight:600; font-style:italic;" 
+                                 // Style appliqué à la phrase récap (gras, italique, couleur…)
+    },
+    card: {
+      background: "#fef9c3",     // Couleur du bloc jaune clair (contenu)
+      border: "1px solid #0f172a22", // Bordure autour du bloc jaune clair
+      borderRadius: "10px",      // Arrondi du bloc jaune clair
+      outerPadding: "8px 10px",  // Marge BLANCHE autour du bloc jaune clair (écart avec le panneau)
+      innerPadding: "10px",      // Marge INTERNE du bloc jaune clair (espace texte ↔ bord du bloc)
+      fontSize: "14px",          // Taille du texte dans la note
+      lineHeight: "1.55"         // Interligne du texte
+    },
+    links: {
+      sectionTitle: "Liens sortants", // Titre affiché au-dessus de la liste des liens
+      internalLinkColor: "#1e90ff",   // Couleur des liens internes [[...]]
+      internalLinkUnderline: "dashed" // Style de soulignement des liens internes (dashed, solid, none)
+    },
+    buttons: {
+      fitText: "🔎 Voir les liés", // Texte du bouton pour recadrer sur les notes liées
+      closeText: "✖ Fermer",      // Texte du bouton pour fermer le panneau
+      background: "#fff",         // Couleur de fond des boutons
+      borderRadius: "6px"         // Arrondi des boutons
+    }
+  };
+
 
 
     // Crée/actualise une balise <style> dédiée aux overrides UI
