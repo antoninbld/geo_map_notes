@@ -340,24 +340,45 @@
       d.innerHTML = html;
       return d.textContent || d.innerText || '';
     }
+
+    // Renvoie une hauteur de ligne en pixels (gère le cas 'normal')
+    function resolveLineHeight(el){
+      const cs = getComputedStyle(el);
+      const lh = cs.lineHeight;
+      if (!lh || lh === 'normal') {
+        const fs = parseFloat(cs.fontSize) || 14;
+        return Math.round(fs * 1.33); // approximation standard du 'normal'
+      }
+      const n = parseFloat(lh);
+      return isNaN(n) ? 18 : n;
+    }
     
-    // Tronque proprement le #npRecap à N lignes, ajoute [ … ] pour étendre / ↥ réduire
+    // Tronque proprement #npRecap à N lignes + [ … ] / ↥ réduire (sans couper de mot)
     function clampRecap(maxLines){
       const wrap = document.getElementById('npRecap');
       if (!wrap) return;
     
-      // Récupère le texte complet (depuis ce qui a été mis par openSummaryInPanel)
+      // Texte complet déjà mis par openSummaryInPanel (HTML possible)
       const fullHtml = wrap.innerHTML || '';
-      const fullText = htmlToText(fullHtml).trim();
-      wrap.dataset.fullText = fullText; // on mémorise l’original texte
+      const fullText = (function htmlToText(html){
+        const d = document.createElement('div');
+        d.innerHTML = html;
+        return d.textContent || d.innerText || '';
+      })(fullHtml).trim();
     
-      // On reconstruit le contenu: <span id=npRecapText> + <a id=npRecapToggle>
+      // Rien à faire si vide
+      if (!fullText){
+        wrap.innerHTML = '';
+        return;
+      }
+    
+      // Reconstruit: [span texte] + [lien toggle]
       wrap.innerHTML = '';
       const span = document.createElement('span');
       span.id = 'npRecapText';
       span.style.whiteSpace = 'normal';
       span.style.display = 'inline';
-      span.style.wordBreak = 'break-word'; // évite débordement mais on ne coupera pas les mots nous-mêmes
+      span.style.wordBreak = 'break-word';
       wrap.appendChild(span);
     
       const toggle = document.createElement('a');
@@ -371,40 +392,36 @@
       const moreLabel = H.recapMoreLabel || ' […]';
       const lessLabel = H.recapLessLabel || ' ↥ réduire';
     
-      // Mesure : hauteur de 1 ligne
-      span.textContent = 'A';
-      const lineH = parseFloat(getComputedStyle(span).lineHeight);
-      const maxH = lineH * (maxLines || 2);
+      // Mesures fiables
+      span.textContent = 'Aa'; // petit échantillon
+      const lineH = resolveLineHeight(span);
+      const maxH  = Math.ceil(lineH * (maxLines || 2));
     
-      // Fonction pour vérifier si ça déborde
-      const fits = () => span.scrollHeight <= Math.ceil(maxH + 1);
+      const fits = () => span.scrollHeight <= maxH + 1;
     
-      // Si tout tient, rien à tronquer
+      // Test “tout tient”
       span.textContent = fullText;
       if (fits()){
         toggle.style.display = 'none';
         return;
       }
     
-      // Sinon, on tronque « au mot près » avec recherche dichotomique
+      // Recherche dichotomique au mot près (pas de coupure)
       const words = fullText.split(/\s+/);
       let lo = 0, hi = words.length, best = 0;
       while (lo <= hi){
-        const mid = Math.floor((lo+hi)/2);
+        const mid = (lo + hi) >> 1;
         span.textContent = words.slice(0, mid).join(' ');
         if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
       }
     
-      // Ajuste pour éviter espace final avant l’ellipse
+      // Contenu tronqué + bouton
       let truncated = words.slice(0, best).join(' ').trim();
       span.textContent = truncated;
       toggle.textContent = moreLabel;
       toggle.style.display = 'inline';
     
-      // État
       let expanded = false;
-    
-      // Handlers
       const setExpanded = (on) => {
         expanded = on;
         if (expanded){
@@ -415,29 +432,29 @@
           toggle.textContent = moreLabel;
         }
       };
-    
       toggle.addEventListener('click', (e) => {
         e.preventDefault();
         setExpanded(!expanded);
       });
     
-      // Recalcule automatiquement à la taille (si on a réduit)
-      const reclamp = debounce(() => {
-        if (expanded) return; // si étendu, ne pas recalculer
-        // Recalculer « best » si la largeur a changé
-        lo = 0; hi = words.length; best = 0;
-        while (lo <= hi){
-          const mid = Math.floor((lo+hi)/2);
-          span.textContent = words.slice(0, mid).join(' ');
-          if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
+      // Recalibrer si la largeur change (quand replié)
+      const reclamp = (function debounce(fn, wait=160){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; })(
+        () => {
+          if (expanded) return;
+          lo = 0; hi = words.length; best = 0;
+          while (lo <= hi){
+            const mid = (lo + hi) >> 1;
+            span.textContent = words.slice(0, mid).join(' ');
+            if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
+          }
+          truncated = words.slice(0, best).join(' ').trim();
+          span.textContent = truncated;
+          toggle.textContent = moreLabel;
         }
-        truncated = words.slice(0, best).join(' ').trim();
-        span.textContent = truncated;
-        toggle.textContent = moreLabel;
-      }, 160);
-    
+      );
       window.addEventListener('resize', reclamp);
     }
+
 
 
 
