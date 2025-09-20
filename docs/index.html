@@ -982,34 +982,103 @@
     }
 
     function ensureLinksLayer(){
-      // Ajoute/replace la source + layer quand le style est prêt
       const add = () => {
+        // Source si absente
         if (!map.getSource('note-links')) {
-          map.addSource('note-links', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
+          map.addSource('note-links', { type: 'geojson', data: { type:'FeatureCollection', features:[] } });
+        }
+    
+        // 1) Casing (halo) — en dessous
+        if (!map.getLayer('note-links-casing')) {
+          map.addLayer({
+            id: 'note-links-casing',
+            type: 'line',
+            source: 'note-links',
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round'
+            },
+            paint: {
+              // blanc cassé légèrement transparent
+              'line-color': '#ffffff',
+              'line-opacity': 0.65,
+              // largeur adaptative au zoom
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                3, 4.5,   // zoom 3 → 4.5px
+                6, 6.0,   // zoom 6 → 6px
+                10, 8.0   // zoom 10 → 8px
+              ],
+              'line-blur': 0.2
+            }
           });
         }
+    
+        // 2) Trait principal — au-dessus
         if (!map.getLayer('note-links-line')) {
           map.addLayer({
             id: 'note-links-line',
             type: 'line',
             source: 'note-links',
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round'
+            },
             paint: {
+              // bleu “liens”
               'line-color': '#1e90ff',
-              'line-width': 2,
-              'line-opacity': 0.85
+              'line-opacity': 0.9,
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                3, 2.0,
+                6, 3.0,
+                10, 4.0
+              ]
             }
           });
         }
+    
+        // 3) (Optionnel) Flèches directionnelles
+        if (!map.hasImage('arrow-head')) {
+          // petit triangle vers la droite
+          const size = 32, c = document.createElement('canvas');
+          c.width = size; c.height = size;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#1e90ff';
+          ctx.beginPath();
+          ctx.moveTo(26, 16); ctx.lineTo(8, 6); ctx.lineTo(8, 26); ctx.closePath();
+          ctx.fill();
+          map.addImage('arrow-head', c, { pixelRatio: 2 });
+        }
+        if (!map.getLayer('note-links-arrows')) {
+          map.addLayer({
+            id: 'note-links-arrows',
+            type: 'symbol',
+            source: 'note-links',
+            layout: {
+              'symbol-placement': 'line',
+              'symbol-spacing': 80,          // distance entre flèches
+              'icon-image': 'arrow-head',
+              'icon-size': 0.35,             // taille des flèches
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true
+            },
+            paint: {
+              'icon-opacity': 0.85
+            }
+          });
+        }
+    
+        // S’assurer de l’ordre (casing sous le trait)
+        try { map.moveLayer('note-links-casing'); } catch {}
         try { map.moveLayer('note-links-line'); } catch {}
-        linksSourceReady = true;
+        try { map.moveLayer('note-links-arrows'); } catch {}
       };
-
+    
       if (!map.isStyleLoaded()) {
-        const onceAdd = () => { add(); map.off('styledata', onceAdd); };
+        const once = () => { add(); map.off('styledata', once); };
         map.once('load', add);
-        map.on('styledata', onceAdd);
+        map.on('styledata', once);
         return;
       }
       add();
