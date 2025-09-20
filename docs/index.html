@@ -1164,6 +1164,26 @@
       }
     });
 
+  // === Fermeture du panneau (✖) ===
+  (function setupNotePanelClose(){
+    const btn = document.getElementById('npClose');
+    if (!btn) return;
+
+    const closePanel = () => {
+      const panel = document.getElementById('notePanel');
+      if (panel) panel.style.display = 'none';
+      // Efface les traits [[liens]] s'ils sont affichés
+      if (typeof clearLinks === 'function') clearLinks();
+    };
+
+    btn.addEventListener('click', closePanel);
+
+    // Bonus utile : fermer avec Échap
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  })();
+    
     // Démarrage
     map.on('load', () => {
       addMarkersFromJSON().then(applyFilters);
