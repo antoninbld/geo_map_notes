@@ -13,8 +13,6 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
-    :root { --recap-lines: 2; }
-
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
 
@@ -82,22 +80,15 @@
     .internal-link{ text-decoration:none; border-bottom:1px dashed #1e90ff; }
     .internal-link:hover{ text-decoration:underline; }
 
-    /* Récap: line-clamp CSS (état réduit) */
-    #npRecap.clamped {
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: var(--recap-lines);
-      overflow: hidden;
-    }
-    /* Lien de bascule */
-    #npRecapToggle {
+    /* Toggle du récap (bouton texte discret) */
+    .np-recap-toggle{
       cursor: pointer;
-      display: inline-block;
-      margin-top: 4px;
-      text-decoration: underline;
-      font-style: italic;
+      text-decoration: none;
+      font-weight: 600;
       user-select: none;
     }
+    .np-recap-toggle:hover{ text-decoration: underline; }
+
   </style>
 </head>
 <body>
@@ -118,22 +109,21 @@
         ✖
       </button>
       <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
-
+    
       <!-- Lieu avec 📍 -->
       <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;">
         <span id="npIcon" style="font-size:14px;line-height:1">📍</span>
         <span id="npPlace">Pays, ville</span>
       </div>
-
+    
       <!-- Date SOUS la localisation -->
       <div id="npDate" style="font-size:12px;opacity:.8;margin-top:2px; margin-left:20px;">6 octobre 1981</div>
-
+    
       <!-- Phrase récap (optionnelle) -->
       <div id="npRecap" style="font-size:13px;margin-top:6px; font-weight:600; font-style:italic;"></div>
-      <a id="npRecapToggle" href="#" style="display:none;"></a>
     </div>
 
-
+  
     <!-- Corps clair (marges homogènes) -->
     <div id="npWrapper" style="padding:6px 6px;">
       <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
@@ -142,7 +132,7 @@
         <!-- Markdown complet de la note -->
         <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
       </div>
-
+        
       <!-- Liens sortants -->
       <div id="npLinksWrap" style="margin-top:10px;">
         <div style="font-weight:700;margin:8px 0 6px;">Liens sortants</div>
@@ -152,7 +142,7 @@
         </div>
       </div>
     </div>
-  </div>
+    </div>
 
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
@@ -207,48 +197,60 @@
     // 🔑 Mets ta clé MapTiler ici
     const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN"; // remplace si besoin
 
+
+ 
     const UI_CONFIG = {
-      panel: {
-        width: "400px",
-        marginRight: "10px",
-        marginTop: "10px",
-        background: "#fff",
-        shadow: "0 8px 24px rgba(0,0,0,.18)",
-        borderRadius: "12px"
+    panel: {
+      width: "400px",            // Largeur du panneau latéral (ex: "400px" ou "30vw")
+      marginRight: "10px",       // Espace entre le panneau et le bord droit de la carte
+      marginTop: "10px",         // Espace entre le haut du panneau et la carte
+      background: "#fff",        // Couleur de fond du panneau
+      shadow: "0 8px 24px rgba(0,0,0,.18)", // Ombre portée (box-shadow)
+      borderRadius: "12px"       // Arrondi des coins du panneau
+    },
+      
+    header: {
+      background: "#facc15",     // Couleur de fond du bandeau jaune (en-tête)
+      textColor: "#000",         // Couleur du texte dans l’en-tête
+      titleSize: "16px",         // Taille du titre (px)
+      locationIcon: "📍",        // Icône affichée avant la localisation
+      dateIndent: "20px",        // Décalage gauche de la date (alignement sous la localisation)
+      dateFormat: {              // Format de la date (Intl API)
+        day: "numeric",
+        month: "long",
+        year: "numeric"
       },
-      header: {
-        background: "#facc15",
-        textColor: "#000",
-        titleSize: "16px",
-        locationIcon: "📍",
-        dateIndent: "20px",
-        dateFormat: { day: "numeric", month: "long", year: "numeric" },
-        recapStyle: "font-weight:600; font-style:italic;",
-        recapMaxLines: 2,
-        recapMoreLabel: " […]",
-        recapLessLabel: " ↥ réduire"
-      },
-      card: {
-        background: "#fef9c3",
-        border: "1px solid #0f172a22",
-        borderRadius: "10px",
-        outerPadding: "8px 10px",
-        innerPadding: "10px",
-        fontSize: "14px",
-        lineHeight: "1.55"
-      },
-      links: {
-        sectionTitle: "Liens sortants",
-        internalLinkColor: "#1e90ff",
-        internalLinkUnderline: "dashed"
-      },
-      buttons: {
-        fitText: "🔎 Voir les liés",
-        closeText: "✖ Fermer",
-        background: "#fff",
-        borderRadius: "6px"
-      }
-    };
+      recapStyle: "font-weight:600; font-style:italic;",        // Style appliqué à la phrase récap (gras, italique, couleur…)
+      recapMaxLines: 2,                    // ← nombre de lignes visibles
+      recapMoreLabel: " […]",              // ← libellé pour déployer
+      recapLessLabel: " ↥ réduire"         // ← libellé pour « retrousser »
+    },
+    
+    card: {
+      background: "#fef9c3",     // Couleur du bloc jaune clair (contenu)
+      border: "1px solid #0f172a22", // Bordure autour du bloc jaune clair
+      borderRadius: "10px",      // Arrondi du bloc jaune clair
+      outerPadding: "8px 10px",  // Marge BLANCHE autour du bloc jaune clair (écart avec le panneau)
+      innerPadding: "10px",      // Marge INTERNE du bloc jaune clair (espace texte ↔ bord du bloc)
+      fontSize: "14px",          // Taille du texte dans la note
+      lineHeight: "1.55"         // Interligne du texte
+    },
+    
+    links: {
+      sectionTitle: "Liens sortants", // Titre affiché au-dessus de la liste des liens
+      internalLinkColor: "#1e90ff",   // Couleur des liens internes [[...]]
+      internalLinkUnderline: "dashed" // Style de soulignement des liens internes (dashed, solid, none)
+    },
+    
+    buttons: {
+      fitText: "🔎 Voir les liés", // Texte du bouton pour recadrer sur les notes liées
+      closeText: "✖ Fermer",      // Texte du bouton pour fermer le panneau
+      background: "#fff",         // Couleur de fond des boutons
+      borderRadius: "6px"         // Arrondi des boutons
+    }
+  };
+
+
 
     // Crée/actualise une balise <style> dédiée aux overrides UI
     function setUIStyle(css){
@@ -260,38 +262,408 @@
       }
       tag.textContent = css;
     }
-
+    
     // Applique le UI_CONFIG sur le panneau déjà présent dans le DOM
     function applyUIConfig(){
+      // Variables pratiques
       const P = UI_CONFIG.panel;
       const H = UI_CONFIG.header;
       const C = UI_CONFIG.card;
       const L = UI_CONFIG.links;
       const B = UI_CONFIG.buttons;
-
+    
+      // Styles dynamiques (CSS) pour classes/ids existants
       setUIStyle(`
-        #notePanel{ width:${P.width}; right:${P.marginRight}; top:${P.marginTop}; background:${P.background}; box-shadow:${P.shadow}; border-radius:${P.borderRadius}; }
-        #npHeader{ background:${H.background}; color:${H.textColor}; }
+        /* Panneau conteneur */
+        #notePanel{
+          width:${P.width};
+          right:${P.marginRight};
+          top:${P.marginTop};
+          background:${P.background};
+          box-shadow:${P.shadow};
+          border-radius:${P.borderRadius};
+        }
+        /* En-tête */
+        #npHeader{
+          background:${H.background};
+          color:${H.textColor};
+        }
         #npTitle{ font-size:${H.titleSize}; }
         #npDate{ margin-left:${H.dateIndent}; }
-        #npRecap{ ${H.recapStyle} }
+    
+        /* Bloc contenu */
         #npWrapper{ padding:${C.outerPadding}; }
-        #npCard{ background:${C.background}; border:${C.border}; border-radius:${C.borderRadius}; padding:${C.innerPadding}; font-size:${C.fontSize}; line-height:${C.lineHeight}; }
-        .internal-link{ text-decoration: none; border-bottom: 1px ${L.internalLinkUnderline} ${L.internalLinkColor}; color: inherit; }
+        #npCard{
+          background:${C.background};
+          border:${C.border};
+          border-radius:${C.borderRadius};
+          padding:${C.innerPadding};
+          font-size:${C.fontSize};
+          line-height:${C.lineHeight};
+        }
+    
+        /* Liens internes */
+        .internal-link{
+          text-decoration: none;
+          border-bottom: 1px ${L.internalLinkUnderline} ${L.internalLinkColor};
+          color: inherit;
+        }
         .internal-link:hover{ text-decoration: underline; }
-        #npLinksWrap button{ background:${B.background}; border-radius:${B.borderRadius}; }
+    
+        /* Boutons */
+        #npLinksWrap button{
+          background:${B.background};
+          border-radius:${B.borderRadius};
+        }
       `);
-
+    
+      // Texte/icone dynamiques
       const icon = document.getElementById('npIcon');
       if (icon) icon.textContent = H.locationIcon;
+    
+      // Titres/labels dynamiques
       const linksTitle = document.querySelector('#npLinksWrap > div:first-child');
       if (linksTitle) linksTitle.textContent = L.sectionTitle;
+    
       const btnFit  = document.getElementById('npFit');
       if (btnFit) btnFit.textContent = B.fitText;
+      // Pas de texte pour la croix : on laisse le symbole ✖ dans le HTML du header
 
-      // nombre de lignes clamp
-      document.documentElement.style.setProperty('--recap-lines', String(H.recapMaxLines || 2));
     }
+
+    // Utilitaire: debounce simple
+    function debounce(fn, wait=120){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+    
+    // Utilitaire: convertir HTML -> texte brut (pour ne pas couper au milieu d'une balise)
+    function htmlToText(html){
+      const d = document.createElement('div');
+      d.innerHTML = html;
+      return d.textContent || d.innerText || '';
+    }
+
+    // Renvoie une hauteur de ligne en pixels (gère le cas 'normal')
+    function resolveLineHeight(el){
+      const cs = getComputedStyle(el);
+      const lh = cs.lineHeight;
+      if (!lh || lh === 'normal') {
+        const fs = parseFloat(cs.fontSize) || 14;
+        return Math.round(fs * 1.33); // approximation standard du 'normal'
+      }
+      const n = parseFloat(lh);
+      return isNaN(n) ? 18 : n;
+    }
+    
+    // Tronque #npRecap à N lignes, ajoute [...] / ↥ réduire, sans couper de mot.
+    // Mesure robuste via un conteneur invisible à largeur fixe.
+    function clampRecap(maxLines){
+      const wrap = document.getElementById('npRecap');
+      if (!wrap) return;
+    
+      const width = wrap.clientWidth || wrap.getBoundingClientRect().width || 0;
+      if (width <= 0) {
+        requestAnimationFrame(() => clampRecap(maxLines));
+        return;
+      }
+    
+      const H = UI_CONFIG.header;
+      const moreLabel = H.recapMoreLabel || ' […]';
+      const lessLabel = H.recapLessLabel || ' ↥ réduire';
+      const lines = maxLines || 2;
+
+    
+      // HTML complet déjà injecté par openSummaryInPanel (on le garde pour l'état "étendu")
+      const fullHtml = wrap.innerHTML.trim();
+      if (!fullHtml){
+        wrap.innerHTML = '';
+        return;
+      }
+    
+      // Texte brut (pour tronquer proprement au mot)
+      const tmp = document.createElement('div');
+      tmp.innerHTML = fullHtml;
+      const fullText = (tmp.textContent || tmp.innerText || '').trim();
+    
+      // ----- Mesureur invisible à largeur fixe -----
+      // On copie les styles de wrap pour une mesure fidèle
+      const cs = getComputedStyle(wrap);
+      const meas = document.createElement('div');
+      meas.style.position = 'absolute';
+      meas.style.left = '-9999px';
+      meas.style.top = '-9999px';
+      meas.style.visibility = 'hidden';
+      meas.style.whiteSpace = 'normal';
+      meas.style.wordBreak = 'break-word';
+      meas.style.width = wrap.clientWidth + 'px';
+      meas.style.fontSize = cs.fontSize;
+      meas.style.lineHeight = (cs.lineHeight === 'normal')
+        ? (parseFloat(cs.fontSize || '14') * 1.33) + 'px'
+        : cs.lineHeight;
+      meas.style.fontFamily = cs.fontFamily;
+      meas.style.fontWeight = cs.fontWeight;
+      meas.style.fontStyle  = cs.fontStyle;
+      meas.style.letterSpacing = cs.letterSpacing;
+      document.body.appendChild(meas);
+    
+      const lineH = parseFloat(meas.style.lineHeight) || 18;
+      const maxH  = Math.ceil(lineH * lines);
+    
+      // Fonction de mesure
+      const heightFor = (text) => {
+        meas.textContent = text;
+        return meas.scrollHeight;
+      };
+    
+      // Si tout tient déjà en <= N lignes → pas de bouton
+      if (heightFor(fullText) <= maxH + 1){
+        wrap.innerHTML = fullHtml;
+        document.body.removeChild(meas);
+        return;
+      }
+    
+      // ----- Construire l’UI (span + toggle) -----
+      wrap.innerHTML = '';
+      const span = document.createElement('span');
+      span.id = 'npRecapText';
+      span.style.display = 'block';
+      span.style.width = '100%';
+      span.style.whiteSpace = 'normal';
+      span.style.wordBreak = 'break-word';
+    
+      const toggle = document.createElement('a');
+      toggle.id = 'npRecapToggle';
+      toggle.className = 'np-recap-toggle';
+      toggle.href = '#';
+      toggle.style.marginLeft = '2px';
+    
+      wrap.appendChild(span);
+      wrap.appendChild(toggle);
+    
+      // ----- Recherche dichotomique au mot près -----
+      const words = fullText.split(/\s+/);
+      let lo = 0, hi = words.length, best = 0;
+      while (lo <= hi){
+        const mid = (lo + hi) >> 1;
+        const probe = words.slice(0, mid).join(' ').trim();
+        if (heightFor(probe) <= maxH + 1){ best = mid; lo = mid + 1; }
+        else { hi = mid - 1; }
+      }
+      let truncated = words.slice(0, best).join(' ').trim();
+    
+      // Appliquer l’état réduit
+      let expanded = false;
+      const setExpanded = (on) => {
+        expanded = on;
+        if (expanded){
+          span.innerHTML = fullHtml;   // on remet l’HTML complet (gras/italique conservés)
+          toggle.textContent = lessLabel;
+        } else {
+          span.textContent = truncated;
+          toggle.textContent = moreLabel;
+        }
+      };
+      setExpanded(false);
+    
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        setExpanded(!expanded);
+      });
+    
+      // Recalibrer si la largeur change (quand replié)
+      const onResize = (() => {
+        let t; return () => {
+          clearTimeout(t); t = setTimeout(() => {
+            if (expanded) return;
+            // Recalcule la largeur du mesureur + tronquage
+            meas.style.width = wrap.clientWidth + 'px';
+            lo = 0; hi = words.length; best = 0;
+            while (lo <= hi){
+              const mid = (lo + hi) >> 1;
+              const probe = words.slice(0, mid).join(' ').trim();
+              if (heightFor(probe) <= maxH + 1){ best = mid; lo = mid + 1; }
+              else { hi = mid - 1; }
+            }
+            truncated = words.slice(0, best).join(' ').trim();
+            setExpanded(false);
+          }, 160);
+        };
+      })();
+      window.addEventListener('resize', onResize);
+    
+      // Nettoyage du mesureur (on le garde si on veut recalculer → ici on le retire)
+      document.body.removeChild(meas);
+    }
+
+
+
+
+
+
+    // Styles MapTiler (vector)
+    const STYLES = {
+      hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
+      streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+      light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
+      dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
+    };
+
+    // === Liens façon Obsidian entre notes (globals) ===
+    const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
+    const idToItem = new Map();     // id -> item (depuis data.json)
+    const linksCache = new Map();   // id -> [linkedId, ...]
+    let linksSourceReady = false;   // source/layer pour les traits
+    window.__lastLinksState = null; // dernier état dessiné
+
+    // 🎯 Vues par défaut
+    const DEFAULT_ZOOM   = 3.8;
+    const EUROPE_CENTER  = [10, 50];
+    const USA_CENTER     = [-98.5, 39.8];
+
+    // Carte
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: STYLES.streets,   // Streets par défaut
+      center: EUROPE_CENTER,   // Europe au démarrage
+      zoom:   DEFAULT_ZOOM
+    });
+
+    // (debug utile)
+    map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
+
+    // Contrôles zoom (en haut à droite)
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    // Bouton "Filtres" à côté du +/-
+    class FilterControl {
+      onAdd(map){
+        this._map = map;
+        const group = document.createElement('div');
+        group.className = 'maplibregl-ctrl maplibregl-ctrl-group filters-ctrl';
+
+        const btn = document.createElement('button');
+        btn.className = 'filters-btn';
+        btn.type = 'button';
+        btn.title = 'Filtres';
+        btn.textContent = 'Filtres';
+        btn.addEventListener('click', () => {
+          const panel = document.getElementById('filtersPanel');
+          panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+        });
+
+        // Ferme le panneau filtres si on clique ailleurs
+        document.addEventListener('click', (e) => {
+          const panel = document.getElementById('filtersPanel');
+          const btn = document.querySelector('.filters-btn');
+          if (!panel || !btn) return;
+          if (panel.style.display === 'block' && !panel.contains(e.target) && !btn.contains(e.target)) {
+            panel.style.display = 'none';
+          }
+        });
+
+        group.appendChild(btn);
+        this._container = group;
+        return group;
+      }
+      onRemove(){ this._container.remove(); this._map = undefined; }
+    }
+    map.addControl(new FilterControl(), 'top-right');
+
+    // Labels visibles après changement de style
+    function setLabelVisibility(visible) {
+      const style = map.getStyle();
+      if (!style || !style.layers) return;
+      style.layers.forEach(layer => {
+        const isText = layer.type === 'symbol' && layer.layout && layer.layout['text-field'];
+        const looksLikeLabel = /label|place|country|state|city|town|village/i.test(layer.id);
+        if (isText || looksLikeLabel) {
+          try { map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none'); } catch {}
+        }
+      });
+    }
+
+    // === Pays: bbox & helpers ===
+    let countriesBbox = {}; // nom -> [minLon, minLat, maxLon, maxLat]
+
+    async function loadCountries(){
+      try{
+        const res = await fetch('countries-bbox.json', { cache: 'no-store' });
+        countriesBbox = await res.json();
+        buildCountrySelect();
+      }catch(e){
+        console.error('Erreur chargement countries-bbox.json', e);
+      }
+    }
+
+    function buildCountrySelect(){
+      const sel = document.getElementById('filterCountry');
+      if (!sel) return;
+      sel.innerHTML = '';
+      Object.keys(countriesBbox).sort((a,b)=>a.localeCompare(b)).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+    }
+
+    // Permet de cocher/décocher les pays par simple clic (sans Ctrl/⌘)
+    const countrySel = document.getElementById('filterCountry');
+    if (countrySel) {
+      countrySel.addEventListener('mousedown', (e) => {
+        const opt = e.target;
+        if (opt.tagName === 'OPTION') {
+          e.preventDefault();            // évite la sélection exclusive
+          opt.selected = !opt.selected;  // toggle
+          countrySel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+
+    function pointInBbox(lon, lat, bbox){
+      const [minX, minY, maxX, maxY] = bbox;
+      return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
+    }
+
+    // Recentrages
+    function recenterEurope() {
+      map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
+    }
+    function recenterUSA() {
+      map.easeTo({ center: USA_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
+    }
+    document.getElementById('recenterEurope').addEventListener('click', recenterEurope);
+    document.getElementById('recenterUSA').addEventListener('click', recenterUSA);
+
+    // Raccourcis clavier : E (Europe), U (USA)
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'e') recenterEurope();
+      if (key === 'u') recenterUSA();
+    });
+
+    // Changement de fond (robuste pour recréer la couche liens)
+    document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const choice = e.target.value;
+        map.setStyle(STYLES[choice]);
+
+        const rebuild = () => {
+          // 1) Recrée les marqueurs et filtres
+          addMarkersFromJSON().then(applyFilters);
+
+          // 2) Recrée la couche des liens + réaffiche le dernier état
+          linksSourceReady = false;
+          ensureLinksLayer();
+
+          if (window.__lastLinksState) {
+            const { id, links } = window.__lastLinksState;
+            drawLinksFrom(id, links);
+          }
+        };
+
+        map.once('load', rebuild);
+        map.once('styledata', rebuild);
+      });
+    });
 
     // === Helpers Obsidian/panneau ===
     function parseAndStripFrontMatter(text){
@@ -322,17 +694,62 @@
         const id = String(rawId||'').trim();
         if (!id) return m;
         const txt = String(label||id).trim();
-        return \`[\${txt}](note.html?id=\${encodeURIComponent(id)})\`;
+        return `[${txt}](note.html?id=${encodeURIComponent(id)})`;
       });
     }
 
-    // Parse robuste : "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY" -> Date
+    async function openNoteInPanel(noteId){
+      try{
+        const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+        const res = await fetch(url, { cache:'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const md = await res.text();
+        const { meta, body } = parseAndStripFrontMatter(md);
+        const html = marked.parse(transformWikiLinks(body));
+
+        document.getElementById('npTitle').textContent =
+          (meta.title && meta.title.trim()) || (idToItem.get(noteId)?.title || noteId);
+        const $npBody = document.getElementById('npBody');
+        $npBody.innerHTML = html;
+        document.getElementById('notePanel').style.display = 'block';
+
+        // Interception des liens internes du panneau
+        $npBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+          a.classList.add('internal-link');
+          a.addEventListener('click', (e) => {
+            e.preventDefault();
+            const href = a.getAttribute('href');
+            const id = decodeURIComponent(href.split('id=')[1] || '');
+            if (!id) return;
+
+            openNoteInPanel(id);
+
+            getOutgoingLinks(id).then(links => {
+              drawLinksFrom(id, links);
+              window.__lastLinksState = { id, links };
+              const b = new maplibregl.LngLatBounds();
+              const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
+              links.forEach(l => { const t = idToItem.get(l); if (t) b.extend([t.lon, t.lat]); });
+              if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+            });
+          });
+        });
+      }catch(err){
+        document.getElementById('npTitle').textContent = noteId;
+        document.getElementById('npBody').innerHTML = `<em style="color:#b91c1c;">Note introuvable (${err.message})</em>`;
+        document.getElementById('notePanel').style.display = 'block';
+      }
+    }
+    // rendre accessible globalement si besoin
+    window.openNoteInPanel = openNoteInPanel;
+
+    // Parse robuste : "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY" -> Date  
     function parseDateSmart(s){
       if (!s) return null;
       const str = String(s).trim();
       let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);           // YYYY-MM-DD
       if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-      m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);           // DD/MM/YYYY
+      m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);             // DD/MM/YYYY
       if (m) return new Date(+m[3], +m[2]-1, +m[1]);
       m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);               // DD-MM-YYYY
       if (m) return new Date(+m[3], +m[2]-1, +m[1]);
@@ -344,13 +761,149 @@
       return new Intl.DateTimeFormat('fr-FR', UI_CONFIG.header.dateFormat).format(d);
     }
 
+
+
+  // Ouvre le RÉCAP + la NOTE COMPLÈTE dans le panneau (avec clamp du récap)
+  async function openSummaryInPanel(noteId){
+    const item   = idToItem.get(noteId);
+    const $panel = document.getElementById('notePanel');
+    const $title = document.getElementById('npTitle');
+    const $place = document.getElementById('npPlace');
+    const $date  = document.getElementById('npDate');
+    const $recap = document.getElementById('npRecap');
+    const $sum   = document.getElementById('npSummary');
+    const $md    = document.getElementById('npMd');
+    const $links = document.getElementById('npLinks');
+    const $fit   = document.getElementById('npFit');
+  
+    // Sécurité
+    if (!item) {
+      $title.textContent = noteId;
+      $place.textContent = '';
+      $date.textContent  = '';
+      $recap.innerHTML   = '';
+      $sum.innerHTML     = '';
+      $md.innerHTML      = '';
+      $links.innerHTML   = '';
+      $panel.style.display = 'block';
+      return;
+    }
+  
+    // ---- En-tête : titre + 📍 lieu (date sera remplie depuis .md)
+    $title.textContent = item.title || noteId;
+    $place.textContent = item.locationName || '';
+    $date.textContent  = '';
+  
+    // ---- Récap (phrase courte) : d’abord data.json, puis éventuellement .md
+    $recap.innerHTML = item.recap ? renderWikiLinksInline(item.recap) : '';
+  
+    // ---- Petit “summary” avant la note (facultatif)
+    $sum.innerHTML = item.summary ? renderWikiLinksInline(item.summary) : '';
+  
+    // ---- NOTE COMPLÈTE (lecture .md) + date + recap (fallback)
+    let links = [];
+    try {
+      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+      const res = await fetch(url, { cache:'no-store' });
+      if (res.ok) {
+        const mdRaw = await res.text();
+        const { meta, body } = parseAndStripFrontMatter(mdRaw);
+  
+        // date (front-matter)
+        if (!$date.textContent && meta.date) {
+          $date.textContent = formatDateByConfig(meta.date);
+        }
+        // recap depuis le .md si pas donné dans data.json
+        if (!$recap.innerHTML && meta.recap) {
+          $recap.innerHTML = renderWikiLinksInline(meta.recap);
+        }
+  
+        // Liens sortants (ids présents en [[...]])
+        links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
+  
+        // Rendu HTML de la note
+        const htmlNote = marked.parse(transformWikiLinks(body));
+        $md.innerHTML = htmlNote;
+      } else {
+        $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
+      }
+    } catch (err) {
+      $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
+    }
+  
+    // ⬇️ IMPORTANT : clamping du récap APRÈS le try/catch (quel que soit sa source)
+    clampRecap(UI_CONFIG.header.recapMaxLines || 2);
+    requestAnimationFrame(() => clampRecap(UI_CONFIG.header.recapMaxLines || 2));
+
+    // ---- Section "Liens sortants"
+    if (!links.length) {
+      $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
+    } else {
+      $links.innerHTML = `
+        <ul style="margin:0; padding-left:18px;">
+          ${links.map(lid => {
+            const it = idToItem.get(lid);
+            const lbl = it?.title || lid;
+            const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
+              ? item.tags.filter(t => it.tags.includes(t))
+              : [];
+            const badge = commonTags.length
+              ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
+              : '';
+            return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
+          }).join('')}
+        </ul>
+      `;
+    }
+  
+    // ---- Affichage panneau
+    $panel.style.display = 'block';
+  
+    // ---- Navigation interne dans le panneau
+    $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+      a.classList.add('internal-link');
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = a.getAttribute('href');
+        const id = decodeURIComponent(href.split('id=')[1] || '');
+        if (!id) return;
+        openSummaryInPanel(id);
+        getOutgoingLinks(id).then(lnk => {
+          drawLinksFrom(id, lnk);
+          window.__lastLinksState = { id, links: lnk };
+          const b = new maplibregl.LngLatBounds();
+          const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
+          lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
+          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+        });
+      });
+    });
+  
+    // ---- Bouton “Voir les liés”
+    if ($fit) {
+      $fit.onclick = () => {
+        const b = new maplibregl.LngLatBounds();
+        const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
+        links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
+        if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+      };
+    }
+  
+    // ---- Traits & état mémorisé
+    drawLinksFrom(noteId, links);
+    window.__lastLinksState = { id: noteId, links };
+  }
+
+
+
+
     // --- [[...]] cliquables dans les résumés (summary de data.json) ---
     function renderWikiLinksInline(text){
       if (!text) return '';
       return text.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (m, rawId, label) => {
         const id = String(rawId).trim();
         const txt = (label || id).trim();
-        return \`<a href="note.html?id=\${encodeURIComponent(id)}" target="_blank" rel="noopener" class="internal-link">\${txt}</a>\`;
+        return `<a href="note.html?id=${encodeURIComponent(id)}" target="_blank" rel="noopener" class="internal-link">${txt}</a>`;
       });
     }
 
@@ -366,187 +919,83 @@
       return Array.from(found);
     }
 
-    // === Nouveau: gestion du récap via CSS + toggle ===
-    function updateRecapToggleLabel(collapsed) {
-      const t = document.getElementById('npRecapToggle');
-      if (!t) return;
-      const H = (window.UI_CONFIG && UI_CONFIG.header) || {};
-      t.textContent = collapsed ? (H.recapMoreLabel || ' […]') : (H.recapLessLabel || ' ↥ réduire');
+    async function getOutgoingLinks(noteId){
+      if (linksCache.has(noteId)) return linksCache.get(noteId);
+      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+      const res = await fetch(url, { cache:'no-store' });
+      if (!res.ok) { linksCache.set(noteId, []); return []; }
+      const md = await res.text();
+      const ids = extractWikiLinks(md).filter(id => idToItem.has(id));
+      linksCache.set(noteId, ids);
+      return ids;
     }
-    function setupRecapToggle() {
-      const wrap = document.getElementById('npRecap');
-      const t = document.getElementById('npRecapToggle');
-      if (!wrap || !t) return;
 
-      // Si pas de texte: masquer le toggle
-      const hasText = !!wrap.textContent.trim();
-      t.style.display = hasText ? 'inline-block' : 'none';
-      if (!hasText) return;
-
-      // État initial: réduit
-      wrap.classList.add('clamped');
-      updateRecapToggleLabel(true);
-
-      t.onclick = (e) => {
-        e.preventDefault();
-        const collapsed = wrap.classList.toggle('clamped'); // true si clamped après toggle
-        updateRecapToggleLabel(collapsed);
+    function ensureLinksLayer(){
+      // Ajoute/replace la source + layer quand le style est prêt
+      const add = () => {
+        if (!map.getSource('note-links')) {
+          map.addSource('note-links', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+        if (!map.getLayer('note-links-line')) {
+          map.addLayer({
+            id: 'note-links-line',
+            type: 'line',
+            source: 'note-links',
+            paint: {
+              'line-color': '#1e90ff',
+              'line-width': 2,
+              'line-opacity': 0.85
+            }
+          });
+        }
+        try { map.moveLayer('note-links-line'); } catch {}
+        linksSourceReady = true;
       };
-    }
-    function setRecapText(text) {
-      const wrap = document.getElementById('npRecap');
-      if (!wrap) return;
-      wrap.innerHTML = text ? renderWikiLinksInline(text) : '';
-      setupRecapToggle();
-    }
 
-    // === Liens entre notes (traits) ===
-    const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
-    const idToItem = new Map();
-    const linksCache = new Map();
-    let linksSourceReady = false;
-    window.__lastLinksState = null;
-
-    const DEFAULT_ZOOM = 3.8;
-    const EUROPE_CENTER = [10, 50];
-    const USA_CENTER = [-98.5, 39.8];
-
-    const STYLES = {
-      hybrid: \`https://api.maptiler.com/maps/hybrid/style.json?key=\${MAPTILER_KEY}\`,
-      streets:\`https://api.maptiler.com/maps/streets/style.json?key=\${MAPTILER_KEY}\`,
-      light:  \`https://api.maptiler.com/maps/basic/style.json?key=\${MAPTILER_KEY}\`,
-      dark:   \`https://api.maptiler.com/maps/dataviz-dark/style.json?key=\${MAPTILER_KEY}\`
-    };
-
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: STYLES.streets,
-      center: EUROPE_CENTER,
-      zoom: DEFAULT_ZOOM
-    });
-    map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-
-    class FilterControl {
-      onAdd(map){
-        this._map = map;
-        const group = document.createElement('div');
-        group.className = 'maplibregl-ctrl maplibregl-ctrl-group filters-ctrl';
-
-        const btn = document.createElement('button');
-        btn.className = 'filters-btn';
-        btn.type = 'button';
-        btn.title = 'Filtres';
-        btn.textContent = 'Filtres';
-        btn.addEventListener('click', () => {
-          const panel = document.getElementById('filtersPanel');
-          panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
-        });
-
-        document.addEventListener('click', (e) => {
-          const panel = document.getElementById('filtersPanel');
-          const btn = document.querySelector('.filters-btn');
-          if (!panel || !btn) return;
-          if (panel.style.display === 'block' && !panel.contains(e.target) && !btn.contains(e.target)) {
-            panel.style.display = 'none';
-          }
-        });
-
-        group.appendChild(btn);
-        this._container = group;
-        return group;
+      if (!map.isStyleLoaded()) {
+        const onceAdd = () => { add(); map.off('styledata', onceAdd); };
+        map.once('load', add);
+        map.on('styledata', onceAdd);
+        return;
       }
-      onRemove(){ this._container.remove(); this._map = undefined; }
-    }
-    map.addControl(new FilterControl(), 'top-right');
-
-    function setLabelVisibility(visible) {
-      const style = map.getStyle();
-      if (!style || !style.layers) return;
-      style.layers.forEach(layer => {
-        const isText = layer.type === 'symbol' && layer.layout && layer.layout['text-field'];
-        const looksLikeLabel = /label|place|country|state|city|town|village/i.test(layer.id);
-        if (isText || looksLikeLabel) {
-          try { map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none'); } catch {}
-        }
-      });
+      add();
     }
 
-    // === Pays: bbox & helpers ===
-    let countriesBbox = {};
-    async function loadCountries(){
-      try{
-        const res = await fetch('countries-bbox.json', { cache: 'no-store' });
-        countriesBbox = await res.json();
-        buildCountrySelect();
-      }catch(e){
-        console.error('Erreur chargement countries-bbox.json', e);
+    function drawLinksFrom(noteId, linkedIds){
+      if (!map.getSource('note-links') || !map.getLayer('note-links-line')) {
+        ensureLinksLayer();
       }
-    }
-    function buildCountrySelect(){
-      const sel = document.getElementById('filterCountry');
-      if (!sel) return;
-      sel.innerHTML = '';
-      Object.keys(countriesBbox).sort((a,b)=>a.localeCompare(b)).forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        sel.appendChild(opt);
+      const from = idToItem.get(noteId);
+      if (!from) return;
+      const features = [];
+      linkedIds.forEach(lid => {
+        const to = idToItem.get(lid);
+        if (!to) return;
+        features.push({
+          type:'Feature',
+          geometry:{ type:'LineString', coordinates:[[from.lon, from.lat],[to.lon, to.lat]] },
+          properties:{ from: noteId, to: lid }
+        });
       });
-    }
-    const countrySel = document.getElementById('filterCountry');
-    if (countrySel) {
-      countrySel.addEventListener('mousedown', (e) => {
-        const opt = e.target;
-        if (opt.tagName === 'OPTION') {
-          e.preventDefault();
-          opt.selected = !opt.selected;
-          countrySel.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-    }
-    function pointInBbox(lon, lat, bbox){
-      const [minX, minY, maxX, maxY] = bbox;
-      return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
+      const src = map.getSource('note-links');
+      src.setData({ type:'FeatureCollection', features });
     }
 
-    // Recentrages & clavier
-    function recenterEurope() { map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 }); }
-    function recenterUSA() { map.easeTo({ center: USA_CENTER, zoom: DEFAULT_ZOOM, duration: 600 }); }
-    document.getElementById('recenterEurope').addEventListener('click', recenterEurope);
-    document.getElementById('recenterUSA').addEventListener('click', recenterUSA);
-    window.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      if (key === 'e') recenterEurope();
-      if (key === 'u') recenterUSA();
-    });
-
-    // Changement de fond
-    document.querySelectorAll('input[name="basemap"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        const choice = e.target.value;
-        map.setStyle(STYLES[choice]);
-
-        const rebuild = () => {
-          addMarkersFromJSON().then(applyFilters);
-          linksSourceReady = false;
-          ensureLinksLayer();
-          if (window.__lastLinksState) {
-            const { id, links } = window.__lastLinksState;
-            drawLinksFrom(id, links);
-          }
-        };
-        map.once('load', rebuild);
-        map.once('styledata', rebuild);
-      });
-    });
+    function clearLinks(){
+      const src = map.getSource('note-links');
+      if (src) src.setData({ type:'FeatureCollection', features:[] });
+    }
 
     // === Données & Marqueurs & Filtres ===
-    let allData = [];
-    let allMarkers = [];
+    let allData = [];      // toutes les entrées JSON (chargées une fois)
+    let allMarkers = [];   // { item, marker }
     let allTags = new Set();
 
     async function addMarkersFromJSON() {
+      // charge data.json une seule fois
       if (allData.length === 0) {
         try {
           const res = await fetch('data.json', { cache: 'no-store' });
@@ -557,25 +1006,25 @@
         }
       }
 
+      // 3.3 — index rapide id -> item (sert aux liens entre notes)
       idToItem.clear();
+      allData.forEach(it => { if (it && it.id) idToItem.set(it.id, it); });
+
+      // nettoie anciens marqueurs
       allMarkers.forEach(({marker}) => marker.remove());
       allMarkers = [];
       allTags.clear();
 
+      // crée les marqueurs
       allData.forEach(item => {
-        if (item && item.id) idToItem.set(item.id, item);
-        // collecter tags -> affichage filtres
-        if (Array.isArray(item.tags)) {
-          item.tags.forEach(t => { if (t && String(t).trim()) allTags.add(String(t).trim()); });
-        }
-
         if (typeof item.lon === 'number' && typeof item.lat === 'number') {
+          // STYLE du marqueur (rouge + bordure rouge foncé)
           const el = document.createElement('div');
           el.style.width = '14px';
           el.style.height = '14px';
           el.style.borderRadius = '50%';
-          el.style.background = 'red';
-          el.style.border = '2px solid darkred';
+          el.style.background = 'red';             // centre
+          el.style.border = '2px solid darkred';   // contour
           el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
           el.title = item.title || '';
 
@@ -583,14 +1032,17 @@
             .setLngLat([item.lon, item.lat])
             .addTo(map);
 
+          // Clic sur le marqueur => ouvre le panneau RÉSUMÉ direct + traits
           el.addEventListener('click', async () => {
-            await openSummaryInPanel(item.id);
+            await openSummaryInPanel(item.id); // affiche le résumé + liens + traits
           });
+
 
           allMarkers.push({ item, marker });
         }
       });
 
+      // construit la liste de tags (si des tags existent)
       buildTagCheckboxes();
     }
 
@@ -620,22 +1072,27 @@
     function applyFilters(){
       const q = (document.getElementById('filterQuery')?.value || '').toLowerCase().trim();
       const selected = Array.from(document.querySelectorAll('input[name="tag"]:checked')).map(i => i.value);
+
+      // 🔽 Pays sélectionnés (multiselect)
       const sel = document.getElementById('filterCountry');
       const selectedCountries = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
 
       allMarkers.forEach(({ item, marker }) => {
         let visible = true;
 
+        // Filtre texte
         if (q) {
-          const hay = [item.title||'', item.locationName||'', item.summary||'', item.recap||''].join(' ').toLowerCase();
+          const hay = [item.title||'', item.locationName||'', item.summary||''].join(' ').toLowerCase();
           visible = hay.includes(q);
         }
 
+        // Filtre tags (ET logique)
         if (visible && selected.length) {
           const itags = Array.isArray(item.tags) ? item.tags.map(String) : [];
           visible = selected.every(t => itags.includes(t));
         }
 
+        // 🔽 Filtre pays (OU logique entre pays sélectionnés)
         if (visible && selectedCountries.length) {
           const lon = item.lon, lat = item.lat;
           visible = selectedCountries.some(countryName => {
@@ -649,37 +1106,52 @@
     }
 
     function resetFilters(){
+      // Réinitialiser recherche
       const q = document.getElementById('filterQuery');
       if (q) q.value = '';
+
+      // Réinitialiser tags
       document.querySelectorAll('input[name="tag"]:checked').forEach(cb => cb.checked = false);
+
+      // Réinitialiser pays
       const sel = document.getElementById('filterCountry');
       if (sel) Array.from(sel.options).forEach(o => o.selected = false);
+
+      // Réafficher tous les marqueurs
       allMarkers.forEach(({marker}) => marker.getElement().style.display = '');
+
+      // Fermer le panneau
       const panel = document.getElementById('filtersPanel');
       if (panel) panel.style.display = 'none';
+
+      // 🔽 Recentrer sur l’Europe (constants)
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
 
     function zoomToVisibleMarkers(){
       const visibles = allMarkers.filter(({marker}) => marker.getElement().style.display !== 'none');
       if (visibles.length === 0) return;
+
       if (visibles.length === 1) {
         const [lon, lat] = visibles[0].marker.getLngLat().toArray();
         map.easeTo({ center: [lon, lat], zoom: 8, duration: 600 });
         return;
       }
+
       const bounds = new maplibregl.LngLatBounds();
       visibles.forEach(({marker}) => bounds.extend(marker.getLngLat()));
       map.fitBounds(bounds, { padding: 60, duration: 700 });
     }
 
+    // Branche les boutons du panneau filtres
     document.getElementById('applyFilters')?.addEventListener('click', () => {
       applyFilters();
-      zoomToVisibleMarkers();
-      document.getElementById('filtersPanel').style.display = 'none';
+      zoomToVisibleMarkers(); // 🔎 recadre sur les résultats filtrés
+      document.getElementById('filtersPanel').style.display = 'none'; // ferme le panneau
     });
     document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
 
+    // Pays: tout sélectionner / tout désélectionner
     document.getElementById('selectAllCountries')?.addEventListener('click', () => {
       const sel = document.getElementById('filterCountry');
       if (!sel) return;
@@ -691,211 +1163,42 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
+    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
     map.on('click', (e) => {
       const path = e.originalEvent?.composedPath?.() || [];
       const clickedMarkerEl = path.find(n => n && n.classList && n.classList.contains('maplibregl-marker'));
-      if (!clickedMarkerEl) { clearLinks(); }
+      if (!clickedMarkerEl) {
+        clearLinks();
+      }
     });
 
-    // === Fermeture du panneau (✖ + Échap) ===
-    (function setupNotePanelClose(){
-      const btn = document.getElementById('npClose');
-      if (!btn) return;
-      const closePanel = () => {
-        const panel = document.getElementById('notePanel');
-        if (panel) panel.style.display = 'none';
-        if (typeof clearLinks === 'function') clearLinks();
-      };
-      btn.addEventListener('click', closePanel);
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
-    })();
+  // === Fermeture du panneau (✖) ===
+  (function setupNotePanelClose(){
+    const btn = document.getElementById('npClose');
+    if (!btn) return;
 
-    // === Liens: source & dessin ===
-    function ensureLinksLayer(){
-      const add = () => {
-        if (!map.getSource('note-links')) {
-          map.addSource('note-links', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        }
-        if (!map.getLayer('note-links-line')) {
-          map.addLayer({ id: 'note-links-line', type: 'line', source: 'note-links',
-            paint: { 'line-color': '#1e90ff', 'line-width': 2, 'line-opacity': 0.85 } });
-        }
-        try { map.moveLayer('note-links-line'); } catch {}
-        linksSourceReady = true;
-      };
-      if (!map.isStyleLoaded()) {
-        const onceAdd = () => { add(); map.off('styledata', onceAdd); };
-        map.once('load', add);
-        map.on('styledata', onceAdd);
-        return;
-      }
-      add();
-    }
-    function drawLinksFrom(noteId, linkedIds){
-      if (!map.getSource('note-links') || !map.getLayer('note-links-line')) { ensureLinksLayer(); }
-      const from = idToItem.get(noteId);
-      if (!from) return;
-      const features = [];
-      (linkedIds || []).forEach(lid => {
-        const to = idToItem.get(lid);
-        if (!to) return;
-        features.push({ type:'Feature',
-          geometry:{ type:'LineString', coordinates:[[from.lon, from.lat],[to.lon, to.lat]] },
-          properties:{ from: noteId, to: lid } });
-      });
-      const src = map.getSource('note-links');
-      src.setData({ type:'FeatureCollection', features });
-    }
-    function clearLinks(){
-      const src = map.getSource('note-links');
-      if (src) src.setData({ type:'FeatureCollection', features:[] });
-    }
+    const closePanel = () => {
+      const panel = document.getElementById('notePanel');
+      if (panel) panel.style.display = 'none';
+      // Efface les traits [[liens]] s'ils sont affichés
+      if (typeof clearLinks === 'function') clearLinks();
+    };
 
-    // === Ouverture panel depuis un marqueur ===
-    async function getOutgoingLinks(noteId){
-      if (linksCache.has(noteId)) return linksCache.get(noteId);
-      const url = \`\${NOTE_RAW_BASE}/\${encodeURIComponent(noteId)}.md\`;
-      const res = await fetch(url, { cache:'no-store' });
-      if (!res.ok) { linksCache.set(noteId, []); return []; }
-      const md = await res.text();
-      const ids = extractWikiLinks(md).filter(id => idToItem.has(id));
-      linksCache.set(noteId, ids);
-      return ids;
-    }
+    btn.addEventListener('click', closePanel);
 
-    async function openSummaryInPanel(noteId){
-      const item   = idToItem.get(noteId);
-      const $panel = document.getElementById('notePanel');
-      const $title = document.getElementById('npTitle');
-      const $place = document.getElementById('npPlace');
-      const $date  = document.getElementById('npDate');
-      const $sum   = document.getElementById('npSummary');
-      const $md    = document.getElementById('npMd');
-      const $links = document.getElementById('npLinks');
-      const $fit   = document.getElementById('npFit');
-
-      if (!item) {
-        $title.textContent = noteId;
-        $place.textContent = '';
-        $date.textContent  = '';
-        setRecapText('');
-        $sum.innerHTML     = '';
-        $md.innerHTML      = '';
-        $links.innerHTML   = '';
-        $panel.style.display = 'block';
-        return;
-      }
-
-      $title.textContent = item.title || noteId;
-      $place.textContent = item.locationName || '';
-      $date.textContent  = '';
-
-      // recap depuis data.json (prioritaire, sinon vide pour le moment)
-      setRecapText(item.recap || '');
-
-      $sum.innerHTML = item.summary ? renderWikiLinksInline(item.summary) : '';
-
-      let links = [];
-      try {
-        const url = \`\${NOTE_RAW_BASE}/\${encodeURIComponent(noteId)}.md\`;
-        const res = await fetch(url, { cache:'no-store' });
-        if (res.ok) {
-          const mdRaw = await res.text();
-          const { meta, body } = parseAndStripFrontMatter(mdRaw);
-
-          if (!$date.textContent && meta.date) {
-            $date.textContent = formatDateByConfig(meta.date);
-          }
-          // si pas de recap en data.json, prendre celui du front-matter
-          if (!(item.recap && item.recap.trim()) && meta.recap) {
-            setRecapText(meta.recap);
-          }
-
-          links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
-          const htmlNote = marked.parse(transformWikiLinks(body));
-          $md.innerHTML = htmlNote;
-        } else {
-          $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
-        }
-      } catch (err) {
-        $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
-      }
-
-      if (!links.length) {
-        $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
-      } else {
-        $links.innerHTML = `
-          <ul style="margin:0; padding-left:18px;">
-            ${links.map(lid => {
-              const it = idToItem.get(lid);
-              const lbl = it?.title || lid;
-              const commonTags = Array.isArray(item.tags) && Array.isArray(it?.tags)
-                ? item.tags.filter(t => it.tags.includes(t))
-                : [];
-              const badge = commonTags.length
-                ? ` <span style="color:#6b7280;">(${commonTags.join(', ')})</span>`
-                : '';
-              return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a>${badge}</li>`;
-            }).join('')}
-          </ul>
-        `;
-      }
-
-      $panel.style.display = 'block';
-
-      $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
-        a.classList.add('internal-link');
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          const href = a.getAttribute('href');
-          const id = decodeURIComponent(href.split('id=')[1] || '');
-          if (!id) return;
-          openSummaryInPanel(id);
-          getOutgoingLinks(id).then(lnk => {
-            drawLinksFrom(id, lnk);
-            window.__lastLinksState = { id, links: lnk };
-            const b = new maplibregl.LngLatBounds();
-            const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
-            lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
-            if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
-          });
-        });
-      });
-
-      if ($fit) {
-        $fit.onclick = () => {
-          const b = new maplibregl.LngLatBounds();
-          const from = idToItem.get(noteId); if (from) b.extend([from.lon, from.lat]);
-          links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
-          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
-        };
-      }
-
-      drawLinksFrom(noteId, links);
-      window.__lastLinksState = { id: noteId, links };
-    }
-
-    // === Liens (fetch) ===
-    async function getOutgoingLinks(noteId){
-      if (linksCache.has(noteId)) return linksCache.get(noteId);
-      const url = \`\${NOTE_RAW_BASE}/\${encodeURIComponent(noteId)}.md\`;
-      const res = await fetch(url, { cache:'no-store' });
-      if (!res.ok) { linksCache.set(noteId, []); return []; }
-      const md = await res.text();
-      const ids = extractWikiLinks(md).filter(id => idToItem.has(id));
-      linksCache.set(noteId, ids);
-      return ids;
-    }
-
-    // === Démarrage ===
-    function ensureLinksLayer(){ /* placeholder replaced above - function already defined earlier */ }
-    // NOTE: ensureLinksLayer is defined above; noop here to avoid duplicate
-
+    // Bonus utile : fermer avec Échap
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  })();
+    
+    // Démarrage
     map.on('load', () => {
       addMarkersFromJSON().then(applyFilters);
-      // liens layer
-      // redefine ensureLinksLayer call (real one above)
-      // ensureLinksLayer already invoked via other flows when needed
+      ensureLinksLayer();
+      if (window.__lastLinksState) {
+        drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
+      }
     });
     loadCountries();
     applyUIConfig();
