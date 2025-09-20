@@ -687,6 +687,7 @@
       zoom:   DEFAULT_ZOOM,
       projection: 'mercator' // 2D par défaut ; on togglera en live
     });
+    window.map = map;   // ← rend 'map' accessible depuis la console
     // Réapplique la projection (2D/3D) à CHAQUE changement de style
     map.on('style.load', () => {
       // 1) Projection + 2) Terrain (si globe + MapTiler)
