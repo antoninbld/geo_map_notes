@@ -93,7 +93,7 @@
     
       <!-- Lieu avec 📍 -->
       <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;">
-        <span style="font-size:14px;line-height:1">📍</span>
+        <span id="npIcon" style="font-size:14px;line-height:1">📍</span>
         <span id="npPlace">Pays, ville</span>
       </div>
     
@@ -106,13 +106,15 @@
 
   
     <!-- Corps clair (marges homogènes) -->
-    <div style="padding:6px 6px;">
+    <div id="npWrapper" style="padding:6px 6px;">
       <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
         <!-- Petite phrase avant la note (optionnelle) -->
         <div id="npSummary" style="font-size:14px;line-height:1.55;margin-bottom:8px;"></div>
         <!-- Markdown complet de la note -->
         <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
       </div>
+    </div>
+
     
       <!-- Liens sortants -->
       <div id="npLinksWrap" style="margin-top:10px;">
@@ -179,6 +181,173 @@
   <script>
     // 🔑 Mets ta clé MapTiler ici
     const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN"; // remplace si besoin
+
+
+
+    // === UI: descriptions (aide) — ne sert qu’à toi pour comprendre ===
+    const UI_HELP = {
+      panel: {
+        width: "Largeur du panneau (ex. 400px ou 30vw)",
+        marginRight: "Marge entre le panneau et le bord droit de la carte",
+        marginTop: "Marge entre le haut du panneau et le haut de la carte",
+        background: "Couleur de fond du panneau",
+        shadow: "Ombre du panneau (box-shadow)",
+        borderRadius: "Arrondi des coins du panneau"
+      },
+      header: {
+        background: "Couleur de fond du bandeau jaune",
+        textColor: "Couleur du texte dans l’en-tête",
+        titleSize: "Taille du titre (ex. 16px)",
+        locationIcon: "Icône/emoji affiché avant la localisation (ex. 📍)",
+        dateIndent: "Décalage gauche de la date pour l’aligner sous la localisation",
+        dateFormat: "Format Intl de la date (locale fr-FR par défaut)",
+        recapStyle: "Style CSS appliqué à la phrase récap (gras/italique, etc.)"
+      },
+      card: {
+        background: "Couleur du bloc de contenu (jaune clair)",
+        border: "Bordure du bloc (épaisseur/couleur)",
+        borderRadius: "Arrondi du bloc",
+        outerPadding: "Espace BLANC autour du bloc (entre bloc et bords du panneau)",
+        innerPadding: "Espace INTERNE du bloc (entre texte et bord du bloc)",
+        fontSize: "Taille de police du contenu",
+        lineHeight: "Interligne du contenu"
+      },
+      links: {
+        sectionTitle: "Titre de la section des liens sortants",
+        internalLinkColor: "Couleur des liens internes [[...]]",
+        internalLinkUnderline: "Style de soulignement (dashed/solid/none)"
+      },
+      buttons: {
+        fitText: "Texte du bouton de recadrage",
+        closeText: "Texte du bouton de fermeture",
+        background: "Couleur de fond des boutons",
+        borderRadius: "Arrondi des boutons"
+      }
+    };
+    
+    // === UI: configuration réellement utilisée par le code ===
+    const UI_CONFIG = {
+      panel: {
+        width: "400px",
+        marginRight: "10px",
+        marginTop: "10px",
+        background: "#fff",
+        shadow: "0 8px 24px rgba(0,0,0,.18)",
+        borderRadius: "12px"
+      },
+      header: {
+        background: "#facc15",
+        textColor: "#000",
+        titleSize: "16px",
+        locationIcon: "📍",
+        dateIndent: "20px",
+        dateFormat: { day: "numeric", month: "long", year: "numeric" },
+        recapStyle: "font-weight:600; font-style:italic;"
+      },
+      card: {
+        background: "#fef9c3",
+        border: "1px solid #0f172a22",
+        borderRadius: "10px",
+        outerPadding: "8px 10px",   // ← marge BLANCHE autour du bloc
+        innerPadding: "10px",       // ← marge INTERNE du bloc
+        fontSize: "14px",
+        lineHeight: "1.55"
+      },
+      links: {
+        sectionTitle: "Liens sortants",
+        internalLinkColor: "#1e90ff",
+        internalLinkUnderline: "dashed"
+      },
+      buttons: {
+        fitText: "🔎 Voir les liés",
+        closeText: "✖ Fermer",
+        background: "#fff",
+        borderRadius: "6px"
+      }
+    };
+
+
+    // Crée/actualise une balise <style> dédiée aux overrides UI
+    function setUIStyle(css){
+      let tag = document.getElementById('ui-overrides');
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'ui-overrides';
+        document.head.appendChild(tag);
+      }
+      tag.textContent = css;
+    }
+    
+    // Applique le UI_CONFIG sur le panneau déjà présent dans le DOM
+    function applyUIConfig(){
+      // Variables pratiques
+      const P = UI_CONFIG.panel;
+      const H = UI_CONFIG.header;
+      const C = UI_CONFIG.card;
+      const L = UI_CONFIG.links;
+      const B = UI_CONFIG.buttons;
+    
+      // Styles dynamiques (CSS) pour classes/ids existants
+      setUIStyle(`
+        /* Panneau conteneur */
+        #notePanel{
+          width:${P.width};
+          right:${P.marginRight};
+          top:${P.marginTop};
+          background:${P.background};
+          box-shadow:${P.shadow};
+          border-radius:${P.borderRadius};
+        }
+        /* En-tête */
+        #npHeader{
+          background:${H.background};
+          color:${H.textColor};
+        }
+        #npTitle{ font-size:${H.titleSize}; }
+        #npDate{ margin-left:${H.dateIndent}; }
+    
+        /* Bloc contenu */
+        #npWrapper{ padding:${C.outerPadding}; }
+        #npCard{
+          background:${C.background};
+          border:${C.border};
+          border-radius:${C.borderRadius};
+          padding:${C.innerPadding};
+          font-size:${C.fontSize};
+          line-height:${C.lineHeight};
+        }
+    
+        /* Liens internes */
+        .internal-link{
+          text-decoration: none;
+          border-bottom: 1px ${L.internalLinkUnderline} ${L.internalLinkColor};
+          color: inherit;
+        }
+        .internal-link:hover{ text-decoration: underline; }
+    
+        /* Boutons */
+        #npLinksWrap button{
+          background:${B.background};
+          border-radius:${B.borderRadius};
+        }
+      `);
+    
+      // Texte/icone dynamiques
+      const icon = document.getElementById('npIcon');
+      if (icon) icon.textContent = H.locationIcon;
+    
+      // Titres/labels dynamiques
+      const linksTitle = document.querySelector('#npLinksWrap > div:first-child');
+      if (linksTitle) linksTitle.textContent = L.sectionTitle;
+    
+      const btnFit  = document.getElementById('npFit');
+      const btnClose= document.getElementById('npClose');
+      if (btnFit)  btnFit.textContent  = B.fitText;
+      if (btnClose)btnClose.textContent= B.closeText;
+    }
+
+
+
 
     // Styles MapTiler (vector)
     const STYLES = {
@@ -454,11 +623,23 @@
       return null; // inconnu
     }
     
-    function formatDateFR(s){
-      const d = parseDateSmart(s);
-      if (!d || isNaN(d.getTime())) return s || '';
-      return new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'long', year:'numeric' }).format(d);
+    function parseDateSmart(s){
+      if (!s) return null;
+      const str = String(s).trim();
+      let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);           // YYYY-MM-DD
+      if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+      m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);             // DD/MM/YYYY
+      if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+      m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);               // DD-MM-YYYY
+      if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+      return null;
     }
+    function formatDateByConfig(s){
+      const d = parseDateSmart(s);
+      if (!d) return s || '';
+      return new Intl.DateTimeFormat('fr-FR', UI_CONFIG.header.dateFormat).format(d);
+    }
+
 
 
   // Ouvre le RÉSUMÉ (petite phrase) + NOTE COMPLÈTE (Markdown) dans le panneau
@@ -510,7 +691,7 @@
         const { meta, body } = parseAndStripFrontMatter(mdRaw);
   
         // 1) date (front-matter: `date: 1981-10-06` par ex.)
-        if (!$date.textContent && meta.date) $date.textContent = formatDateFR(meta.date);
+        if (!$date.textContent && meta.date) $date.textContent = formatDateByConfig(meta.date);
         // 2) recap depuis le .md si pas donné dans data.json
         if (!$recap.innerHTML && meta.recap) $recap.innerHTML = renderWikiLinksInline(meta.recap);
   
@@ -876,6 +1057,7 @@
       }
     });
     loadCountries();
+    applyUIConfig();
   </script>
 </body>
 </html>
