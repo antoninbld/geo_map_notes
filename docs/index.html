@@ -558,11 +558,53 @@
 
     function applyProjection() {
       const type = (CURRENT_PROJECTION === 'globe') ? 'globe' : 'mercator';
-      try {
-        map.setProjection({ type }); // API v5
-      } catch (err) {
-        console.warn('Projection non supportée:', err);
+      try { map.setProjection({ type }); } catch (err) { console.warn('Projection non supportée:', err); }
+    
+      if (type === 'globe') {
+        startSun(); // lance le cycle du soleil
+      } else {
+        if (__sunTimer) { clearInterval(__sunTimer); __sunTimer = null; }
       }
+    }
+
+    // Met à jour la position du "soleil"
+    function updateSun() {
+      const now = new Date();
+      const t = (now.getHours() + now.getMinutes() / 60) / 24; // 0..1
+      const azimuth = t * 360;
+      const altitude = Math.sin(t * 2 * Math.PI) * 35 + 25; // -10..60
+    
+      try {
+        map.setPaintProperty('sky', 'sky-atmosphere-sun', [azimuth, altitude]);
+      } catch {}
+    }
+
+    function ensureTerrain() {
+      if (CURRENT_PROJECTION !== 'globe' || CURRENT_PROVIDER !== 'maptiler') {
+        try { map.setTerrain(null); } catch {}
+        return;
+      }
+    
+      if (!map.getSource('terrain-dem')) {
+        map.addSource('terrain-dem', {
+          type: 'raster-dem',
+          url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,
+          tileSize: 512,
+          maxzoom: 14
+        });
+      }
+      try {
+        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 });
+      } catch (e) {
+        console.warn('Impossible de définir le terrain:', e);
+      }
+    }
+    
+    let __sunTimer = null;
+    function startSun() {
+      updateSun();
+      clearInterval(__sunTimer);
+      __sunTimer = setInterval(updateSun, 30000);
     }
     
     // === Liens façon Obsidian entre notes (globals) ===
@@ -587,6 +629,21 @@
     });
     // Réapplique la projection (2D/3D) à CHAQUE changement de style
     map.on('style.load', applyProjection);
+    ensureTerrain();
+    // Ajoute une atmosphère (sky) après chaque chargement de style
+    map.on('style.load', () => {
+      if (!map.getLayer('sky')) {
+        map.addLayer({
+          id: 'sky',
+          type: 'sky',
+          paint: {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0, 0],          // sera mis à jour par updateSun()
+            'sky-atmosphere-sun-intensity': 12
+          }
+        });
+      }
+    });
 
     // (debug utile)
     map.on('error', (e) => console.error('Map error:', e && (e.error || e)));
@@ -711,6 +768,7 @@
     
         const rebuild = () => {
           applyProjection(); // ← re-applique 2D/3D + fog
+          ensureTerrain();
           addMarkersFromJSON().then(applyFilters);
           linksSourceReady = false;
           ensureLinksLayer();
@@ -732,6 +790,7 @@
     
         const rebuild = () => {
           applyProjection(); // ← re-applique 2D/3D + fog
+          ensureTerrain();
           addMarkersFromJSON().then(applyFilters);
           linksSourceReady = false;
           ensureLinksLayer();
@@ -769,6 +828,7 @@
       radio.addEventListener('change', (e) => {
         CURRENT_PROJECTION = e.target.value; // 'mercator' | 'globe'
         applyProjection();
+        ensureTerrain();
     
         // Pour bien voir la sphère la 1ère fois :
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
@@ -1177,6 +1237,26 @@
         return;
       }
       add();
+      // Calque animé
+      if (!map.getLayer('note-links-anim')) {
+        map.addLayer({
+          id: 'note-links-anim',
+          type: 'line',
+          source: 'note-links',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-width': [
+              'interpolate', ['linear'], ['zoom'],
+              3, 2.0, 6, 3.0, 10, 4.0
+            ],
+            'line-gradient': [
+              'interpolate', ['linear'], ['line-progress'],
+              0.0, ['rgba', 30, 144, 255, 0.0],
+              1.0, ['rgba', 30, 144, 255, 0.0]
+            ]
+          }
+        });
+      }
     }
 
     // === Courbes entre points =====================================================
