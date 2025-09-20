@@ -556,11 +556,18 @@
       try { map.setProjection({ type }); } catch (err) { console.warn('Projection non supportée:', err); }
     
       if (type === 'globe') {
-        startSun(); // lance le cycle du soleil
-      } else {
-        if (__sunTimer) { clearInterval(__sunTimer); __sunTimer = null; }
-      }
+      // teinte l’horizon et l’extérieur du globe
+      map.setFog({
+        range: [0.5, 10],
+        color: 'rgba(160,190,220,0.9)',
+        'horizon-blend': 0.25
+      });
+      startSun();
+    } else {
+      map.setFog(null);
+      if (__sunTimer) { clearInterval(__sunTimer); __sunTimer = null; }
     }
+  }
 
     // Met à jour la position du "soleil"
     function updateSun() {
@@ -590,6 +597,19 @@
       }
       try {
         map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 });
+        // Ombres portées du relief (visibles même de dessus)
+        if (!map.getLayer('terrain-hillshade')) {
+          map.addLayer({
+            id: 'terrain-hillshade',
+            type: 'hillshade',
+            source: 'terrain-dem',
+            paint: {
+              'hillshade-exaggeration': 0.6,
+              'hillshade-shadow-color': '#000',
+              'hillshade-highlight-color': '#fff'
+            }
+          }, 'note-links-casing'); // l’ajouter sous tes traits/labels
+        }
       } catch (e) {
         console.warn('Impossible de définir le terrain:', e);
       }
@@ -866,7 +886,7 @@
     
         // Pour bien voir la sphère la 1ère fois :
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
-          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 400 });
+          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 30, bearing: 0, duration: 400 });
         }
       });
     });
@@ -1174,7 +1194,11 @@
       const add = () => {
         // Source si absente
         if (!map.getSource('note-links')) {
-          map.addSource('note-links', { type: 'geojson', data: { type:'FeatureCollection', features:[] } });
+          map.addSource('note-links', {
+            type: 'geojson',
+            data: { type:'FeatureCollection', features:[] },
+            lineMetrics: true   // ← indispensable pour ["line-progress"]
+          });
         }
     
         // 1) Casing (halo) — en dessous
