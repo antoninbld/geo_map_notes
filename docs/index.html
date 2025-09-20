@@ -1647,10 +1647,32 @@
     map.on('load', () => {
       addMarkersFromJSON().then(applyFilters);
       ensureLinksLayer();
+    
+      // --- DEBUG: dessine un trait animé tout de suite pour vérifier l'effet ---
+      try {
+        const test = {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              // Paris (2,48) -> Berlin (13,52) ; choisi pour être visible sur l'Europe
+              coordinates: [[2, 48], [13, 52]]
+            },
+            properties: { from: 'TEST', to: 'TEST2' }
+          }]
+        };
+        const src = map.getSource('note-links');
+        if (src) src.setData(test);
+        startLinksAnimation(); // lance l’anim immédiatement
+      } catch {}
+      // --- /DEBUG ---
+    
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
       }
     });
+    
     loadCountries();
     applyUIConfig();
   </script>
