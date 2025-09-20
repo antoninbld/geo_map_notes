@@ -88,7 +88,17 @@
   <!-- Panneau de lecture interne -->
   <div id="notePanel" style="position:absolute;right:10px;top:10px;width:450px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
     <!-- En-tête jaune -->
-    <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22;">
+    <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22; position:relative;">
+      <!-- Bouton croix en haut-droite -->
+      <button id="npClose" type="button" aria-label="Fermer"
+              style="position:absolute; top:8px; right:10px;
+                     width:26px; height:26px;
+                     display:flex; align-items:center; justify-content:center;
+                     border:none; border-radius:6px;
+                     background:#dc2626; color:#fff; cursor:pointer;
+                     box-shadow:0 1px 4px rgba(0,0,0,.15);">
+        ✖
+      </button>
       <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
     
       <!-- Lieu avec 📍 -->
@@ -122,12 +132,9 @@
         <div id="npLinks" style="font-size:14px;"></div>
         <div style="margin-top:8px;display:flex;gap:8px;">
           <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
-          <button id="npClose" type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;margin-left:auto;">✖ Fermer</button>
         </div>
       </div>
     </div>
-
-  </div>
 
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
@@ -305,9 +312,9 @@
       if (linksTitle) linksTitle.textContent = L.sectionTitle;
     
       const btnFit  = document.getElementById('npFit');
-      const btnClose= document.getElementById('npClose');
-      if (btnFit)  btnFit.textContent  = B.fitText;
-      if (btnClose)btnClose.textContent= B.closeText;
+      if (btnFit) btnFit.textContent = B.fitText;
+      // Pas de texte pour la croix : on laisse le symbole ✖ dans le HTML du header
+
     }
 
 
