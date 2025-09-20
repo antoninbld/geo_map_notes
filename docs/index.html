@@ -78,16 +78,25 @@
 
     /* Liens internes style Obsidian (panel + résumés) */
     .internal-link{ text-decoration:none; border-bottom:1px dashed #1e90ff; }
-    .internal-link:hover{ text-decoration:underline; }
 
-    /* Toggle du récap (bouton texte discret) */
-    .np-recap-toggle{
-      cursor: pointer;
-      text-decoration: none;
-      font-weight: 600;
-      user-select: none;
-    }
-    .np-recap-toggle:hover{ text-decoration: underline; }
+        :root { --recap-lines: 2; }
+        /* Récap réduit sur N lignes (piloté par --recap-lines) */
+        #npRecap.clamped {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: var(--recap-lines);
+          overflow: hidden;
+        }
+    
+        /* Lien de bascule [...] / ↥ réduire */
+        #npRecapToggle {
+          cursor: pointer;
+          display: inline-block;
+          margin-top: 4px;
+          text-decoration: underline;
+          font-style: italic;
+          user-select: none;
+        }
 
   </style>
 </head>
@@ -119,9 +128,11 @@
       <!-- Date SOUS la localisation -->
       <div id="npDate" style="font-size:12px;opacity:.8;margin-top:2px; margin-left:20px;">6 octobre 1981</div>
     
-      <!-- Phrase récap (optionnelle) -->
+       <!-- Phrase récap (optionnelle) -->
       <div id="npRecap" style="font-size:13px;margin-top:6px; font-weight:600; font-style:italic;"></div>
+      <a id="npRecapToggle" href="#" style="display:none;"></a>
     </div>
+
 
   
     <!-- Corps clair (marges homogènes) -->
@@ -329,6 +340,9 @@
       if (btnFit) btnFit.textContent = B.fitText;
       // Pas de texte pour la croix : on laisse le symbole ✖ dans le HTML du header
 
+      // Propager le nombre de lignes vers le CSS (line-clamp)
+      document.documentElement.style.setProperty('--recap-lines', String((UI_CONFIG.header && UI_CONFIG.header.recapMaxLines) || 2));
+      
     }
 
     // Utilitaire: debounce simple
@@ -698,6 +712,42 @@
       });
     }
 
+    // === Récap: gestion via CSS (clamp) + toggle ===================================
+    function updateRecapToggleLabel(collapsed) {
+      const t = document.getElementById('npRecapToggle');
+      if (!t) return;
+      const H = (window.UI_CONFIG && UI_CONFIG.header) || {};
+      t.textContent = collapsed ? (H.recapMoreLabel || ' […]') : (H.recapLessLabel || ' ↥ réduire');
+    }
+
+    function setupRecapToggle() {
+      const wrap = document.getElementById('npRecap');
+      const t = document.getElementById('npRecapToggle');
+      if (!wrap || !t) return;
+
+      const hasText = !!wrap.textContent.trim();
+      t.style.display = hasText ? 'inline-block' : 'none';
+      if (!hasText) return;
+
+      // État initial: réduit
+      wrap.classList.add('clamped');
+      updateRecapToggleLabel(true);
+
+      t.onclick = (e) => {
+        e.preventDefault();
+        const collapsed = wrap.classList.toggle('clamped'); // true si réduit après toggle
+        updateRecapToggleLabel(collapsed);
+      };
+    }
+
+    function setRecapText(text) {
+      const wrap = document.getElementById('npRecap');
+      if (!wrap) return;
+      // On rend les [[liens]] cliquables dans le récap
+      wrap.innerHTML = text ? renderWikiLinksInline(text) : '';
+      setupRecapToggle();
+    }
+
     async function openNoteInPanel(noteId){
       try{
         const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
@@ -795,7 +845,7 @@
     $date.textContent  = '';
   
     // ---- Récap (phrase courte) : d’abord data.json, puis éventuellement .md
-    $recap.innerHTML = item.recap ? renderWikiLinksInline(item.recap) : '';
+    setRecapText(item.recap || '');
   
     // ---- Petit “summary” avant la note (facultatif)
     $sum.innerHTML = item.summary ? renderWikiLinksInline(item.summary) : '';
@@ -814,9 +864,10 @@
           $date.textContent = formatDateByConfig(meta.date);
         }
         // recap depuis le .md si pas donné dans data.json
-        if (!$recap.innerHTML && meta.recap) {
-          $recap.innerHTML = renderWikiLinksInline(meta.recap);
+        if (!document.getElementById('npRecap').innerHTML && meta.recap) {
+          setRecapText(meta.recap);
         }
+
   
         // Liens sortants (ids présents en [[...]])
         links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
@@ -831,10 +882,6 @@
       $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
     }
   
-    // ⬇️ IMPORTANT : clamping du récap APRÈS le try/catch (quel que soit sa source)
-    clampRecap(UI_CONFIG.header.recapMaxLines || 2);
-    requestAnimationFrame(() => clampRecap(UI_CONFIG.header.recapMaxLines || 2));
-
     // ---- Section "Liens sortants"
     if (!links.length) {
       $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
@@ -1017,6 +1064,10 @@
 
       // crée les marqueurs
       allData.forEach(item => {
+      // ➕ collecte les tags pour les filtres
+        if (Array.isArray(item.tags)) {
+          item.tags.forEach(t => { if (t && String(t).trim()) allTags.add(String(t).trim()); });
+        }
         if (typeof item.lon === 'number' && typeof item.lat === 'number') {
           // STYLE du marqueur (rouge + bordure rouge foncé)
           const el = document.createElement('div');
