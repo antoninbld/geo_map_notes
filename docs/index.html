@@ -366,7 +366,6 @@
         return d.textContent || d.innerText || '';
       })(fullHtml).trim();
     
-      // Rien à faire si vide
       if (!fullText){
         wrap.innerHTML = '';
         return;
@@ -376,8 +375,11 @@
       wrap.innerHTML = '';
       const span = document.createElement('span');
       span.id = 'npRecapText';
+      // ⬇️ IMPORTANT pour une mesure fiable de la hauteur
+      span.style.display = 'inline-block';
+      span.style.maxWidth = '100%';
+      span.style.boxSizing = 'border-box';
       span.style.whiteSpace = 'normal';
-      span.style.display = 'inline';
       span.style.wordBreak = 'break-word';
       wrap.appendChild(span);
     
@@ -392,9 +394,9 @@
       const moreLabel = H.recapMoreLabel || ' […]';
       const lessLabel = H.recapLessLabel || ' ↥ réduire';
     
-      // Mesures fiables
-      span.textContent = 'Aa'; // petit échantillon
-      const lineH = resolveLineHeight(span);
+      // Hauteur d'une ligne robuste
+      span.textContent = 'Aa';
+      const lineH = resolveLineHeight(span);   // <- ta fonction helper ajoutée plus tôt
       const maxH  = Math.ceil(lineH * (maxLines || 2));
     
       const fits = () => span.scrollHeight <= maxH + 1;
@@ -415,7 +417,6 @@
         if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
       }
     
-      // Contenu tronqué + bouton
       let truncated = words.slice(0, best).join(' ').trim();
       span.textContent = truncated;
       toggle.textContent = moreLabel;
@@ -454,6 +455,7 @@
       );
       window.addEventListener('resize', reclamp);
     }
+
 
 
 
@@ -723,7 +725,7 @@
 
 
 
-  // Ouvre le RÉSUMÉ (petite phrase) + NOTE COMPLÈTE (Markdown) dans le panneau
+  // Ouvre le RÉCAP + la NOTE COMPLÈTE dans le panneau (avec clamp du récap)
   async function openSummaryInPanel(noteId){
     const item   = idToItem.get(noteId);
     const $panel = document.getElementById('notePanel');
@@ -749,20 +751,18 @@
       return;
     }
   
-    // ---- En-tête : titre + 📍 lieu + date
+    // ---- En-tête : titre + 📍 lieu (date sera remplie depuis .md)
     $title.textContent = item.title || noteId;
     $place.textContent = item.locationName || '';
-    $date.textContent  = ''; // sera rempli depuis le .md (front-matter)
+    $date.textContent  = '';
   
-    // ---- Petite phrase "récap" (où l'écrire ?)
-    // -> mets-la dans data.json: item.recap: "1 phrase récapitulative"
-    // sinon, si tu préfères, ajoute `recap:` dans le front-matter du .md (on le lit aussi plus bas)
+    // ---- Récap (phrase courte) : d’abord data.json, puis éventuellement .md
     $recap.innerHTML = item.recap ? renderWikiLinksInline(item.recap) : '';
   
-    // ---- Phrase courte juste avant la note (optionnelle) : on affiche item.summary si tu l'utilises
+    // ---- Petit “summary” avant la note (facultatif)
     $sum.innerHTML = item.summary ? renderWikiLinksInline(item.summary) : '';
   
-    // ---- NOTE COMPLÈTE : on lit le .md, on récupère la date du front-matter, on rend le contenu
+    // ---- NOTE COMPLÈTE (lecture .md) + date + recap (fallback)
     let links = [];
     try {
       const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
@@ -771,27 +771,30 @@
         const mdRaw = await res.text();
         const { meta, body } = parseAndStripFrontMatter(mdRaw);
   
-        // 1) date (front-matter: `date: 1981-10-06` par ex.)
-        if (!$date.textContent && meta.date) $date.textContent = formatDateByConfig(meta.date);
-        // 2) recap depuis le .md si pas donné dans data.json
-        if (!$recap.innerHTML && meta.recap) $recap.innerHTML = renderWikiLinksInline(meta.recap);
-
-        // Limiter le récap à 2 lignes + toggle
-        clampRecap(UI_CONFIG.header.recapMaxLines || 2);
-
+        // date (front-matter)
+        if (!$date.textContent && meta.date) {
+          $date.textContent = formatDateByConfig(meta.date);
+        }
+        // recap depuis le .md si pas donné dans data.json
+        if (!$recap.innerHTML && meta.recap) {
+          $recap.innerHTML = renderWikiLinksInline(meta.recap);
+        }
   
-        // 3) Liste des ids liés (pour traits + section "Liens sortants")
+        // Liens sortants (ids présents en [[...]])
         links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
   
-        // 4) Rendu HTML de la note complète
+        // Rendu HTML de la note
         const htmlNote = marked.parse(transformWikiLinks(body));
         $md.innerHTML = htmlNote;
       } else {
         $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
       }
-    } catch(err){
+    } catch (err) {
       $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
     }
+  
+    // ⬇️ IMPORTANT : clamping du récap APRÈS le try/catch (quel que soit sa source)
+    clampRecap(UI_CONFIG.header.recapMaxLines || 2);
   
     // ---- Section "Liens sortants"
     if (!links.length) {
@@ -817,7 +820,7 @@
     // ---- Affichage panneau
     $panel.style.display = 'block';
   
-    // ---- Navigation interne dans tout le panneau
+    // ---- Navigation interne dans le panneau
     $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
       a.classList.add('internal-link');
       a.addEventListener('click', (e) => {
@@ -837,7 +840,7 @@
       });
     });
   
-    // ---- Boutons “Voir les liés” & “Fermer”
+    // ---- Bouton “Voir les liés”
     if ($fit) {
       $fit.onclick = () => {
         const b = new maplibregl.LngLatBounds();
@@ -846,15 +849,12 @@
         if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
       };
     }
-    document.getElementById('npClose').onclick = () => {
-      document.getElementById('notePanel').style.display = 'none';
-      clearLinks();
-    };
   
     // ---- Traits & état mémorisé
     drawLinksFrom(noteId, links);
     window.__lastLinksState = { id: noteId, links };
   }
+
 
 
 
