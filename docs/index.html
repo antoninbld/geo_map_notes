@@ -353,108 +353,139 @@
       return isNaN(n) ? 18 : n;
     }
     
-    // Tronque proprement #npRecap à N lignes + [ … ] / ↥ réduire (sans couper de mot)
+    // Tronque #npRecap à N lignes, ajoute [...] / ↥ réduire, sans couper de mot.
+    // Mesure robuste via un conteneur invisible à largeur fixe.
     function clampRecap(maxLines){
       const wrap = document.getElementById('npRecap');
       if (!wrap) return;
     
-      // Texte complet déjà mis par openSummaryInPanel (HTML possible)
-      const fullHtml = wrap.innerHTML || '';
-      const fullText = (function htmlToText(html){
-        const d = document.createElement('div');
-        d.innerHTML = html;
-        return d.textContent || d.innerText || '';
-      })(fullHtml).trim();
+      const H = UI_CONFIG.header;
+      const moreLabel = H.recapMoreLabel || ' […]';
+      const lessLabel = H.recapLessLabel || ' ↥ réduire';
+      const lines = maxLines || 2;
     
-      if (!fullText){
+      // HTML complet déjà injecté par openSummaryInPanel (on le garde pour l'état "étendu")
+      const fullHtml = wrap.innerHTML.trim();
+      if (!fullHtml){
         wrap.innerHTML = '';
         return;
       }
     
-      // Reconstruit: [span texte] + [lien toggle]
+      // Texte brut (pour tronquer proprement au mot)
+      const tmp = document.createElement('div');
+      tmp.innerHTML = fullHtml;
+      const fullText = (tmp.textContent || tmp.innerText || '').trim();
+    
+      // ----- Mesureur invisible à largeur fixe -----
+      // On copie les styles de wrap pour une mesure fidèle
+      const cs = getComputedStyle(wrap);
+      const meas = document.createElement('div');
+      meas.style.position = 'absolute';
+      meas.style.left = '-9999px';
+      meas.style.top = '-9999px';
+      meas.style.visibility = 'hidden';
+      meas.style.whiteSpace = 'normal';
+      meas.style.wordBreak = 'break-word';
+      meas.style.width = wrap.clientWidth + 'px';
+      meas.style.fontSize = cs.fontSize;
+      meas.style.lineHeight = (cs.lineHeight === 'normal')
+        ? (parseFloat(cs.fontSize || '14') * 1.33) + 'px'
+        : cs.lineHeight;
+      meas.style.fontFamily = cs.fontFamily;
+      meas.style.fontWeight = cs.fontWeight;
+      meas.style.fontStyle  = cs.fontStyle;
+      meas.style.letterSpacing = cs.letterSpacing;
+      document.body.appendChild(meas);
+    
+      const lineH = parseFloat(meas.style.lineHeight) || 18;
+      const maxH  = Math.ceil(lineH * lines);
+    
+      // Fonction de mesure
+      const heightFor = (text) => {
+        meas.textContent = text;
+        return meas.scrollHeight;
+      };
+    
+      // Si tout tient déjà en <= N lignes → pas de bouton
+      if (heightFor(fullText) <= maxH + 1){
+        wrap.innerHTML = fullHtml;
+        document.body.removeChild(meas);
+        return;
+      }
+    
+      // ----- Construire l’UI (span + toggle) -----
       wrap.innerHTML = '';
       const span = document.createElement('span');
       span.id = 'npRecapText';
-      // ⬇️ IMPORTANT pour une mesure fiable de la hauteur
-      span.style.display = 'block';   // prend toute la ligne
-      span.style.width = '100%';      // largeur 100% du conteneur -> wrapping réel
-      span.style.boxSizing = 'border-box';
+      span.style.display = 'block';
+      span.style.width = '100%';
       span.style.whiteSpace = 'normal';
       span.style.wordBreak = 'break-word';
-      wrap.appendChild(span);
     
       const toggle = document.createElement('a');
       toggle.id = 'npRecapToggle';
       toggle.className = 'np-recap-toggle';
       toggle.href = '#';
       toggle.style.marginLeft = '2px';
+    
+      wrap.appendChild(span);
       wrap.appendChild(toggle);
     
-      const H = UI_CONFIG.header;
-      const moreLabel = H.recapMoreLabel || ' […]';
-      const lessLabel = H.recapLessLabel || ' ↥ réduire';
-    
-      // Hauteur d'une ligne robuste
-      span.textContent = 'Aa';
-      const lineH = resolveLineHeight(span);   // <- ta fonction helper ajoutée plus tôt
-      const maxH  = Math.ceil(lineH * (maxLines || 2));
-    
-      const fits = () => span.scrollHeight <= maxH + 1;
-    
-      // Test “tout tient”
-      span.textContent = fullText;
-      if (fits()){
-        toggle.style.display = 'none';
-        return;
-      }
-    
-      // Recherche dichotomique au mot près (pas de coupure)
+      // ----- Recherche dichotomique au mot près -----
       const words = fullText.split(/\s+/);
       let lo = 0, hi = words.length, best = 0;
       while (lo <= hi){
         const mid = (lo + hi) >> 1;
-        span.textContent = words.slice(0, mid).join(' ');
-        if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
+        const probe = words.slice(0, mid).join(' ').trim();
+        if (heightFor(probe) <= maxH + 1){ best = mid; lo = mid + 1; }
+        else { hi = mid - 1; }
       }
-    
       let truncated = words.slice(0, best).join(' ').trim();
-      span.textContent = truncated;
-      toggle.textContent = moreLabel;
-      toggle.style.display = 'inline';
     
+      // Appliquer l’état réduit
       let expanded = false;
       const setExpanded = (on) => {
         expanded = on;
         if (expanded){
-          span.textContent = fullText;
+          span.innerHTML = fullHtml;   // on remet l’HTML complet (gras/italique conservés)
           toggle.textContent = lessLabel;
         } else {
           span.textContent = truncated;
           toggle.textContent = moreLabel;
         }
       };
+      setExpanded(false);
+    
       toggle.addEventListener('click', (e) => {
         e.preventDefault();
         setExpanded(!expanded);
       });
     
       // Recalibrer si la largeur change (quand replié)
-      const reclamp = (function debounce(fn, wait=160){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; })(
-        () => {
-          if (expanded) return;
-          lo = 0; hi = words.length; best = 0;
-          while (lo <= hi){
-            const mid = (lo + hi) >> 1;
-            span.textContent = words.slice(0, mid).join(' ');
-            if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
-          }
-          truncated = words.slice(0, best).join(' ').trim();
-          span.textContent = truncated;
-          toggle.textContent = moreLabel;
-        }
-      );
-      window.addEventListener('resize', reclamp);
+      const onResize = (() => {
+        let t; return () => {
+          clearTimeout(t); t = setTimeout(() => {
+            if (expanded) return;
+            // Recalcule la largeur du mesureur + tronquage
+            meas.style.width = wrap.clientWidth + 'px';
+            lo = 0; hi = words.length; best = 0;
+            while (lo <= hi){
+              const mid = (lo + hi) >> 1;
+              const probe = words.slice(0, mid).join(' ').trim();
+              if (heightFor(probe) <= maxH + 1){ best = mid; lo = mid + 1; }
+              else { hi = mid - 1; }
+            }
+            truncated = words.slice(0, best).join(' ').trim();
+            setExpanded(false);
+          }, 160);
+        };
+      })();
+      window.addEventListener('resize', onResize);
+    
+      // Nettoyage du mesureur (on le garde si on veut recalculer → ici on le retire)
+      document.body.removeChild(meas);
     }
+
 
 
 
