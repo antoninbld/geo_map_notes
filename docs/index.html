@@ -795,7 +795,6 @@
             drawLinksFrom(id, links);
           }
         };
-        map.once('load', rebuild);
         map.once('styledata', rebuild);
       });
     });
@@ -818,7 +817,6 @@
             drawLinksFrom(id, links);
           }
         };
-        map.once('load', rebuild);
         map.once('styledata', rebuild);
     
         refreshBasemapOptionsForProvider();
