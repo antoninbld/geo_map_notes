@@ -627,39 +627,7 @@
 
     let __linksAnimT = 0;
     let __linksRafId = null;
-    
-    function animateLinks() {
-      __linksAnimT = (__linksAnimT + 0.012) % 1;   // vitesse x2
-      const w = 0.22;                               // fenêtre plus large
-      const a = Math.max(0, __linksAnimT - w/2);
-      const b = Math.min(1, __linksAnimT + w/2);
-    
-      const gradient = [
-        'interpolate', ['linear'], ['line-progress'],
-        0.0, ['rgba', 255, 215, 0, 0.0],    // or (gold) transparent
-        a,   ['rgba', 255, 215, 0, 0.0],
-        __linksAnimT, ['rgba', 255, 215, 0, 0.95],  // pointe lumineuse
-        b,   ['rgba', 255, 215, 0, 0.0],
-        1.0, ['rgba', 255, 215, 0, 0.0]
-      ];
-    
-      try {
-        map.setPaintProperty('note-links-anim', 'line-gradient', gradient);
-        map.setPaintProperty('note-links-anim', 'line-width', [
-          'interpolate', ['linear'], ['zoom'], 3, 2.5, 6, 3.5, 10, 4.5
-        ]);
-        map.setPaintProperty('note-links-anim', 'line-blur', 0.5);
-      } catch {}
-    
-      __linksRafId = requestAnimationFrame(animateLinks);
-    }
-    
-    function startLinksAnimation() {
-      if (__linksRafId) cancelAnimationFrame(__linksRafId);
-      __linksAnimT = 0;
-      __linksRafId = requestAnimationFrame(animateLinks);
-    }
-    
+          
     let __sunTimer = null;
     function startSun() {
       updateSun();
@@ -1309,31 +1277,10 @@
             }
           });
         }
-
-        if (!map.getLayer('note-links-anim')) {
-          map.addLayer({
-            id: 'note-links-anim',
-            type: 'line',
-            source: 'note-links',
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-width': [
-                'interpolate', ['linear'], ['zoom'],
-                3, 2.0, 6, 3.0, 10, 4.0
-              ],
-              'line-gradient': [
-                'interpolate', ['linear'], ['line-progress'],
-                0.0, ['rgba', 30, 144, 255, 0.0],
-                1.0, ['rgba', 30, 144, 255, 0.0]
-              ]
-            }
-          });
-        }
-        
+     
         // S’assurer de l’ordre (du dessous vers le dessus)
         try { map.moveLayer('note-links-casing'); } catch {}
         try { map.moveLayer('note-links-line'); } catch {}
-        try { map.moveLayer('note-links-anim'); } catch {}   // l’anim passe au-dessus du trait
         try { map.moveLayer('note-links-arrows'); } catch {} // les flèches tout en haut
       };
     
