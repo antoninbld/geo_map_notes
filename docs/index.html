@@ -567,6 +567,7 @@
           });
           // Si on est très zoomé, dézoome un peu pour bien voir la sphère
           if (map.getZoom() > 2) {
+            map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 400 });
           }
         } else {
           map.setFog(null);
