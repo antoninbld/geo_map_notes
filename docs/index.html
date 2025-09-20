@@ -655,6 +655,13 @@
     window.map = map;   // ← rend 'map' accessible depuis la console
     // Réapplique la projection (2D/3D) à CHAQUE changement de style
     map.on('style.load', () => {
+      map.on('load', () => {
+        addMarkersFromJSON().then(() => {
+          applyFilters?.(); // optionnel, seulement si tu filtres
+        });
+        ensureLinksLayer(); // prépare la source/layer pour les traits
+      });
+
       // 1) Projection + 2) Terrain (si globe + MapTiler)
       applyProjection();
       ensureTerrain();
