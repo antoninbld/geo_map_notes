@@ -359,10 +359,17 @@
       const wrap = document.getElementById('npRecap');
       if (!wrap) return;
     
+      const width = wrap.clientWidth || wrap.getBoundingClientRect().width || 0;
+      if (width <= 0) {
+        requestAnimationFrame(() => clampRecap(maxLines));
+        return;
+      }
+    
       const H = UI_CONFIG.header;
       const moreLabel = H.recapMoreLabel || ' […]';
       const lessLabel = H.recapLessLabel || ' ↥ réduire';
       const lines = maxLines || 2;
+
     
       // HTML complet déjà injecté par openSummaryInPanel (on le garde pour l'état "étendu")
       const fullHtml = wrap.innerHTML.trim();
@@ -826,7 +833,8 @@
   
     // ⬇️ IMPORTANT : clamping du récap APRÈS le try/catch (quel que soit sa source)
     clampRecap(UI_CONFIG.header.recapMaxLines || 2);
-  
+    requestAnimationFrame(() => clampRecap(UI_CONFIG.header.recapMaxLines || 2));
+
     // ---- Section "Liens sortants"
     if (!links.length) {
       $links.innerHTML = `<div style="color:#888;">Aucun lien sortant</div>`;
