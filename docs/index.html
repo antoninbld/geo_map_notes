@@ -538,6 +538,7 @@
     // Provider & style courants
     let CURRENT_PROVIDER = 'maptiler';   // 'maptiler' | 'carto'
     let CURRENT_BASEMAP  = 'streets';    // 'hybrid' | 'streets' | 'light' | 'dark'
+    let CURRENT_PROJECTION = 'mercator'; // 'mercator' | 'globe'
     
     // Résout l'URL du style selon provider + basemap
     function getStyleURL(provider, basemap){
@@ -555,6 +556,27 @@
       return STYLES[basemap] || STYLES.streets;
     }
 
+    function applyProjection() {
+      try {
+        map.setProjection(CURRENT_PROJECTION);
+        if (CURRENT_PROJECTION === 'globe') {
+          map.setFog({
+            range: [0.5, 10],
+            color: 'rgba(200, 210, 230, 0.6)',
+            'horizon-blend': 0.2
+          });
+          // Si on est très zoomé, dézoome un peu pour bien voir la sphère
+          if (map.getZoom() > 2) {
+            map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 300 });
+          }
+        } else {
+          map.setFog(null);
+        }
+      } catch (err) {
+        console.warn('Projection non supportée:', err);
+      }
+    }
+    
     // === Liens façon Obsidian entre notes (globals) ===
     const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
     const idToItem = new Map();     // id -> item (depuis data.json)
@@ -699,6 +721,7 @@
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
     
         const rebuild = () => {
+          applyProjection(); // ← re-applique 2D/3D + fog
           addMarkersFromJSON().then(applyFilters);
           linksSourceReady = false;
           ensureLinksLayer();
@@ -719,6 +742,7 @@
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
     
         const rebuild = () => {
+          applyProjection(); // ← re-applique 2D/3D + fog
           addMarkersFromJSON().then(applyFilters);
           linksSourceReady = false;
           ensureLinksLayer();
@@ -745,13 +769,20 @@
       }
     }
     window.addEventListener('load', refreshBasemapOptionsForProvider);
+    window.addEventListener('load', () => {
+      const r = document.querySelector('input[name="projection"]:checked');
+      CURRENT_PROJECTION = r ? r.value : 'mercator';
+      applyProjection();
+    });
     
     // Projection (2D / 3D)
     document.querySelectorAll('input[name="projection"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         const proj = e.target.value; // 'mercator' | 'globe'
         try {
-          map.setProjection(proj);
+          const proj = e.target.value; // 'mercator' | 'globe'
+          CURRENT_PROJECTION = proj;
+          applyProjection();
         } catch (err) {
           console.warn('Projection non supportée par cette version de MapLibre:', err);
         }
