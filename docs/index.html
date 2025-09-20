@@ -95,7 +95,7 @@
   <div id="map"></div>
 
   <!-- Panneau de lecture interne -->
-  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:450px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
+  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:400px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
     <!-- En-tête jaune -->
     <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22; position:sticky; top:0; z-index:20;box-shadow:0 4px 8px rgba(0,0,0,.35);">
       <!-- Bouton croix en haut-droite -->
@@ -132,9 +132,7 @@
         <!-- Markdown complet de la note -->
         <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
       </div>
-    </div>
-
-    
+        
       <!-- Liens sortants -->
       <div id="npLinksWrap" style="margin-top:10px;">
         <div style="font-weight:700;margin:8px 0 6px;">Liens sortants</div>
@@ -143,6 +141,7 @@
           <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
         </div>
       </div>
+    </div>
     </div>
 
   <!-- Panneau Map Views + Recentrer -->
@@ -221,7 +220,7 @@
         month: "long",
         year: "numeric"
       },
-      recapStyle: "font-weight:600; font-style:italic;"        // Style appliqué à la phrase récap (gras, italique, couleur…)
+      recapStyle: "font-weight:600; font-style:italic;",        // Style appliqué à la phrase récap (gras, italique, couleur…)
       recapMaxLines: 2,                    // ← nombre de lignes visibles
       recapMoreLabel: " […]",              // ← libellé pour déployer
       recapLessLabel: " ↥ réduire"         // ← libellé pour « retrousser »
@@ -687,35 +686,7 @@
     // rendre accessible globalement si besoin
     window.openNoteInPanel = openNoteInPanel;
 
-    // Parse robuste : "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY" -> Date
-    function parseDateSmart(s){
-      if (!s) return null;
-      const str = String(s).trim();
-    
-      // ISO YYYY-MM-DD
-      let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) {
-        const [_, Y, M, D] = m;
-        return new Date(Number(Y), Number(M)-1, Number(D));
-      }
-    
-      // DD/MM/YYYY
-      m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (m) {
-        const [_, D, M, Y] = m;
-        return new Date(Number(Y), Number(M)-1, Number(D));
-      }
-    
-      // DD-MM-YYYY
-      m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-      if (m) {
-        const [_, D, M, Y] = m;
-        return new Date(Number(Y), Number(M)-1, Number(D));
-      }
-    
-      return null; // inconnu
-    }
-    
+    // Parse robuste : "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY" -> Date  
     function parseDateSmart(s){
       if (!s) return null;
       const str = String(s).trim();
