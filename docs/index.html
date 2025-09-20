@@ -319,7 +319,7 @@
         }
         #npTitle{ font-size:${H.titleSize}; }
         #npDate{ margin-left:${H.dateIndent}; }
-        #npRecap{ ${H.recapStyle}; font-size:${H.recapFontSize || "13px"}; width:95%; text-align:justify; }
+        #npRecap{ ${H.recapStyle}; font-size:${H.recapFontSize || "13px"}; width:100%; text-align:justify; }
     
         /* Bloc contenu */
         #npWrapper{ padding:${C.outerPadding}; }
@@ -697,8 +697,7 @@
         const choice = e.target.value;          // 'hybrid' | 'streets' | 'light' | 'dark'
         CURRENT_BASEMAP = choice;
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
-        
-        // Rebuild exactement comme tu fais déjà :
+    
         const rebuild = () => {
           addMarkersFromJSON().then(applyFilters);
           linksSourceReady = false;
@@ -711,48 +710,53 @@
         map.once('load', rebuild);
         map.once('styledata', rebuild);
       });
-      document.querySelectorAll('input[name="provider"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-          CURRENT_PROVIDER = e.target.value;  // 'maptiler' | 'carto'
-          map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
-      
-          const rebuild = () => {
-            addMarkersFromJSON().then(applyFilters);
-            linksSourceReady = false;
-            ensureLinksLayer();
-            if (window.__lastLinksState) {
-              const { id, links } = window.__lastLinksState;
-              drawLinksFrom(id, links);
-            }
-          };
-          map.once('load', rebuild);
-          map.once('styledata', rebuild);
-      
-          // (optionnel) désactiver "Satellite" si provider = Carto
-          refreshBasemapOptionsForProvider?.();
-        });
-      });
-      function refreshBasemapOptionsForProvider(){
-        const sat = document.querySelector('input[name="basemap"][value="hybrid"]');
-        if (!sat) return;
-        const isCarto = CURRENT_PROVIDER === 'carto';
-        sat.disabled = isCarto;
-        if (isCarto && sat.checked) {
-          const streets = document.querySelector('input[name="basemap"][value="streets"]');
-          if (streets) { streets.checked = true; streets.dispatchEvent(new Event('change', { bubbles:true })); }
-        }
-      }
-      window.addEventListener('load', refreshBasemapOptionsForProvider);
-      document.querySelectorAll('input[name="projection"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-          const proj = e.target.value; // 'mercator' | 'globe'
-          try {
-            map.setProjection(proj);
-          } catch (err) {
-            console.warn('Projection non supportée par cette version de MapLibre:', err);
+    });
+    
+    // Fournisseur (MapTiler / Carto)
+    document.querySelectorAll('input[name="provider"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        CURRENT_PROVIDER = e.target.value;  // 'maptiler' | 'carto'
+        map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
+    
+        const rebuild = () => {
+          addMarkersFromJSON().then(applyFilters);
+          linksSourceReady = false;
+          ensureLinksLayer();
+          if (window.__lastLinksState) {
+            const { id, links } = window.__lastLinksState;
+            drawLinksFrom(id, links);
           }
-        });
+        };
+        map.once('load', rebuild);
+        map.once('styledata', rebuild);
+    
+        refreshBasemapOptionsForProvider();
       });
+    });
+    
+    function refreshBasemapOptionsForProvider(){
+      const sat = document.querySelector('input[name="basemap"][value="hybrid"]');
+      if (!sat) return;
+      const isCarto = CURRENT_PROVIDER === 'carto';
+      sat.disabled = isCarto;
+      if (isCarto && sat.checked) {
+        const streets = document.querySelector('input[name="basemap"][value="streets"]');
+        if (streets) { streets.checked = true; streets.dispatchEvent(new Event('change', { bubbles:true })); }
+      }
+    }
+    window.addEventListener('load', refreshBasemapOptionsForProvider);
+    
+    // Projection (2D / 3D)
+    document.querySelectorAll('input[name="projection"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const proj = e.target.value; // 'mercator' | 'globe'
+        try {
+          map.setProjection(proj);
+        } catch (err) {
+          console.warn('Projection non supportée par cette version de MapLibre:', err);
+        }
+      });
+    });
     });
 
     // === Helpers Obsidian/panneau ===
@@ -1054,6 +1058,7 @@
     }
 
     function ensureLinksLayer(){
+      const LINK_COLOR = '#8c0503';
       const add = () => {
         // Source si absente
         if (!map.getSource('note-links')) {
@@ -1098,7 +1103,7 @@
             },
             paint: {
               // bleu “liens”
-              'line-color': '#8c0503',
+              'line-color': LINK_COLOR,
               'line-opacity': 0.9,
               'line-width': [
                 'interpolate', ['linear'], ['zoom'],
@@ -1116,7 +1121,7 @@
           const size = 32, c = document.createElement('canvas');
           c.width = size; c.height = size;
           const ctx = c.getContext('2d');
-          ctx.fillStyle = '#1e90ff';
+          ctx.fillStyle = LINK_COLOR;
           ctx.beginPath();
           ctx.moveTo(26, 16); ctx.lineTo(8, 6); ctx.lineTo(8, 26); ctx.closePath();
           ctx.fill();
