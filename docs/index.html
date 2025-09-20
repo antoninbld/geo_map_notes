@@ -1647,6 +1647,77 @@
     map.on('load', () => {
       addMarkersFromJSON().then(applyFilters);
       ensureLinksLayer();
+
+      // ===== DEBUG: trait animé indépendant pour vérifier l'effet =====
+      try {
+        // 1) Source GeoJSON avec lineMetrics:true (indispensable)
+        if (!map.getSource('debug-line')) {
+          map.addSource('debug-line', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: [{
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  // Paris -> Berlin (visible sur ta vue Europe)
+                  coordinates: [[2.3522, 48.8566], [13.4050, 52.5200]]
+                },
+                properties: {}
+              }]
+            },
+            lineMetrics: true
+          });
+        }
+      
+        // 2) Calque animé (line-gradient + line-progress)
+        if (!map.getLayer('debug-line-anim')) {
+          map.addLayer({
+            id: 'debug-line-anim',
+            type: 'line',
+            source: 'debug-line',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              // épaisseur un peu visible
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                3, 3.0, 6, 4.0, 10, 5.0
+              ],
+              // gradient posé (sera animé ci-dessous)
+              'line-gradient': [
+                'interpolate', ['linear'], ['line-progress'],
+                0.0, ['rgba', 255, 215, 0, 0.0],
+                1.0, ['rgba', 255, 215, 0, 0.0]
+              ],
+              'line-blur': 0.5
+            }
+          });
+        }
+      
+        // 3) Boucle d'animation locale (ne dépend d'aucune autre fonction)
+        let t = 0;
+        function tick() {
+          t = (t + 0.012) % 1;         // vitesse du glow
+          const w = 0.22;              // largeur du glow
+          const a = Math.max(0, t - w/2);
+          const b = Math.min(1, t + w/2);
+          const gradient = [
+            'interpolate', ['linear'], ['line-progress'],
+            0.0, ['rgba', 255, 215, 0, 0.0],
+            a,   ['rgba', 255, 215, 0, 0.0],
+            t,   ['rgba', 255, 215, 0, 0.95],
+            b,   ['rgba', 255, 215, 0, 0.0],
+            1.0, ['rgba', 255, 215, 0, 0.0]
+          ];
+          try { map.setPaintProperty('debug-line-anim', 'line-gradient', gradient); } catch {}
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      } catch (e) {
+        console.warn('DEBUG line failed:', e);
+      }
+// ===== /DEBUG =====
+
     
       // --- DEBUG: dessine un trait animé tout de suite pour vérifier l'effet ---
       try {
