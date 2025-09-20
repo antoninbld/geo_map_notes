@@ -624,9 +624,6 @@
         console.warn('Impossible de définir le terrain:', e);
       }
     }
-
-    let __linksAnimT = 0;
-    let __linksRafId = null;
           
     let __sunTimer = null;
     function startSun() {
@@ -679,7 +676,6 @@
     
       // 4) Couche liens + 5) Animation
       ensureLinksLayer();
-      startLinksAnimation();
     });
 
     // (debug utile)
@@ -1192,7 +1188,6 @@
           map.addSource('note-links', {
             type: 'geojson',
             data: { type:'FeatureCollection', features:[] },
-            lineMetrics: true   // ← indispensable pour ["line-progress"]
           });
         }
     
@@ -1374,9 +1369,6 @@
           properties:{ from: noteId, to: lid }
         });
       });
-      const src = map.getSource('note-links');
-      src.setData({ type:'FeatureCollection', features });
-      if (typeof startLinksAnimation === 'function') startLinksAnimation();
     }
 
     function clearLinks(){
@@ -1590,96 +1582,6 @@
       if (e.key === 'Escape') closePanel();
     });
   })();
-    
-    // Démarrage (version debug pour forcer un trait visible tout de suite)
-    map.on('load', () => {
-      // 1) ton initialisation existante
-      addMarkersFromJSON().then(applyFilters);
-      ensureLinksLayer();
-    
-      // 2) Nettoie d'éventuels restes d'un test précédent
-      try {
-        if (map.getLayer('debug-line-anim')) map.removeLayer('debug-line-anim');
-        if (map.getLayer('debug-line-solid')) map.removeLayer('debug-line-solid');
-        if (map.getSource('debug-line')) map.removeSource('debug-line');
-      } catch {}
-    
-      // 3) Trajet de test (Paris -> Berlin) + cadrage automatique
-      const coords = [[2.3522, 48.8566], [13.4050, 52.5200]];
-      const bounds = new maplibregl.LngLatBounds();
-      coords.forEach(c => bounds.extend(c));
-      map.fitBounds(bounds, { padding: 120, duration: 0 });
-    
-      // 4) Source GeoJSON avec lineMetrics:true (OBLIGATOIRE pour line-progress)
-      map.addSource('debug-line', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: [{
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: coords },
-            properties: {}
-          }]
-        },
-        lineMetrics: true
-      });
-    
-      // 5) Un trait SOLIDE rouge (pour vérifier qu’on voit au moins la ligne)
-      map.addLayer({
-        id: 'debug-line-solid',
-        type: 'line',
-        source: 'debug-line',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#ff0000',
-          'line-width': 6,
-          'line-opacity': 0.45
-        }
-      });
-    
-      // 6) Le trait ANIMÉ (gold) par-dessus le solide
-      map.addLayer({
-        id: 'debug-line-anim',
-        type: 'line',
-        source: 'debug-line',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-width': 8,                  // plus épais pour l’effet
-          'line-blur': 1,
-          // gradient initial (sera mis à jour dans tick())
-          'line-gradient': [
-            'interpolate', ['linear'], ['line-progress'],
-            0.0, ['rgba', 255, 215, 0, 0.0],
-            1.0, ['rgba', 255, 215, 0, 0.0]
-          ]
-        }
-      });
-    
-      // 7) Animation locale indépendante (ne dépend d’aucun autre code)
-      let t = 0;
-      (function tick(){
-        t = (t + 0.012) % 1;        // vitesse du "glow"
-        const w = 0.22;             // largeur du "glow"
-        const a = Math.max(0, t - w/2);
-        const b = Math.min(1, t + w/2);
-    
-        const gradient = [
-          'interpolate', ['linear'], ['line-progress'],
-          0.0, ['rgba', 255, 215, 0, 0.0],
-          a,   ['rgba', 255, 215, 0, 0.0],
-          t,   ['rgba', 255, 215, 0, 0.95],
-          b,   ['rgba', 255, 215, 0, 0.0],
-          1.0, ['rgba', 255, 215, 0, 0.0]
-        ];
-        try { map.setPaintProperty('debug-line-anim', 'line-gradient', gradient); } catch {}
-        requestAnimationFrame(tick);
-      })();
-    
-      // 8) (optionnel) log console pour vérifier que tout est bien là
-      try {
-        console.log('DEBUG added:', map.getSource('debug-line'), map.getLayer('debug-line-anim'));
-      } catch {}
-    });
     
     
     loadCountries();
