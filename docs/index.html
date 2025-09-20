@@ -834,6 +834,7 @@
       radio.addEventListener('change', (e) => {
         const choice = e.target.value;          // 'hybrid' | 'streets' | 'light' | 'dark'
         CURRENT_BASEMAP = choice;
+        updateMapBackgroundClass();
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
     
         const rebuild = () => {
@@ -856,6 +857,7 @@
     document.querySelectorAll('input[name="provider"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         CURRENT_PROVIDER = e.target.value;  // 'maptiler' | 'carto'
+        updateMapBackgroundClass();
         map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
     
         const rebuild = () => {
@@ -886,7 +888,17 @@
         if (streets) { streets.checked = true; streets.dispatchEvent(new Event('change', { bubbles:true })); }
       }
     }
+
+    function updateMapBackgroundClass(){
+      const mapDiv = document.getElementById('map');
+      if (!mapDiv) return;
+      // On met le gradient sombre uniquement si le basemap choisi est "dark"
+      if (CURRENT_BASEMAP === 'dark') mapDiv.classList.add('dark');
+      else mapDiv.classList.remove('dark');
+    }
+    
     window.addEventListener('load', refreshBasemapOptionsForProvider);
+    window.addEventListener('load', updateMapBackgroundClass);
     window.addEventListener('load', () => {
       const r = document.querySelector('input[name="projection"]:checked');
       CURRENT_PROJECTION = r ? r.value : 'mercator';
