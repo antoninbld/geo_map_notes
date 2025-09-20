@@ -79,7 +79,16 @@
     /* Liens internes style Obsidian (panel + résumés) */
     .internal-link{ text-decoration:none; border-bottom:1px dashed #1e90ff; }
     .internal-link:hover{ text-decoration:underline; }
-    
+
+    /* Toggle du récap (bouton texte discret) */
+    .np-recap-toggle{
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 600;
+      user-select: none;
+    }
+    .np-recap-toggle:hover{ text-decoration: underline; }
+
   </style>
 </head>
 <body>
@@ -200,6 +209,7 @@
       shadow: "0 8px 24px rgba(0,0,0,.18)", // Ombre portée (box-shadow)
       borderRadius: "12px"       // Arrondi des coins du panneau
     },
+      
     header: {
       background: "#facc15",     // Couleur de fond du bandeau jaune (en-tête)
       textColor: "#000",         // Couleur du texte dans l’en-tête
@@ -211,9 +221,12 @@
         month: "long",
         year: "numeric"
       },
-      recapStyle: "font-weight:600; font-style:italic;" 
-                                 // Style appliqué à la phrase récap (gras, italique, couleur…)
+      recapStyle: "font-weight:600; font-style:italic;"        // Style appliqué à la phrase récap (gras, italique, couleur…)
+      recapMaxLines: 2,                    // ← nombre de lignes visibles
+      recapMoreLabel: " […]",              // ← libellé pour déployer
+      recapLessLabel: " ↥ réduire"         // ← libellé pour « retrousser »
     },
+    
     card: {
       background: "#fef9c3",     // Couleur du bloc jaune clair (contenu)
       border: "1px solid #0f172a22", // Bordure autour du bloc jaune clair
@@ -223,11 +236,13 @@
       fontSize: "14px",          // Taille du texte dans la note
       lineHeight: "1.55"         // Interligne du texte
     },
+    
     links: {
       sectionTitle: "Liens sortants", // Titre affiché au-dessus de la liste des liens
       internalLinkColor: "#1e90ff",   // Couleur des liens internes [[...]]
       internalLinkUnderline: "dashed" // Style de soulignement des liens internes (dashed, solid, none)
     },
+    
     buttons: {
       fitText: "🔎 Voir les liés", // Texte du bouton pour recadrer sur les notes liées
       closeText: "✖ Fermer",      // Texte du bouton pour fermer le panneau
@@ -317,6 +332,113 @@
 
     }
 
+    // Utilitaire: debounce simple
+    function debounce(fn, wait=120){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+    
+    // Utilitaire: convertir HTML -> texte brut (pour ne pas couper au milieu d'une balise)
+    function htmlToText(html){
+      const d = document.createElement('div');
+      d.innerHTML = html;
+      return d.textContent || d.innerText || '';
+    }
+    
+    // Tronque proprement le #npRecap à N lignes, ajoute [ … ] pour étendre / ↥ réduire
+    function clampRecap(maxLines){
+      const wrap = document.getElementById('npRecap');
+      if (!wrap) return;
+    
+      // Récupère le texte complet (depuis ce qui a été mis par openSummaryInPanel)
+      const fullHtml = wrap.innerHTML || '';
+      const fullText = htmlToText(fullHtml).trim();
+      wrap.dataset.fullText = fullText; // on mémorise l’original texte
+    
+      // On reconstruit le contenu: <span id=npRecapText> + <a id=npRecapToggle>
+      wrap.innerHTML = '';
+      const span = document.createElement('span');
+      span.id = 'npRecapText';
+      span.style.whiteSpace = 'normal';
+      span.style.display = 'inline';
+      span.style.wordBreak = 'break-word'; // évite débordement mais on ne coupera pas les mots nous-mêmes
+      wrap.appendChild(span);
+    
+      const toggle = document.createElement('a');
+      toggle.id = 'npRecapToggle';
+      toggle.className = 'np-recap-toggle';
+      toggle.href = '#';
+      toggle.style.marginLeft = '2px';
+      wrap.appendChild(toggle);
+    
+      const H = UI_CONFIG.header;
+      const moreLabel = H.recapMoreLabel || ' […]';
+      const lessLabel = H.recapLessLabel || ' ↥ réduire';
+    
+      // Mesure : hauteur de 1 ligne
+      span.textContent = 'A';
+      const lineH = parseFloat(getComputedStyle(span).lineHeight);
+      const maxH = lineH * (maxLines || 2);
+    
+      // Fonction pour vérifier si ça déborde
+      const fits = () => span.scrollHeight <= Math.ceil(maxH + 1);
+    
+      // Si tout tient, rien à tronquer
+      span.textContent = fullText;
+      if (fits()){
+        toggle.style.display = 'none';
+        return;
+      }
+    
+      // Sinon, on tronque « au mot près » avec recherche dichotomique
+      const words = fullText.split(/\s+/);
+      let lo = 0, hi = words.length, best = 0;
+      while (lo <= hi){
+        const mid = Math.floor((lo+hi)/2);
+        span.textContent = words.slice(0, mid).join(' ');
+        if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
+      }
+    
+      // Ajuste pour éviter espace final avant l’ellipse
+      let truncated = words.slice(0, best).join(' ').trim();
+      span.textContent = truncated;
+      toggle.textContent = moreLabel;
+      toggle.style.display = 'inline';
+    
+      // État
+      let expanded = false;
+    
+      // Handlers
+      const setExpanded = (on) => {
+        expanded = on;
+        if (expanded){
+          span.textContent = fullText;
+          toggle.textContent = lessLabel;
+        } else {
+          span.textContent = truncated;
+          toggle.textContent = moreLabel;
+        }
+      };
+    
+      toggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        setExpanded(!expanded);
+      });
+    
+      // Recalcule automatiquement à la taille (si on a réduit)
+      const reclamp = debounce(() => {
+        if (expanded) return; // si étendu, ne pas recalculer
+        // Recalculer « best » si la largeur a changé
+        lo = 0; hi = words.length; best = 0;
+        while (lo <= hi){
+          const mid = Math.floor((lo+hi)/2);
+          span.textContent = words.slice(0, mid).join(' ');
+          if (fits()){ best = mid; lo = mid + 1; } else { hi = mid - 1; }
+        }
+        truncated = words.slice(0, best).join(' ').trim();
+        span.textContent = truncated;
+        toggle.textContent = moreLabel;
+      }, 160);
+    
+      window.addEventListener('resize', reclamp);
+    }
 
 
 
@@ -665,6 +787,10 @@
         if (!$date.textContent && meta.date) $date.textContent = formatDateByConfig(meta.date);
         // 2) recap depuis le .md si pas donné dans data.json
         if (!$recap.innerHTML && meta.recap) $recap.innerHTML = renderWikiLinksInline(meta.recap);
+
+        // Limiter le récap à 2 lignes + toggle
+        clampRecap(UI_CONFIG.header.recapMaxLines || 2);
+
   
         // 3) Liste des ids liés (pour traits + section "Liens sortants")
         links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
