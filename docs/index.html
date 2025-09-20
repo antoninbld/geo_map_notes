@@ -1429,6 +1429,7 @@
       });
       const src = map.getSource('note-links');
       src.setData({ type:'FeatureCollection', features });
+      if (typeof startLinksAnimation === 'function') startLinksAnimation();
     }
 
     function clearLinks(){
