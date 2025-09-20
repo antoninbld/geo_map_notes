@@ -129,7 +129,7 @@
       <div id="npDate" style="font-size:12px;opacity:.8;margin-top:2px; margin-left:20px;">6 octobre 1981</div>
     
        <!-- Phrase récap (optionnelle) -->
-      <div id="npRecap" style="font-size:13px;margin-top:6px; font-weight:600; font-style:italic;"></div>
+      <div id="npRecap" style="margin-top:6px; font-weight:600; font-style:italic;"></div>
       <a id="npRecapToggle" href="#" style="display:none;"></a>
     </div>
 
@@ -231,6 +231,7 @@
         month: "long",
         year: "numeric"
       },
+      recapFontSize: "12px",
       recapStyle: "font-weight:600; font-style:italic;",        // Style appliqué à la phrase récap (gras, italique, couleur…)
       recapMaxLines: 2,                    // ← nombre de lignes visibles
       recapMoreLabel: " […]",              // ← libellé pour déployer
@@ -301,6 +302,7 @@
         }
         #npTitle{ font-size:${H.titleSize}; }
         #npDate{ margin-left:${H.dateIndent}; }
+        #npRecap{ ${H.recapStyle}; font-size:${H.recapFontSize || "13px"}; }
     
         /* Bloc contenu */
         #npWrapper{ padding:${C.outerPadding}; }
