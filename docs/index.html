@@ -890,10 +890,83 @@
     map.on('style.load', applyProjection); // réapplique la projection à chaque changement de style
 
     // 🔹 Au tout premier chargement du style, on crée les marqueurs et la couche des liens
-    map.on('load', () => {
-      addMarkersFromJSON().then(() => {
-        applyFilters({ skipFit: true }); // pas de recadrage auto au boot
+    map.on('load', async () => {
+      // Charger les données JSON
+      const res = await fetch('data.json');
+      allData = await res.json();
+    
+      // Convertir en GeoJSON
+      const features = allData.map(item => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+        properties: { id: item.id, title: item.title }
+      }));
+    
+      map.addSource('notes', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features },
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50
       });
+    
+      // Couches clusters + labels
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'notes',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#facc15',
+          'circle-radius': 20
+        }
+      });
+    
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'notes',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Bold'],
+          'text-size': 14
+        }
+      });
+    
+      // Points individuels
+      map.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'notes',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#11b4da',
+          'circle-radius': 6,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#fff'
+        }
+      });
+    
+      // Clic sur cluster → zoom
+      map.on('click', 'clusters', (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        const clusterId = features[0].properties.cluster_id;
+        map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+          map.easeTo({ center: features[0].geometry.coordinates, zoom });
+        });
+      });
+    
+      // Clic sur un point individuel → ouvrir panneau
+      map.on('click', 'unclustered-point', (e) => {
+        const props = e.features[0].properties;
+        openSummaryInPanel(props.id);
+      });
+    
+      // Curseur pointeur sur cluster
+      map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
     
       // 3D + Monde par défaut
       CURRENT_PROJECTION = 'globe';
@@ -909,12 +982,14 @@
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
       }
+    
       // Recentrer au démarrage sur l’équateur si on est en 3D
       if (CURRENT_PROJECTION === 'globe') {
         const c = map.getCenter();
         map.jumpTo({ center: [c.lng, 0] });
       }
-            updateRotateButtonVisibility(); // ← initialise la visibilité du bouton
+    
+      updateRotateButtonVisibility(); // ← initialise la visibilité du bouton
     });
     
     map.on('style.load', () => {
@@ -1621,7 +1696,6 @@
 
     // === Données & Marqueurs & Filtres ===
     let allData = [];      // toutes les entrées JSON (chargées une fois)
-    let allMarkers = [];   // { item, marker }
     let allTags = new Set();
 
     // Gère l'état "marqueur actif"
@@ -1643,7 +1717,8 @@
       }
     }
     
-    async function addMarkersFromJSON() {
+    // Chargement des données JSON + indexation + tags (mais plus de markers)
+    async function loadDataFromJSON() {
       // charge data.json une seule fois
       if (allData.length === 0) {
         try {
@@ -1654,62 +1729,21 @@
           return;
         }
       }
-
-      // 3.3 — index rapide id -> item (sert aux liens entre notes)
+    
+      // index rapide id -> item (sert aux liens entre notes)
       idToItem.clear();
       allData.forEach(it => { if (it && it.id) idToItem.set(it.id, it); });
-
-      // nettoie anciens marqueurs
-      allMarkers.forEach(({marker}) => marker.remove());
-      allMarkers = [];
+    
+      // collecte les tags pour les filtres
       allTags.clear();
-
-      // crée les marqueurs
       allData.forEach(item => {
-      // ➕ collecte les tags pour les filtres
         if (Array.isArray(item.tags)) {
-          item.tags.forEach(t => { if (t && String(t).trim()) allTags.add(String(t).trim()); });
-        }
-        if (typeof item.lon === 'number' && typeof item.lat === 'number') {
-          // STYLE du marqueur (rouge + bordure rouge foncé)
-          const el = document.createElement('div');
-          el.style.width = '14px';
-          el.style.height = '14px';
-          el.style.borderRadius = '50%';
-          el.style.background = 'red';             // centre
-          el.style.border = '2px solid darkred';   // contour
-          el.style.boxShadow = '0 1px 6px rgba(0,0,0,0.3)';
-          el.title = item.title || '';
-
-          el.dataset.id = item.id;
-          item.__el = el;
-
-          const marker = new maplibregl.Marker({ element: el })
-            .setLngLat([item.lon, item.lat])
-            .addTo(map);
-
-          // Clic sur le marqueur => ouvre le panneau + trace (et empêche l’effacement global)
-          el.addEventListener('click', async (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-          
-            // Empêche l’handler global 'map.on("click")' d'effacer les traits
-            window.__justClickedMarker = true;
-            setTimeout(() => { window.__justClickedMarker = false; }, 0);
-          
-            // Ouvre le panneau résumé
-            await openSummaryInPanel(item.id);
-            setActiveMarker(item.id);
-          
-            // Calcule et trace les liens
-            const links = await getOutgoingLinks(item.id);
-            drawLinksFrom(item.id, links);
-            window.__lastLinksState = { id: item.id, links };
+          item.tags.forEach(t => { 
+            if (t && String(t).trim()) allTags.add(String(t).trim()); 
           });
-          allMarkers.push({ item, marker });
         }
       });
-
+    
       // construit la liste de tags (si des tags existent)
       buildTagCheckboxes();
     }
