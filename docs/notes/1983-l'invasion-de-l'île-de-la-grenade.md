@@ -1,5 +1,5 @@
 ---
-title: "1983: L'invasion de l'île de la Grenade""
+title: "1983: L'invasion de l'île de la Grenade"
 
 ---
 
