@@ -1341,22 +1341,6 @@
       try { map.moveLayer('note-links-line'); } catch {}
     }
     
-    // Petit helper pour la géométrie courbe entre 2 points
-    function curveBetween(from, to) {
-      const p1 = [from.lon, from.lat];
-      const p2 = [to.lon, to.lat];
-      // simple courbe à 20 segments
-      const segs = 20;
-      const coords = [];
-      for (let i = 0; i <= segs; i++) {
-        const t = i / segs;
-        const x = p1[0] + (p2[0] - p1[0]) * t;
-        const y = p1[1] + (p2[1] - p1[1]) * t + Math.sin(Math.PI * t) * 0.8; // léger arc
-        coords.push([x, y]);
-      }
-      return coords;
-    }
-    
     // Trace les liens à partir d'une note
     function drawLinksFrom(noteId, linkedIds) {
       ensureLinksLayer();
