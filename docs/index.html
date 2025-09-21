@@ -861,7 +861,14 @@
       map.on(ev, () => { __npUserInteracting = true; })
     );
     ['dragend','rotateend','pitchend','zoomend','moveend'].forEach(ev =>
-      map.on(ev, () => { __npUserInteracting = false; })
+      map.on(ev, () => {
+        __npUserInteracting = false;
+        // Si la rotation est active, recaler doucement sur l’équateur
+        if (__npRotateOn && CURRENT_PROJECTION === 'globe') {
+          const c = map.getCenter();
+          map.easeTo({ center: [c.lng, 0], duration: 300 });
+        }
+      })
     );
     
     // Affichage du bouton selon 2D/3D
@@ -902,7 +909,12 @@
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
       }
-      updateRotateButtonVisibility(); // ← initialise la visibilité du bouton
+      // Recentrer au démarrage sur l’équateur si on est en 3D
+      if (CURRENT_PROJECTION === 'globe') {
+        const c = map.getCenter();
+        map.jumpTo({ center: [c.lng, 0] });
+      }
+            updateRotateButtonVisibility(); // ← initialise la visibilité du bouton
     });
     
     map.on('style.load', () => {
