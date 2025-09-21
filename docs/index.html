@@ -227,9 +227,12 @@
         <span id="npIcon" style="font-size:14px;line-height:1">📍</span>
         <span id="npPlace">Pays, ville</span>
       </div>
-    
-      <!-- Date SOUS la localisation -->
-      <div id="npDate" style="font-size:12px;opacity:.8;margin-top:2px; margin-left:20px;">6 octobre 1981</div>
+      
+      <!-- Date avec 🕓 -->
+      <div id="npDate" style="font-size:12px;opacity:.8;display:flex;align-items:center;gap:6px;margin-top:2px; margin-left:20px;">
+        <span id="npDateIcon" style="font-size:14px;line-height:1">🕓</span>
+        <span id="npDateText">6 octobre 1981</span>
+      </div>
     
        <!-- Phrase récap (optionnelle) -->
       <div id="npRecap" style="margin-top:6px; font-weight:600; font-style:italic;"></div>
@@ -237,7 +240,6 @@
     </div>
 
 
-  
     <!-- Corps clair (marges homogènes) -->
     <div id="npWrapper" style="padding:6px 6px;">
       <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
@@ -366,7 +368,7 @@
       textColor: "#000",         // Couleur du texte dans l’en-tête
       titleSize: "16px",         // Taille du titre (px)
       locationIcon: "📍",        // Icône affichée avant la localisation
-      dateIndent: "20px",        // Décalage gauche de la date (alignement sous la localisation)
+      dateIndent: "0px",        // Décalage gauche de la date (alignement sous la localisation)
       dateFormat: {              // Format de la date (Intl API)
         day: "numeric",
         month: "long",
