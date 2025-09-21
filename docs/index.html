@@ -265,7 +265,7 @@
   
     <section class="panel-actions">
       <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
-      <button id="recenterUSA" class="btn" type="button">Recentrer États-Unis</button>
+      <button id="recenterWorld" class="btn" type="button">Recentrer Monde</button>
     </section>
   </aside>
 
@@ -712,7 +712,8 @@
     // 🎯 Vues par défaut
     const DEFAULT_ZOOM   = 3.8;
     const EUROPE_CENTER  = [10, 50];
-    const USA_CENTER     = [-98.5, 39.8];
+    const WORLD_CENTER   = [0, 20];   // Atlantique, vue équilibrée
+    const WORLD_ZOOM     = 1.2;       // zoom faible = vue globale
 
     // Carte
     const map = new maplibregl.Map({
@@ -833,11 +834,11 @@
     function recenterEurope() {
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
-    function recenterUSA() {
-      map.easeTo({ center: USA_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
+    function recenterWorld() {
+      map.easeTo({ center: WORLD_CENTER, zoom: WORLD_ZOOM, duration: 800 });
     }
     document.getElementById('recenterEurope').addEventListener('click', recenterEurope);
-    document.getElementById('recenterUSA').addEventListener('click', recenterUSA);
+    document.getElementById('recenterWorld').addEventListener('click', recenterWorld);
 
     // Raccourcis clavier : E (Europe), U (USA)
     window.addEventListener('keydown', (e) => {
