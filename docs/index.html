@@ -204,23 +204,13 @@
 
     /* Bouton rotation globe */
     #npRotateBtn{
-      position:absolute;
-      right:16px; bottom:16px;
-      width:44px; height:44px;
-      display:none;                 /* visible en 3D via JS */
-      border:none; border-radius:999px;
-      background:rgba(255,255,255,0.9);
-      box-shadow:0 6px 20px rgba(0,0,0,0.18);
-      cursor:pointer;
-      font-size:20px;
-      align-items:center; justify-content:center;
-      transition:transform .15s ease, background .2s ease, box-shadow .2s ease;
-      z-index:20;
+      display:none;       /* visible en 3D via updateRotateButtonVisibility() */
+      font-size:18px;
     }
     #npRotateBtn:hover{ transform:scale(1.06); }
     #npRotateBtn.is-on{
-      background:#facc15; color:#000;
-      box-shadow:0 8px 26px rgba(250,204,21,0.45);
+      background:#facc15;
+      color:#000;
     }
     
   </style>
@@ -862,9 +852,6 @@
     ['dragend','rotateend','pitchend','zoomend','moveend'].forEach(ev =>
       map.on(ev, () => { __npUserInteracting = false; })
     );
-    
-    // Bouton
-    if ($npRotateBtn) $npRotateBtn.addEventListener('click', npToggleRotation);
     
     // Affichage du bouton selon 2D/3D
     function updateRotateButtonVisibility(){
