@@ -166,21 +166,17 @@
   <!-- Panneau Map Views + Recentrer -->
   <div class="basemap-control">
     <strong>Map views</strong>
-
-    <!-- Fournisseur -->
-    <strong style="display:block;margin-top:8px;">Fournisseur</strong>
-    <label><input type="radio" name="provider" value="maptiler" checked> MapTiler</label>
-    <label><input type="radio" name="provider" value="carto"> Carto</label>
+  
     <!-- Projection -->
     <strong style="display:block;margin-top:8px;">Projection</strong>
     <label><input type="radio" name="projection" value="mercator" checked> 2D</label>
     <label><input type="radio" name="projection" value="globe"> 3D</label>
-    
-    <label><input type="radio" name="basemap" value="hybrid"> Satellite</label>
+  
+    <!-- Styles MapTiler -->
     <label><input type="radio" name="basemap" value="streets" checked> Streets</label>
     <label><input type="radio" name="basemap" value="light"> Light</label>
     <label><input type="radio" name="basemap" value="dark"> Dark</label>
-
+  
     <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
     <button id="recenterUSA" class="btn" type="button">Recentrer États-Unis</button>
   </div>
@@ -534,30 +530,16 @@
 
     // Styles MapTiler (vector)
     const STYLES = {
-      hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
       streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
       light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
       dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
     };
 
     // Provider & style courants
-    let CURRENT_PROVIDER = 'maptiler';   // 'maptiler' | 'carto'
     let CURRENT_BASEMAP  = 'streets';    // 'hybrid' | 'streets' | 'light' | 'dark'
     let CURRENT_PROJECTION = 'mercator'; // 'mercator' | 'globe'
     
-    // Résout l'URL du style selon provider + basemap
-    function getStyleURL(provider, basemap){
-      if (provider === 'carto') {
-        // Carto: mapping simple de nos 4 choix
-        const cartoId = ({
-          streets: 'voyager',
-          light:   'positron',
-          dark:    'dark-matter',
-          hybrid:  'voyager' // pas de satellite chez Carto → fallback
-        })[basemap] || 'voyager';
-        return `https://basemaps.cartocdn.com/gl/${cartoId}-gl-style/style.json`;
-      }
-      // MapTiler par défaut
+    function getStyleURL(basemap){
       return STYLES[basemap] || STYLES.streets;
     }
 
@@ -592,7 +574,7 @@
     }
 
     function ensureTerrain() {
-      if (CURRENT_PROJECTION !== 'globe' || CURRENT_PROVIDER !== 'maptiler') {
+      if (CURRENT_PROJECTION !== 'globe') {
         try { map.setTerrain(null); } catch {}
         return;
       }
@@ -647,10 +629,10 @@
     // Carte
     const map = new maplibregl.Map({
       container: 'map',
-      style: getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP),
+      style: getStyleURL(CURRENT_BASEMAP), // ← plus de provider
       center: EUROPE_CENTER,
       zoom:   DEFAULT_ZOOM,
-      projection: 'mercator' // 2D par défaut ; on togglera en live
+      projection: 'mercator'
     });
     map.on('style.load', applyProjection); // réapplique la projection à chaque changement de style
 
@@ -783,7 +765,7 @@
         CURRENT_BASEMAP = choice;
         updateMapBackgroundClass();
         
-        map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
+        map.setStyle(getStyleURL(CURRENT_BASEMAP));
         
         const rebuild = () => {
           applyProjection();
@@ -804,41 +786,6 @@
         map.once('style.load', rebuild);
       });
     });
-    
-    // Fournisseur (MapTiler / Carto)
-    document.querySelectorAll('input[name="provider"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        CURRENT_PROVIDER = e.target.value;  // 'maptiler' | 'carto'
-        updateMapBackgroundClass();
-        map.setStyle(getStyleURL(CURRENT_PROVIDER, CURRENT_BASEMAP));
-    
-        const rebuild = () => {
-          applyProjection(); // ← re-applique 2D/3D + fog
-          ensureTerrain();
-          addMarkersFromJSON().then(applyFilters);
-          linksSourceReady = false;
-          ensureLinksLayer();
-          if (window.__lastLinksState) {
-            const { id, links } = window.__lastLinksState;
-            drawLinksFrom(id, links);
-          }
-        };
-        map.once('styledata', rebuild);
-    
-        refreshBasemapOptionsForProvider();
-      });
-    });
-    
-    function refreshBasemapOptionsForProvider(){
-      const sat = document.querySelector('input[name="basemap"][value="hybrid"]');
-      if (!sat) return;
-      const isCarto = CURRENT_PROVIDER === 'carto';
-      sat.disabled = isCarto;
-      if (isCarto && sat.checked) {
-        const streets = document.querySelector('input[name="basemap"][value="streets"]');
-        if (streets) { streets.checked = true; streets.dispatchEvent(new Event('change', { bubbles:true })); }
-      }
-    }
 
     function updateMapBackgroundClass(){
       const mapDiv = document.getElementById('map');
@@ -848,7 +795,6 @@
       else mapDiv.classList.remove('dark');
     }
     
-    window.addEventListener('load', refreshBasemapOptionsForProvider);
     window.addEventListener('load', updateMapBackgroundClass);
     window.addEventListener('load', () => {
       const r = document.querySelector('input[name="projection"]:checked');
