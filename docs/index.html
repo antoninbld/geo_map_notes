@@ -223,7 +223,7 @@
       <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
     
       <!-- Lieu avec 📍 -->
-      <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;">
+      <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px; margin-left:20px;">
         <span id="npIcon" style="font-size:14px;line-height:1">📍</span>
         <span id="npPlace">Pays, ville</span>
       </div>
@@ -367,7 +367,9 @@
       background: "#facc15",     // Couleur de fond du bandeau jaune (en-tête)
       textColor: "#000",         // Couleur du texte dans l’en-tête
       titleSize: "16px",         // Taille du titre (px)
-      locationIcon: "📍",        // Icône affichée avant la localisation
+      locationIcon: "📍",
+      dateIcon: "🕓",        // <— NOUVEAU : icône avant la date
+      metaIndent: "20px",
       dateIndent: "0px",        // Décalage gauche de la date (alignement sous la localisation)
       dateFormat: {              // Format de la date (Intl API)
         day: "numeric",
