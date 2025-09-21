@@ -397,6 +397,12 @@
       curveStyle: "bezier",    // "bezier" | "geodesic"
       curveStrength: 0.3,     // Bézier : 0.15 (léger) à 0.5 (prononcé)
       curveSteps: 90           // nombre de points par courbe
+
+      // Petites recettes visuelles: 
+          // Carte locale / urbaine : curveStyle:"bezier", curveStrength:0.18, curveSteps:48 
+          // Pays / continent : curveStyle:"bezier", curveStrength:0.25, curveSteps:64 
+          // Intercontinental (vols, routes mondiales) : curveStyle:"geodesic", curveSteps:96 
+          // Style “fils tendus” minimaliste : curveStyle:"straight", curveSteps:2, lineDasharray:[4,2], lineOpacity:0.6
     },
     
     buttons: {
