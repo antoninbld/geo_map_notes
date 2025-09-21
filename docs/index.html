@@ -1412,6 +1412,11 @@
       console.log('drawLinksFrom:', noteId, 'features:', features.length, features);
     
       src.setData({ type:'FeatureCollection', features });
+
+      // S'assurer que nos traits sont au-dessus
+      try { map.moveLayer('note-links-casing'); } catch {}
+      try { map.moveLayer('note-links-line'); } catch {}
+      try { map.moveLayer('note-links-arrows'); } catch {}
     }
 
     
@@ -1608,14 +1613,28 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
+    // Effacer les traits uniquement si on clique vraiment sur la carte (pas sur un marqueur / panneau)
     map.on('click', (e) => {
-      // ← si on vient de cliquer un marqueur, NE RIEN FAIRE
+      const ev = e.originalEvent;
+      if (!ev) return;
+    
+      // 1) Si on vient de cliquer un marqueur, ne rien faire
       if (window.__justClickedMarker) return;
     
-      const path = e.originalEvent?.composedPath?.() || [];
-      const clickedMarkerEl = path.find(n => n && n.classList && n.classList.contains('maplibregl-marker'));
-      if (!clickedMarkerEl) clearLinks();
+      // 2) Si le clic est sur un élément UI (panneau de note, filtres, map-panel), ne rien faire
+      const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
+      const clickedUI = path.some(n => n && n.id && (
+        n.id === 'notePanel' || n.id === 'filtersPanel' || n.id === 'mapPanel'
+      ));
+      if (clickedUI) return;
+    
+      // 3) Si le clic est sur un marqueur, ne rien faire
+      const clickedMarker = path.some(n => n && n.classList && n.classList.contains('maplibregl-marker'));
+      if (clickedMarker) return;
+    
+      // 4) On efface seulement si la cible est bien le canvas de la carte
+      const isMapCanvas = ev.target === map.getCanvas();
+      if (isMapCanvas) clearLinks();
     });
 
   // === Fermeture du panneau (✖) ===
