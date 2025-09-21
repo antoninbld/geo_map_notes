@@ -1,5 +1,6 @@
 ---
 title: "1982: la guerre des Malouines"
+date: 02/04/1982
 
 ---
 
