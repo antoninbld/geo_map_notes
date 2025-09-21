@@ -889,11 +889,39 @@
     
     map.on('style.load', applyProjection); // réapplique la projection à chaque changement de style
 
+    async function loadDataFromJSON() {
+      if (allData.length === 0) {
+        try {
+          const res = await fetch('data.json', { cache: 'no-store' });
+          allData = await res.json();
+        } catch (e) {
+          console.error('Erreur chargement data.json', e);
+          return;
+        }
+      }
+    
+      // index rapide id -> item (sert aux liens entre notes)
+      idToItem.clear();
+      allData.forEach(it => { if (it && it.id) idToItem.set(it.id, it); });
+    
+      // collecte les tags pour les filtres
+      allTags.clear();
+      allData.forEach(item => {
+        if (Array.isArray(item.tags)) {
+          item.tags.forEach(t => { 
+            if (t && String(t).trim()) allTags.add(String(t).trim()); 
+          });
+        }
+      });
+    
+      // construit la liste de tags (si des tags existent)
+      buildTagCheckboxes();
+    }
+    
     // 🔹 Au tout premier chargement du style, on crée les marqueurs et la couche des liens
     map.on('load', async () => {
       // Charger les données JSON
-      const res = await fetch('data.json');
-      allData = await res.json();
+      await loadDataFromJSON();
     
       // Convertir en GeoJSON
       const features = allData.map(item => ({
@@ -1159,7 +1187,7 @@
         const rebuild = () => {
           applyProjection();
           ensureTerrain();
-          addMarkersFromJSON().then(() => {
+          loadDataFromJSON().then(() => {
             applyFilters?.();
             ensureLinksLayer();
             if (window.__lastLinksState) {
