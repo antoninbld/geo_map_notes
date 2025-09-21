@@ -172,7 +172,29 @@
           font-size: 0.85em;   /* ↩️ taille relative au récap */
           font-weight: normal; /* ↩️ plus léger */
         }
-
+    
+    /* Curseur clair quand c’est cliquable */
+    .maplibregl-marker,
+    .internal-link,
+    #npFit,
+    .basemap-control .segmented-group .seg-btn,
+    .maplibregl-ctrl button,
+    .filters-ctrl .filters-btn {
+      cursor: pointer;
+    }
+    
+    /* Bordures noires fines sur les contrôles pour mieux les voir */
+    .maplibregl-ctrl-group > button,
+    .filters-ctrl .filters-btn {
+      border: 1px solid #000 !important;
+    }
+    
+    /* Au survol, un léger relief pour le feedback */
+    .maplibregl-ctrl-group > button:hover,
+    .filters-ctrl .filters-btn:hover,
+    .basemap-control .segmented-group .seg-btn:hover {
+      filter: brightness(.95);
+    }
   </style>
 </head>
 <body>
@@ -1466,17 +1488,28 @@
             .setLngLat([item.lon, item.lat])
             .addTo(map);
 
-          // Clic sur le marqueur => ouvre le panneau RÉSUMÉ direct + traits
+          // Clic sur le marqueur => ouvre le panneau + TRACE IMMÉDIATEMENT LES LIENS
           el.addEventListener('click', async (ev) => {
-            // Empêche le click de remonter au canvas MapLibre
             ev.preventDefault();
             ev.stopPropagation();
           
-            // Indique au handler global "click carte" d'ignorer ce click
+            // Flag anti-effacement par le handler global "click carte"
             window.__justClickedMarker = true;
             setTimeout(() => { window.__justClickedMarker = false; }, 0);
           
-            await openSummaryInPanel(item.id); // affiche le résumé + liens + traits
+            // 1) Panneau
+            await openSummaryInPanel(item.id);
+          
+            // 2) Sécurité : on (re)trace les liens même si le panneau n’a pas réussi à les calculer
+            const links = await getOutgoingLinks(item.id);
+            drawLinksFrom(item.id, links);
+            window.__lastLinksState = { id: item.id, links };
+          
+            // (Optionnel) recadre si tu veux voir les points reliés dès le clic
+            // const b = new maplibregl.LngLatBounds();
+            // const from = idToItem.get(item.id); if (from) b.extend([from.lon, from.lat]);
+            // links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
+            // if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
           });
           allMarkers.push({ item, marker });
         }
@@ -1609,7 +1642,6 @@
       if (window.__justClickedMarker) return;
     
       const tgt = e?.originalEvent?.target;
-      // Détection fiable via closest() (mieux que composedPath pour certains navigateurs)
       const insideMarker = tgt && typeof tgt.closest === 'function'
         ? tgt.closest('.maplibregl-marker')
         : null;
