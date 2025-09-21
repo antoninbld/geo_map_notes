@@ -821,15 +821,26 @@
     
     function __npRotateStep(ts){
       if (!__npRotateOn) { __npRotateRAF = null; return; }
-      // pause si l'utilisateur manipule, ou si on n'est pas en 3D
+    
       if (!__npUserInteracting && CURRENT_PROJECTION === 'globe') {
         const now = ts || performance.now();
         const dt = (now - (__npRotateStep._lastTs || now));
         __npRotateStep._lastTs = now;
-        // sens anti-horaire (vu du pôle nord) => bearing décroît
-        const inc = -__npTEST_SPEED_DEG_PER_SEC * (dt / 1000);
-        map.setBearing(map.getBearing() + inc);
+    
+        // Récupère le centre actuel
+        const c = map.getCenter();
+        let lon = c.lng;
+        // Vitesse en °/s (ouest -> est = sens anti-horaire vu du nord)
+        lon += __npTEST_SPEED_DEG_PER_SEC * (dt / 1000); // inverse le signe si tu veux l’autre sens
+    
+        // Wrap -180..180
+        if (lon > 180) lon -= 360;
+        if (lon < -180) lon += 360;
+    
+        // Centre sur l’équateur (lat = 0), bearing et pitch conservés
+        map.setCenter([lon, 0]);
       }
+    
       __npRotateRAF = requestAnimationFrame(__npRotateStep);
     }
     
