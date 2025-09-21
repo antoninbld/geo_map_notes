@@ -1,6 +1,6 @@
 ---
 title: "Eté 1969: Honduras-Salvador ou la guerre du foot"
-date: 1969-06-15
+date: 15/06/1969
 
 ---
 
