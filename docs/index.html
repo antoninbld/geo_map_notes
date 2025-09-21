@@ -773,8 +773,8 @@
     const map = new maplibregl.Map({
       container: 'map',
       style: getStyleURL(CURRENT_BASEMAP), // ← plus de provider
-      center: EUROPE_CENTER,
-      zoom:   DEFAULT_ZOOM,
+      center: WORLD_CENTER,
+      zoom:   WORLD_ZOOM,
       projection: 'globe'
     });
     map.on('style.load', applyProjection); // réapplique la projection à chaque changement de style
