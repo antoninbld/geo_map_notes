@@ -381,12 +381,23 @@
     },
     
     links: {
-      sectionTitle: "Liens sortants", // Titre affiché au-dessus de la liste des liens
-      internalLinkColor: "#1e90ff",   // Couleur des liens internes [[...]]
-      internalLinkUnderline: "dashed", // Style de soulignement des liens internes (dashed, solid, none)
-      curveStyle: "bezier",     // "bezier" | "geodesic"
-      curveStrength: 0.25,      // Bézier : 0.15 (léger) à 0.5 (prononcé)
-      curveSteps: 64            // nombre de points par courbe (qualité vs perf)
+      sectionTitle: "Liens sortants",     // Titre affiché au-dessus de la liste
+      internalLinkColor: "#1e90ff",       // Couleur des liens internes [[...]]
+      internalLinkUnderline: "dashed",    // Style soulignement (dashed, solid, none)
+    
+      // === Style visuel des traits sur la carte ===
+      lineColor: "#9e0909",    // couleur de la ligne
+      lineWidth: 2.5,          // épaisseur en px
+      lineOpacity: 0.95,       // transparence (0-1)
+      lineDasharray: null,     // [4,2] pour pointillés, null = plein
+      casingColor: "#470303",  // couleur du contour (pour contraste)
+      casingWidth: 0.2,          // largeur du contour (0 = pas de contour)
+    
+      // === Géométrie des courbes ===
+      curveStyle: "bezier",    // "bezier" | "geodesic"
+      curveStrength: 0.25,     // Bézier : 0.15 (léger) à 0.5 (prononcé)
+      curveSteps: 64           // nombre de points par courbe
+    }
 
     },
     
@@ -1246,9 +1257,9 @@
       return ids;
     }
 
-    // === Couche des liens entre notes (traits) ===
+    // === Couche des liens entre notes (lit le style depuis UI_CONFIG.links) ===
     function ensureLinksLayer() {
-      // Attendre que le style soit chargé si besoin
+      // Attendre que le style soit prêt
       if (!map.isStyleLoaded?.() && !map.loaded?.()) {
         map.once('load', ensureLinksLayer);
         map.once('style.load', ensureLinksLayer);
@@ -1263,7 +1274,38 @@
         });
       }
     
-      // Un seul layer "line" (simple, fiable, visible sur tous les styles)
+      // Lecture du style dans la config
+      const L = (UI_CONFIG?.links) || {};
+    
+      // Optionnel : ajouter un "casing" (contour) sous la ligne pour le contraste
+      const needCasing = (L.casingWidth || 0) > 0;
+    
+      // (Re)crée/actualise le layer de contour
+      if (needCasing) {
+        if (!map.getLayer('note-links-casing')) {
+          map.addLayer({
+            id: 'note-links-casing',
+            type: 'line',
+            source: 'note-links',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': L.casingColor || '#ffffff',
+              'line-width': (L.lineWidth || 3.5) + (L.casingWidth || 1.5),
+              'line-opacity': L.lineOpacity ?? 0.95
+            }
+          });
+        } else {
+          // Met à jour les paint properties si le layer existe déjà
+          map.setPaintProperty('note-links-casing', 'line-color',   L.casingColor || '#ffffff');
+          map.setPaintProperty('note-links-casing', 'line-width',  (L.lineWidth || 3.5) + (L.casingWidth || 1.5));
+          map.setPaintProperty('note-links-casing', 'line-opacity', L.lineOpacity ?? 0.95);
+        }
+      } else {
+        // Pas de contour demandé => supprime le layer s’il existe
+        if (map.getLayer('note-links-casing')) map.removeLayer('note-links-casing');
+      }
+    
+      // (Re)crée/actualise le layer principal de ligne
       if (!map.getLayer('note-links-line')) {
         map.addLayer({
           id: 'note-links-line',
@@ -1271,12 +1313,28 @@
           source: 'note-links',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
-            'line-color': '#ff0088',
-            'line-width': 3.5,
-            'line-opacity': 0.95
+            'line-color':   L.lineColor   || '#ff0088',
+            'line-width':   L.lineWidth   || 3.5,
+            'line-opacity': L.lineOpacity ?? 0.95,
+            ...(L.lineDasharray ? { 'line-dasharray': L.lineDasharray } : {})
           }
-        });
+        }, needCasing ? undefined : undefined);
+      } else {
+        // Met à jour les paint properties si le layer existe déjà
+        map.setPaintProperty('note-links-line', 'line-color',   L.lineColor   || '#ff0088');
+        map.setPaintProperty('note-links-line', 'line-width',   L.lineWidth   || 3.5);
+        map.setPaintProperty('note-links-line', 'line-opacity', L.lineOpacity ?? 0.95);
+        if (L.lineDasharray) {
+          map.setPaintProperty('note-links-line', 'line-dasharray', L.lineDasharray);
+        } else {
+          // retire l'éventuel dasharray si tu repasses à un trait plein
+          try { map.setPaintProperty('note-links-line', 'line-dasharray', null); } catch {}
+        }
       }
+    
+      // S'assurer que l'ordre est bon : casing en dessous de line
+      try { map.moveLayer('note-links-casing'); } catch {}
+      try { map.moveLayer('note-links-line'); } catch {}
     }
     
     // Petit helper pour la géométrie courbe entre 2 points
