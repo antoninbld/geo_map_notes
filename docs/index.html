@@ -1238,79 +1238,56 @@
     }
 
     function ensureLinksLayer(){
-      const LINK_COLOR = '#8c0503';
       const add = () => {
-        // Source si absente
+        // 1) Source
         if (!map.getSource('note-links')) {
           map.addSource('note-links', {
             type: 'geojson',
-            data: { type:'FeatureCollection', features:[] },
+            data: { type:'FeatureCollection', features:[] }
           });
         }
     
-        // 1) Casing (halo) — en dessous
+        // 2) Casing
         if (!map.getLayer('note-links-casing')) {
           map.addLayer({
             id: 'note-links-casing',
             type: 'line',
             source: 'note-links',
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: {
-              // blanc cassé légèrement transparent
               'line-color': '#ffffff',
-              'line-opacity': 0.65,
-              // largeur adaptative au zoom
-              'line-width': [
-                'interpolate', ['linear'], ['zoom'],
-                3, 2.0,   // zoom 3 → 2px
-                6, 3.0,   // zoom 6 → 3px
-                10, 4.0   // zoom 10 → 4px
-              ],
+              'line-opacity': 0.9,
+              'line-width': ['interpolate',['linear'],['zoom'], 1, 3.5, 4, 5, 8, 7],
               'line-blur': 0.2
             }
           });
         }
     
-        // 2) Trait principal — au-dessus
+        // 3) Trait visible (rose épais + pointillé, pour debug)
         if (!map.getLayer('note-links-line')) {
           map.addLayer({
             id: 'note-links-line',
             type: 'line',
             source: 'note-links',
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: {
-              // bleu “liens”
-              'line-color': LINK_COLOR,
-              'line-opacity': 0.9,
-              'line-width': [
-                'interpolate', ['linear'], ['zoom'],
-                3, 1.0,
-                6, 1.5,
-                10, 2.0
-              ]
+              'line-color': '#ff00aa',
+              'line-opacity': 1,
+              'line-width': ['interpolate',['linear'],['zoom'], 1, 2.5, 4, 3.5, 8, 5],
+              'line-dasharray': [2, 1]
             }
           });
         }
     
-        // 3) (Optionnel) Flèches directionnelles
+        // 4) Flèches (optionnel)
         if (!map.hasImage('arrow-head')) {
-          // petit triangle vers la droite
           const size = 32, c = document.createElement('canvas');
           c.width = size; c.height = size;
           const ctx = c.getContext('2d');
-          ctx.fillStyle = LINK_COLOR;
-          ctx.beginPath();
-          ctx.moveTo(26, 16); ctx.lineTo(8, 6); ctx.lineTo(8, 26); ctx.closePath();
-          ctx.fill();
+          ctx.fillStyle = '#ff00aa';
+          ctx.beginPath(); ctx.moveTo(26,16); ctx.lineTo(8,6); ctx.lineTo(8,26); ctx.closePath(); ctx.fill();
           map.addImage('arrow-head', c, { pixelRatio: 2 });
         }
-        
         if (!map.getLayer('note-links-arrows')) {
           map.addLayer({
             id: 'note-links-arrows',
@@ -1318,22 +1295,20 @@
             source: 'note-links',
             layout: {
               'symbol-placement': 'line',
-              'symbol-spacing': 80,          // distance entre flèches
+              'symbol-spacing': 80,
               'icon-image': 'arrow-head',
-              'icon-size': 0.35,             // taille des flèches
+              'icon-size': 0.35,
               'icon-rotation-alignment': 'map',
               'icon-allow-overlap': true
             },
-            paint: {
-              'icon-opacity': 0.85
-            }
+            paint: { 'icon-opacity': 0.95 }
           });
         }
-     
-        // S’assurer de l’ordre (du dessous vers le dessus)
+    
+        // 5) Mettre nos 3 layers tout en haut (au-dessus de tout)
         try { map.moveLayer('note-links-casing'); } catch {}
         try { map.moveLayer('note-links-line'); } catch {}
-        try { map.moveLayer('note-links-arrows'); } catch {} // les flèches tout en haut
+        try { map.moveLayer('note-links-arrows'); } catch {}
       };
     
       if (!map.isStyleLoaded()) {
@@ -1409,41 +1384,37 @@
       return bezierCurveCoords(from, to, strength, steps);
     }
     
-    function drawLinksFrom(noteId, linkedIds) {
-    // S’assure que la source + layers existent (crée si besoin)
-    ensureLinksLayer();
-  
-    const src = map.getSource('note-links');
-    if (!src) {
-      // ⏳ Style pas encore prêt : rejoue quand la carte est prête
-      const retry = () => drawLinksFrom(noteId, linkedIds);
-      map.once('idle', retry);
-      map.once('style.load', retry);
-      return;
+    function drawLinksFrom(noteId, linkedIds){
+      ensureLinksLayer();
+    
+      const src = map.getSource('note-links');
+      if (!src) {
+        // Style pas encore prêt → retente dès que la carte est idle
+        map.once('idle', () => drawLinksFrom(noteId, linkedIds));
+        return;
+      }
+    
+      const from = idToItem.get(noteId);
+      if (!from) return;
+    
+      const features = (Array.isArray(linkedIds) ? linkedIds : [])
+        .map(lid => {
+          const to = idToItem.get(lid);
+          if (!to) return null;
+          return {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: curveBetween(from, to) },
+            properties: { from: noteId, to: lid }
+          };
+        }).filter(Boolean);
+    
+      // Debug utile
+      console.log('drawLinksFrom:', noteId, 'features:', features.length, features);
+    
+      src.setData({ type:'FeatureCollection', features });
     }
-  
-    const from = idToItem.get(noteId);
-    if (!from) return;
-  
-    const features = (Array.isArray(linkedIds) ? linkedIds : [])
-      .map(lid => {
-        const to = idToItem.get(lid);
-        if (!to) return null;
-        return {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: curveBetween(from, to) },
-          properties: { from: noteId, to: lid }
-        };
-      })
-      .filter(Boolean);
 
-    // 🔎 Debug : voir ce qui est généré
-    console.log("drawLinksFrom:", noteId, "→", linkedIds);
-    console.log("Features générées:", features);
-  
-    src.setData({ type: 'FeatureCollection', features });
-  }
-
+    
     function clearLinks(){
       const src = map.getSource('note-links');
       if (src) src.setData({ type:'FeatureCollection', features:[] });
@@ -1496,28 +1467,21 @@
             .setLngLat([item.lon, item.lat])
             .addTo(map);
 
-          // Clic sur le marqueur => ouvre le panneau + TRACE IMMÉDIATEMENT LES LIENS
+          // Clic sur le marqueur => ouvre le panneau + trace (et empêche l’effacement global)
           el.addEventListener('click', async (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
           
-            // Flag anti-effacement par le handler global "click carte"
+            // drapeau anti-effacement par l’handler global
             window.__justClickedMarker = true;
             setTimeout(() => { window.__justClickedMarker = false; }, 0);
           
-            // 1) Panneau
             await openSummaryInPanel(item.id);
           
-            // 2) Sécurité : on (re)trace les liens même si le panneau n’a pas réussi à les calculer
+            // Sécurité : retracer même si openSummary n'a pas réussi à calculer les liens
             const links = await getOutgoingLinks(item.id);
             drawLinksFrom(item.id, links);
             window.__lastLinksState = { id: item.id, links };
-          
-            // (Optionnel) recadre si tu veux voir les points reliés dès le clic
-            // const b = new maplibregl.LngLatBounds();
-            // const from = idToItem.get(item.id); if (from) b.extend([from.lon, from.lat]);
-            // links.forEach(lid => { const t = idToItem.get(lid); if (t) b.extend([t.lon, t.lat]); });
-            // if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
           });
           allMarkers.push({ item, marker });
         }
@@ -1644,19 +1608,14 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur (version robuste)
+    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
     map.on('click', (e) => {
-      // Si le clic venait juste d’un marqueur, on ne fait rien
+      // ← si on vient de cliquer un marqueur, NE RIEN FAIRE
       if (window.__justClickedMarker) return;
     
-      const tgt = e?.originalEvent?.target;
-      const insideMarker = tgt && typeof tgt.closest === 'function'
-        ? tgt.closest('.maplibregl-marker')
-        : null;
-    
-      if (!insideMarker) {
-        clearLinks();
-      }
+      const path = e.originalEvent?.composedPath?.() || [];
+      const clickedMarkerEl = path.find(n => n && n.classList && n.classList.contains('maplibregl-marker'));
+      if (!clickedMarkerEl) clearLinks();
     });
 
   // === Fermeture du panneau (✖) ===
