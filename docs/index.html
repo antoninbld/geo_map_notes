@@ -332,8 +332,6 @@
   <!-- Panneau Filtres (pop-up) -->
   <div id="filtersPanel" class="filters-panel s-panel">
     <h3>Filtres</h3>
-  <!-- Bouton rotation globe (affiché seulement en 3D) -->
-  <button id="npRotateBtn" aria-label="Activer la rotation du globe" title="Rotation automatique">🔄</button>
 
     <!-- Recherche -->
     <div class="row">
@@ -815,16 +813,19 @@
     let __npUserInteracting = false;
     const __npTEST_SPEED_DEG_PER_SEC = 30; // vitesse "forte" pour test, ajustable
     
-    const $npRotateBtn = document.getElementById('npRotateBtn');
+    function getRotateBtn(){ return document.getElementById('npRotateBtn'); }
     
     function __npUpdateRotateBtn(){
+      const $npRotateBtn = getRotateBtn();
       if (!$npRotateBtn) return;
       if (__npRotateOn) {
         $npRotateBtn.classList.add('is-on');
         $npRotateBtn.title = 'Arrêter la rotation';
+        $npRotateBtn.setAttribute('aria-label', 'Arrêter la rotation du globe');
       } else {
         $npRotateBtn.classList.remove('is-on');
         $npRotateBtn.title = 'Rotation automatique';
+        $npRotateBtn.setAttribute('aria-label', 'Activer la rotation du globe');
       }
     }
     
@@ -867,12 +868,13 @@
     
     // Affichage du bouton selon 2D/3D
     function updateRotateButtonVisibility(){
+      const $npRotateBtn = getRotateBtn();
       if (!$npRotateBtn) return;
       if (CURRENT_PROJECTION === 'globe') {
         $npRotateBtn.style.display = 'flex';
       } else {
         $npRotateBtn.style.display = 'none';
-        // sécurité: couper la rotation en 2D
+        // Sécurité : couper la rotation en 2D
         __npRotateOn = false;
         if (__npRotateRAF) cancelAnimationFrame(__npRotateRAF);
         __npRotateRAF = null;
@@ -957,6 +959,35 @@
       onRemove(){ this._container.remove(); this._map = undefined; }
     }
     map.addControl(new FilterControl(), 'top-right');
+
+    // Contrôle Rotation (bouton 🔄)
+    class RotateControl {
+      onAdd(map){
+        this._map = map;
+        const group = document.createElement('div');
+        group.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    
+        const btn = document.createElement('button');
+        btn.id = 'npRotateBtn';
+        btn.type = 'button';
+        btn.title = 'Rotation automatique';
+        btn.textContent = '🔄';
+        btn.addEventListener('click', npToggleRotation);
+    
+        group.appendChild(btn);
+        this._container = group;
+    
+        // Ajuster l’état/visibilité au montage
+        setTimeout(() => {
+          __npUpdateRotateBtn();
+          updateRotateButtonVisibility();
+        }, 0);
+    
+        return group;
+      }
+      onRemove(){ this._container?.remove(); this._map = undefined; }
+    }
+    map.addControl(new RotateControl(), 'top-right');
 
     // Labels visibles après changement de style
     function setLabelVisibility(visible) {
