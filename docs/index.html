@@ -857,10 +857,10 @@
     }
     
     // Pause/reprise auto pendant les interactions utilisateur
-    ['dragstart','rotatestart','pitchstart','zoomstart','movestart'].forEach(ev =>
+    ['dragstart','rotatestart','pitchstart','zoomstart'].forEach(ev =>
       map.on(ev, () => { __npUserInteracting = true; })
     );
-    ['dragend','rotateend','pitchend','zoomend','moveend'].forEach(ev =>
+    ['dragend','rotateend','pitchend','zoomend'].forEach(ev =>
       map.on(ev, () => {
         __npUserInteracting = false;
         // Si la rotation est active, recaler doucement sur l’équateur
