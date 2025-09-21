@@ -1175,31 +1175,149 @@
       if (key === 'u') recenterUSA();
     });
 
-    // Changement de fond (robuste pour recréer la couche liens)
+    // Changement de fond (robuste pour recréer la couche notes + liens après setStyle)
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
-        const choice = e.target.value;          // 'hybrid' | 'streets' | 'light' | 'dark'
+        const choice = e.target.value;
         CURRENT_BASEMAP = choice;
         updateMapBackgroundClass();
-        
+    
+        // Appliquer le nouveau style
         map.setStyle(getStyleURL(CURRENT_BASEMAP));
-        
-        const rebuild = () => {
+    
+        // Rebuild complet après chargement du style
+        const rebuild = async () => {
+          // Projection / terrain
           applyProjection();
-          ensureTerrain();
-          loadDataFromJSON().then(() => {
-            applyFilters?.();
-            ensureLinksLayer();
-            if (window.__lastLinksState) {
-              const { id, links } = window.__lastLinksState;
-              drawLinksFrom(id, links);
+          ensureTerrain?.();
+    
+          // (Re)charger les données et reconstruire la source clusterisée
+          try {
+            // Si tu as déjà loadDataFromJSON(), préfère :
+            // await loadDataFromJSON();
+            const res = await fetch('data.json', { cache: 'no-store' });
+            allData = await res.json();
+          } catch (e) {
+            console.error('Erreur reload data.json:', e);
+            return;
+          }
+    
+          // Index id -> item (utile pour liens) + tags (si besoin)
+          idToItem.clear();
+          allTags.clear();
+          allData.forEach(it => { if (it && it.id) idToItem.set(it.id, it); });
+          allData.forEach(item => {
+            if (Array.isArray(item.tags)) {
+              item.tags.forEach(t => {
+                if (t && String(t).trim()) allTags.add(String(t).trim());
+              });
             }
           });
+          // (Re)construire la liste de tags au besoin
+          buildTagCheckboxes?.();
+    
+          // GeoJSON à partir de allData
+          const features = allData.map(item => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+            properties: { id: item.id, title: item.title }
+          }));
+    
+          // (Re)ajouter la source clusterisée "notes"
+          if (!map.getSource('notes')) {
+            map.addSource('notes', {
+              type: 'geojson',
+              data: { type: 'FeatureCollection', features },
+              cluster: true,
+              clusterMaxZoom: 14,
+              clusterRadius: 50
+            });
+          } else {
+            map.getSource('notes').setData({ type: 'FeatureCollection', features });
+          }
+    
+          // (Re)ajouter les couches si absentes
+          if (!map.getLayer('clusters')) {
+            map.addLayer({
+              id: 'clusters',
+              type: 'circle',
+              source: 'notes',
+              filter: ['has', 'point_count'],
+              paint: {
+                'circle-color': '#facc15',
+                'circle-radius': 20
+              }
+            });
+          }
+          if (!map.getLayer('cluster-count')) {
+            map.addLayer({
+              id: 'cluster-count',
+              type: 'symbol',
+              source: 'notes',
+              filter: ['has', 'point_count'],
+              layout: {
+                'text-field': '{point_count_abbreviated}',
+                'text-font': ['Open Sans Bold'],
+                'text-size': 14
+              }
+            });
+          }
+          if (!map.getLayer('unclustered-point')) {
+            map.addLayer({
+              id: 'unclustered-point',
+              type: 'circle',
+              source: 'notes',
+              filter: ['!', ['has', 'point_count']],
+              paint: {
+                'circle-color': '#11b4da',
+                'circle-radius': 6,
+                'circle-stroke-width': 1,
+                'circle-stroke-color': '#fff'
+              }
+            });
+          }
+    
+          // (Re)brancher les interactions si besoin (évite doublons simples)
+          map.off('click', 'clusters', __onClickClusters);
+          map.on('click', 'clusters', __onClickClusters);
+    
+          map.off('click', 'unclustered-point', __onClickNotePoint);
+          map.on('click', 'unclustered-point', __onClickNotePoint);
+    
+          map.off('mouseenter', 'clusters', __onEnterClusters);
+          map.on('mouseenter', 'clusters', __onEnterClusters);
+    
+          map.off('mouseleave', 'clusters', __onLeaveClusters);
+          map.on('mouseleave', 'clusters', __onLeaveClusters);
+    
+          // Appliquer filtres existants (à adapter : setData avec features filtrées)
+          applyFilters?.();
+    
+          // Liens
+          ensureLinksLayer?.();
+          if (window.__lastLinksState) {
+            const { id, links } = window.__lastLinksState;
+            drawLinksFrom(id, links);
+          }
         };
-        
-        // 🔁 certains styles déclenchent différemment : on écoute les trois
-        map.once('load', rebuild);
-        map.once('styledata', rebuild);
+    
+        // Handlers d’interaction (définis une seule fois en haut de ton script si possible)
+        function __onClickClusters(e) {
+          const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+          const clusterId = features[0].properties.cluster_id;
+          map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
+            if (err) return;
+            map.easeTo({ center: features[0].geometry.coordinates, zoom });
+          });
+        }
+        function __onClickNotePoint(e) {
+          const props = e.features[0].properties;
+          openSummaryInPanel(props.id);
+        }
+        function __onEnterClusters() { map.getCanvas().style.cursor = 'pointer'; }
+        function __onLeaveClusters() { map.getCanvas().style.cursor = ''; }
+    
+        // Reconstruire après chargement du style
         map.once('style.load', rebuild);
       });
     });
