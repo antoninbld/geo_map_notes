@@ -28,15 +28,49 @@
   }
 
     /* Panneau Map views + boutons recentrage (en haut à gauche) */
-    .basemap-control {
+    .basemap-control{
       position:absolute; top:10px; left:10px; z-index:10;
-      background:#fff; border-radius:12px; padding:10px;
-      box-shadow:0 4px 16px rgba(0,0,0,.15);
+      width:260px;
+      background:rgba(255,255,255,.85);
+      backdrop-filter:blur(8px);
+      border-radius:14px;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
       font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      font-size:14px; width: 240px;
+      font-size:14px;
+      overflow:hidden;
     }
-    .basemap-control strong { display:block; margin-bottom:6px; }
-    .basemap-control label { display:block; margin:6px 0; cursor:pointer; }
+    
+    /* En-tête et sous-sections */
+    .bm-header{ padding:10px 12px 6px 12px; border-bottom:1px solid #e5e7eb; }
+    .bm-title{ font-weight:700; font-size:15px; }
+    .bm-group{ padding:10px 12px 0 12px; }
+    .bm-subtitle{
+      font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+      color:#6b7280; margin-bottom:6px; font-weight:600;
+    }
+    
+    /* Boutons segmentés (pills) */
+    .segmented{ display:flex; flex-wrap:wrap; gap:6px; }
+    .segmented input[type="radio"]{
+      position:absolute; opacity:0; pointer-events:none;
+    }
+    .segmented label{
+      display:inline-flex; align-items:center;
+      padding:6px 10px; border:1px solid #e5e7eb; border-radius:999px;
+      background:#fff; cursor:pointer; user-select:none;
+      transition:all .15s ease;
+    }
+    .segmented label:hover{ border-color:#cbd5e1; }
+    .segmented input:checked + label{
+      background:#1e90ff; color:#fff; border-color:#1e90ff;
+      box-shadow:0 2px 10px rgba(30,144,255,.35) inset, 0 0 0 1px rgba(255,255,255,.2);
+    }
+    .segmented input:disabled + label{
+      opacity:.5; cursor:not-allowed;
+    }
+    
+    /* Zone des actions */
+    .bm-actions{ padding:12px; display:grid; gap:8px; }
     .btn {
       display:inline-block; margin-top:6px; padding:8px 10px;
       background:#1e90ff; color:#fff; border:none; border-radius:8px;
@@ -164,19 +198,54 @@
     </div>
 
   <!-- Panneau Map Views + Recentrer -->
-  <div class="basemap-control">
-    <strong>Map views</strong>
+  <div class="bm-header">
+    <div class="bm-title">Map views</div>
+  </div>
   
-    <!-- Projection -->
-    <strong style="display:block;margin-top:8px;">Projection</strong>
-    <label><input type="radio" name="projection" value="mercator" checked> 2D</label>
-    <label><input type="radio" name="projection" value="globe"> 3D</label>
+  <!-- Fournisseur (optionnel, laissé tel quel pour ton JS) -->
+  <div class="bm-group">
+    <div class="bm-subtitle">Fournisseur</div>
+    <div class="segmented" role="radiogroup" aria-label="Fournisseur">
+      <input type="radio" id="prov-maptiler" name="provider" value="maptiler" checked>
+      <label for="prov-maptiler">MapTiler</label>
   
-    <!-- Styles MapTiler -->
-    <label><input type="radio" name="basemap" value="streets" checked> Streets</label>
-    <label><input type="radio" name="basemap" value="light"> Light</label>
-    <label><input type="radio" name="basemap" value="dark"> Dark</label>
+      <input type="radio" id="prov-carto" name="provider" value="carto">
+      <label for="prov-carto">Carto</label>
+    </div>
+  </div>
   
+  <!-- Projection -->
+  <div class="bm-group">
+    <div class="bm-subtitle">Projection</div>
+    <div class="segmented" role="radiogroup" aria-label="Projection">
+      <input type="radio" id="proj-2d" name="projection" value="mercator" checked>
+      <label for="proj-2d">2D</label>
+  
+      <input type="radio" id="proj-3d" name="projection" value="globe">
+      <label for="proj-3d">3D</label>
+    </div>
+  </div>
+  
+  <!-- Style de carte -->
+  <div class="bm-group" style="padding-bottom:10px;">
+    <div class="bm-subtitle">Style</div>
+    <div class="segmented" role="radiogroup" aria-label="Style">
+      <input type="radio" id="bm-streets" name="basemap" value="streets" checked>
+      <label for="bm-streets">Streets</label>
+  
+      <input type="radio" id="bm-light" name="basemap" value="light">
+      <label for="bm-light">Light</label>
+  
+      <input type="radio" id="bm-dark" name="basemap" value="dark">
+      <label for="bm-dark">Dark</label>
+  
+      <input type="radio" id="bm-hybrid" name="basemap" value="hybrid">
+      <label for="bm-hybrid">Satellite</label>
+    </div>
+  </div>
+  
+  <!-- Actions -->
+  <div class="bm-actions">
     <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
     <button id="recenterUSA" class="btn" type="button">Recentrer États-Unis</button>
   </div>
