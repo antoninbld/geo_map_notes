@@ -223,7 +223,7 @@
       <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
     
       <!-- Lieu avec 📍 -->
-      <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px; margin-left:20px;">
+      <div id="npMeta" style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;">
         <span id="npIcon" style="font-size:14px;line-height:1">📍</span>
         <span id="npPlace">Pays, ville</span>
       </div>
@@ -465,7 +465,8 @@
           color:${H.textColor};
         }
         #npTitle{ font-size:${H.titleSize}; }
-        #npDate{ margin-left:${H.dateIndent}; }
+        #npMeta{ margin-left:${H.metaIndent}; }
+        #npDate{ margin-left:${H.metaIndent}; }
         #npRecap{ ${H.recapStyle}; font-size:${H.recapFontSize || "13px"}; width:100%; text-align:justify; }
     
         /* Bloc contenu */
@@ -497,6 +498,8 @@
       // Texte/icone dynamiques
       const icon = document.getElementById('npIcon');
       if (icon) icon.textContent = H.locationIcon;
+      const dateIcon = document.getElementById('npDateIcon');
+      if (dateIcon) dateIcon.textContent = H.dateIcon || '🕓';
     
       // Titres/labels dynamiques
       const linksTitle = document.querySelector('#npLinksWrap > div:first-child');
@@ -1131,7 +1134,8 @@
     const $panel = document.getElementById('notePanel');
     const $title = document.getElementById('npTitle');
     const $place = document.getElementById('npPlace');
-    const $date  = document.getElementById('npDate');
+    const $dateRow  = document.getElementById('npDate');
+    const $dateText = document.getElementById('npDateText');
     const $recap = document.getElementById('npRecap');
     const $sum   = document.getElementById('npSummary');
     const $md    = document.getElementById('npMd');
@@ -1142,7 +1146,7 @@
     if (!item) {
       $title.textContent = noteId;
       $place.textContent = '';
-      $date.textContent  = '';
+      if ($dateText) $dateText.textContent = '';
       $recap.innerHTML   = '';
       $sum.innerHTML     = '';
       $md.innerHTML      = '';
@@ -1154,7 +1158,7 @@
     // ---- En-tête : titre + 📍 lieu (date sera remplie depuis .md)
     $title.textContent = item.title || noteId;
     $place.textContent = item.locationName || '';
-    $date.textContent  = '';
+    if ($dateText) $dateText.textContent = '';
   
     // ---- Récap (phrase courte) : d’abord data.json, puis éventuellement .md
     setRecapText(item.recap || '');
@@ -1172,8 +1176,8 @@
         const { meta, body } = parseAndStripFrontMatter(mdRaw);
   
         // date (front-matter)
-        if (!$date.textContent && meta.date) {
-          $date.textContent = formatDateByConfig(meta.date);
+        if ($dateText && !$dateText.textContent && meta.date) {
+          $dateText.textContent = formatDateByConfig(meta.date);
         }
         // recap depuis le .md si pas donné dans data.json
         if (!document.getElementById('npRecap').innerHTML && meta.recap) {
