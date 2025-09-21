@@ -761,6 +761,7 @@
         applyFilters?.(); // optionnel
       });
       ensureLinksLayer(); // prépare la source/layers pour les traits
+      console.log("Layers après ensureLinksLayer:", map.getStyle().layers.map(l => l.id));
     });
 
     // (debug utile)
@@ -1191,7 +1192,10 @@
         if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
       };
     }
-  
+
+    // 🔎 Debug : vérifier les liens sortants trouvés
+    console.log("Liens trouvés pour", noteId, ":", links);
+    
     // ---- Traits & état mémorisé
     drawLinksFrom(noteId, links);
     window.__lastLinksState = { id: noteId, links };
@@ -1432,6 +1436,10 @@
         };
       })
       .filter(Boolean);
+
+    // 🔎 Debug : voir ce qui est généré
+    console.log("drawLinksFrom:", noteId, "→", linkedIds);
+    console.log("Features générées:", features);
   
     src.setData({ type: 'FeatureCollection', features });
   }
