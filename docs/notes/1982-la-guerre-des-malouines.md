@@ -1,4 +1,3 @@
-
 ---
 title: "1982: la guerre des Malouines"
 
