@@ -1,7 +1,7 @@
 ---
 id: 
-title: Eté 1969: Honduras-Salvador ou la guerre du foot
-date: 15/06/1969
+title: "Eté 1969: Honduras-Salvador ou la guerre du foot"
+date: 1969-06-15
 location:
   name: San Salvador, Salvador
   lat: 13.6929
