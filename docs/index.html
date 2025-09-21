@@ -65,8 +65,11 @@
       background:#ffffff; box-shadow:0 6px 18px rgba(0,0,0,.18);
       font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
     }
-    .panel-toggle[aria-expanded="true"]{ opacity:.85; }
-    
+    /* Quand le panneau est ouvert, on cache le bouton toggle */
+    .panel-toggle[aria-expanded="true"]{
+      display: none;
+    }
+
     .map-panel{
       position:absolute; top:10px; left:10px; z-index:10;
       width:260px; background:rgba(255,255,255,.92);
@@ -83,7 +86,16 @@
     }
     .panel-title{ font-weight:700; font-size:15px; }
     .panel-close{
-      border:none; background:#f3f4f6; border-radius:8px; padding:4px 8px; cursor:pointer;
+      border:none;
+      background:#dc2626;   /* rouge */
+      color:#fff;
+      border-radius:8px;
+      padding:4px 8px;
+      cursor:pointer;
+      box-shadow:0 1px 4px rgba(0,0,0,.15);
+    }
+    .panel-close:hover{
+      filter: brightness(.95);
     }
     
     .panel-group{ padding:10px 12px 0 12px; }
@@ -1632,7 +1644,7 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
     
       // État initial: fermé (bouton seul visible)
-      hide();
+      show();
     })();
     
     loadCountries();
