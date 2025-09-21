@@ -1638,7 +1638,7 @@
 
     // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur (version robuste)
     map.on('click', (e) => {
-      // Si le click vient juste d’un marqueur, on n’efface pas
+      // Si le clic venait juste d’un marqueur, on ne fait rien
       if (window.__justClickedMarker) return;
     
       const tgt = e?.originalEvent?.target;
