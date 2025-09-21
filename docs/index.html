@@ -271,11 +271,11 @@
       <div class="panel-subtitle">Projection</div>
       <div class="radio-row">
         <label class="radio-pill">
-          <input type="radio" name="projection" value="mercator" checked>
+          <input type="radio" name="projection" value="mercator">
           <span>2D</span>
         </label>
         <label class="radio-pill">
-          <input type="radio" name="projection" value="globe">
+          <input type="radio" name="projection" value="globe" checked>
           <span>3D</span>
         </label>
       </div>
@@ -782,14 +782,17 @@
     // 🔹 Au tout premier chargement du style, on crée les marqueurs et la couche des liens
     map.on('load', () => {
       addMarkersFromJSON().then(applyFilters);
-      // ⬇️ 3D + Monde par défaut
-      try { map.setProjection('globe'); } catch {}
+      
+      // 3D + Monde par défaut
+      CURRENT_PROJECTION = 'globe';
+      applyProjection();      // garantit le globe, même après style.load
+      ensureTerrain();        // charge le DEM pour un rendu 3D plus “vrai”
       if (typeof recenterWorld === 'function') {
         recenterWorld();
       } else {
-        // fallback si tu n'as pas recenterWorld()
         map.easeTo({ center: [0, 20], zoom: 1.4, duration: 0 });
       }
+      
       ensureLinksLayer(); // crée/assure la source+layer des traits
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
@@ -956,9 +959,12 @@
     
     window.addEventListener('load', updateMapBackgroundClass);
     window.addEventListener('load', () => {
-      const r = document.querySelector('input[name="projection"]:checked');
-      CURRENT_PROJECTION = r ? r.value : 'mercator';
+      // Force la valeur par défaut à 'globe' et synchronise le radio
+      CURRENT_PROJECTION = 'globe';
+      const globeRadio = document.querySelector('input[name="projection"][value="globe"]');
+      if (globeRadio) globeRadio.checked = true;
       applyProjection();
+      ensureTerrain(); // active le relief si dispo
     });
     
     // Projection (2D / 3D)
