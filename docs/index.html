@@ -1467,11 +1467,17 @@
             .addTo(map);
 
           // Clic sur le marqueur => ouvre le panneau RÉSUMÉ direct + traits
-          el.addEventListener('click', async () => {
+          el.addEventListener('click', async (ev) => {
+            // Empêche le click de remonter au canvas MapLibre
+            ev.preventDefault();
+            ev.stopPropagation();
+          
+            // Indique au handler global "click carte" d'ignorer ce click
+            window.__justClickedMarker = true;
+            setTimeout(() => { window.__justClickedMarker = false; }, 0);
+          
             await openSummaryInPanel(item.id); // affiche le résumé + liens + traits
           });
-
-
           allMarkers.push({ item, marker });
         }
       });
@@ -1597,11 +1603,18 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur
+    // 3.5 — Effacer les traits si on clique ailleurs que sur un marqueur (version robuste)
     map.on('click', (e) => {
-      const path = e.originalEvent?.composedPath?.() || [];
-      const clickedMarkerEl = path.find(n => n && n.classList && n.classList.contains('maplibregl-marker'));
-      if (!clickedMarkerEl) {
+      // Si le click vient juste d’un marqueur, on n’efface pas
+      if (window.__justClickedMarker) return;
+    
+      const tgt = e?.originalEvent?.target;
+      // Détection fiable via closest() (mieux que composedPath pour certains navigateurs)
+      const insideMarker = tgt && typeof tgt.closest === 'function'
+        ? tgt.closest('.maplibregl-marker')
+        : null;
+    
+      if (!insideMarker) {
         clearLinks();
       }
     });
