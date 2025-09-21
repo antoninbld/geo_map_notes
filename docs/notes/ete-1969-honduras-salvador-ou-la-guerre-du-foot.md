@@ -16,6 +16,7 @@ Voir aussi :
 ---
 
 ## Résumé
+Contenu à venir…
 
 ## Commentaires personnels
 
