@@ -1013,10 +1013,6 @@
       map.on('mouseleave', 'cluster-count', onLeaveClusters);
       map.on('click', 'unclustered-point', onClickUnclustered);
     
-      // Curseur pointeur sur cluster
-      map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
-    
       
       
       // 3D + Monde par défaut
@@ -1300,48 +1296,24 @@
             });
           }
 
-          // Rebinde seulement les clics (pas besoin de redéfinir les fonctions)
-          map.on('click', 'clusters', (e) => {
-            const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-            if (!features.length) return;
-            const clusterId = features[0].properties.cluster_id;
-            map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
-              if (err) return;
-              map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
-            });
-          });
-          
-          map.on('click', 'cluster-count', (e) => {
-            const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-count'] });
-            if (!features.length) return;
-            const clusterId = features[0].properties.cluster_id;
-            map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
-              if (err) return;
-              map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
-            });
-          });
-          
           // ========= (Re)bind propre (évite doublons après setStyle) =========
           // 1) Nettoyage préalable
-          map.off('click', 'clusters', __onClickClusters);
-          map.off('click', 'cluster-count', __onClickClusterText);
-          map.off('mouseenter', 'clusters', __onEnterClusters);
-          map.off('mouseleave', 'clusters', __onLeaveClusters);
-          map.off('mouseenter', 'cluster-count', __onEnterClusters);
-          map.off('mouseleave', 'cluster-count', __onLeaveClusters);
-          map.off('click', 'unclustered-point'); // supprime tous les anciens handlers sur cette couche
+          map.off('click', 'clusters', onClickClusters);
+          map.off('click', 'cluster-count', onClickClusterCount);
+          map.off('mouseenter', 'clusters', onEnterClusters);
+          map.off('mouseleave', 'clusters', onLeaveClusters);
+          map.off('mouseenter', 'cluster-count', onEnterClusters);
+          map.off('mouseleave', 'cluster-count', onLeaveClusters);
+          map.off('click', 'unclustered-point', onClickUnclustered);
           
           // 2) Re-bind unique
-          map.on('click', 'clusters', __onClickClusters);
-          map.on('click', 'cluster-count', __onClickClusterText);
-          map.on('mouseenter', 'clusters', __onEnterClusters);
-          map.on('mouseleave', 'clusters', __onLeaveClusters);
-          map.on('mouseenter', 'cluster-count', __onEnterClusters);
-          map.on('mouseleave', 'cluster-count', __onLeaveClusters);
-          map.on('click', 'unclustered-point', (e) => {
-            const props = e.features[0].properties;
-            openSummaryInPanel(props.id);
-          });
+          map.on('click', 'clusters', onClickClusters);
+          map.on('click', 'cluster-count', onClickClusterCount);
+          map.on('mouseenter', 'clusters', onEnterClusters);
+          map.on('mouseleave', 'clusters', onLeaveClusters);
+          map.on('mouseenter', 'cluster-count', onEnterClusters);
+          map.on('mouseleave', 'cluster-count', onLeaveClusters);
+          map.on('click', 'unclustered-point', onClickUnclustered);
           // ========= fin (Re)bind propre =========
     
           // Appliquer filtres existants (à adapter : setData avec features filtrées)
