@@ -976,13 +976,21 @@
         }
       });
     
-      // Clic sur cluster → zoom
+      // Clic sur cluster → zoom adaptatif
       map.on('click', 'clusters', (e) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        if (!features.length) return;
         const clusterId = features[0].properties.cluster_id;
+      
         map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) return;
-          map.easeTo({ center: features[0].geometry.coordinates, zoom });
+      
+          // Ajoute +1 au zoom calculé pour forcer la séparation visuelle
+          map.easeTo({
+            center: features[0].geometry.coordinates,
+            zoom: zoom + 1,
+            duration: 800
+          });
         });
       });
     
