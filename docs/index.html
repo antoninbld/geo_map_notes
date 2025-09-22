@@ -917,25 +917,41 @@
     }
 
     // === Handlers réutilisables pour les clusters ===
-    function onClickClusters(e){
-      const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-      if (!features.length) return;
-      const clusterId = features[0].properties.cluster_id;
-      map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
-        if (err) return;
-        map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
+    function onClickClusters(e) {
+      const feature = e.features && e.features[0];
+      if (!feature) return;
+  
+      const clusterId = feature.properties.cluster_id;
+      const src = map.getSource('notes');
+      if (!src || !src.getClusterExpansionZoom) return;
+  
+      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) { console.error(err); return; }
+          map.easeTo({
+              center: feature.geometry.coordinates,
+              zoom: Math.min(zoom + 1, 18),
+              duration: 800
+          });
       });
-    }
-    
-    function onClickClusterCount(e){
-      const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-count'] });
-      if (!features.length) return;
-      const clusterId = features[0].properties.cluster_id;
-      map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
-        if (err) return;
-        map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
+  }
+  
+  function onClickClusterCount(e) {
+      const feature = e.features && e.features[0];
+      if (!feature) return;
+  
+      const clusterId = feature.properties.cluster_id;
+      const src = map.getSource('notes');
+      if (!src || !src.getClusterExpansionZoom) return;
+  
+      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) { console.error(err); return; }
+          map.easeTo({
+              center: feature.geometry.coordinates,
+              zoom: Math.min(zoom + 1, 18),
+              duration: 800
+          });
       });
-    }
+  }
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
     function onLeaveClusters(){ map.getCanvas().style.cursor = ''; }
