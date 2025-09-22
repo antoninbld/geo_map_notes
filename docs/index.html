@@ -1294,37 +1294,26 @@
             });
           }
 
-          // ========= Handlers clusters (clic sur cercle ET sur chiffre) =========
-          function __onClickClusters(e) {
+          // Rebinde seulement les clics (pas besoin de redéfinir les fonctions)
+          map.on('click', 'clusters', (e) => {
             const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
             if (!features.length) return;
             const clusterId = features[0].properties.cluster_id;
             map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
               if (err) return;
-              map.easeTo({
-                center: features[0].geometry.coordinates,
-                zoom: zoom + 1,   // un cran de plus pour bien séparer
-                duration: 1000
-              });
+              map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
             });
-          }
+          });
           
-          function __onClickClusterText(e) {
+          map.on('click', 'cluster-count', (e) => {
             const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-count'] });
             if (!features.length) return;
             const clusterId = features[0].properties.cluster_id;
             map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
               if (err) return;
-              map.easeTo({
-                center: features[0].geometry.coordinates,
-                zoom: zoom + 1,
-                duration: 1000
-              });
+              map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
             });
-          }
-          
-          function __onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
-          function __onLeaveClusters(){ map.getCanvas().style.cursor = ''; }
+          });
           
           // (Re)bind propre et complet (évite doublons après setStyle)
           map.off('click', 'clusters', __onClickClusters);
