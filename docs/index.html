@@ -990,17 +990,17 @@
         }
       });
     
-      // Points individuels
+      // Points individuels (style rouge + bordure rouge foncé)
       map.addLayer({
         id: 'unclustered-point',
         type: 'circle',
         source: 'notes',
         filter: ['!', ['has', 'point_count']],
         paint: {
-          'circle-color': '#11b4da',
+          'circle-color': '#ff2d2d',       // rouge
           'circle-radius': 6,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#fff'
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#7a0000' // rouge foncé
         }
       });
     
@@ -1306,7 +1306,7 @@
           map.off('mouseleave', 'cluster-count', onLeaveClusters);
           map.off('click', 'unclustered-point', onClickUnclustered);
           
-          // 2) Re-bind unique
+          // 2) Re-bind unique (handlers nommés)
           map.on('click', 'clusters', onClickClusters);
           map.on('click', 'cluster-count', onClickClusterCount);
           map.on('mouseenter', 'clusters', onEnterClusters);
