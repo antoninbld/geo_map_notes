@@ -976,23 +976,32 @@
         }
       });
     
-      // Clic sur cluster → zoom adaptatif
+      // Clic sur cluster (cercle ET chiffre) → zoom adaptatif
       map.on('click', 'clusters', (e) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features.length) return;
         const clusterId = features[0].properties.cluster_id;
-      
         map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) return;
-      
-          // Ajoute +1 au zoom calculé pour forcer la séparation visuelle
-          map.easeTo({
-            center: features[0].geometry.coordinates,
-            zoom: zoom + 1,
-            duration: 800
-          });
+          map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
         });
       });
+      
+      map.on('click', 'cluster-count', (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-count'] });
+        if (!features.length) return;
+        const clusterId = features[0].properties.cluster_id;
+        map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+          map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, duration: 1000 });
+        });
+      });
+      
+      // curseur pointeur sur les deux couches
+      map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
+      map.on('mouseenter', 'cluster-count', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'cluster-count', () => { map.getCanvas().style.cursor = ''; });
     
       // Clic sur un point individuel → ouvrir panneau
       map.on('click', 'unclustered-point', (e) => {
@@ -1284,6 +1293,56 @@
               }
             });
           }
+
+          // ========= Handlers clusters (clic sur cercle ET sur chiffre) =========
+          function __onClickClusters(e) {
+            const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+            if (!features.length) return;
+            const clusterId = features[0].properties.cluster_id;
+            map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (err) return;
+              map.easeTo({
+                center: features[0].geometry.coordinates,
+                zoom: zoom + 1,   // un cran de plus pour bien séparer
+                duration: 1000
+              });
+            });
+          }
+          
+          function __onClickClusterText(e) {
+            const features = map.queryRenderedFeatures(e.point, { layers: ['cluster-count'] });
+            if (!features.length) return;
+            const clusterId = features[0].properties.cluster_id;
+            map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (err) return;
+              map.easeTo({
+                center: features[0].geometry.coordinates,
+                zoom: zoom + 1,
+                duration: 1000
+              });
+            });
+          }
+          
+          function __onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
+          function __onLeaveClusters(){ map.getCanvas().style.cursor = ''; }
+          
+          // (Re)bind propre et complet (évite doublons après setStyle)
+          map.off('click', 'clusters', __onClickClusters);
+          map.on('click', 'clusters', __onClickClusters);
+          
+          map.off('click', 'cluster-count', __onClickClusterText);
+          map.on('click', 'cluster-count', __onClickClusterText);
+          
+          map.off('mouseenter', 'clusters', __onEnterClusters);
+          map.on('mouseenter', 'clusters', __onEnterClusters);
+          map.off('mouseleave', 'clusters', __onLeaveClusters);
+          map.on('mouseleave', 'clusters', __onLeaveClusters);
+          
+          map.off('mouseenter', 'cluster-count', __onEnterClusters);
+          map.on('mouseenter', 'cluster-count', __onEnterClusters);
+          map.off('mouseleave', 'cluster-count', __onLeaveClusters);
+          map.on('mouseleave', 'cluster-count', __onLeaveClusters);
+          // ========= fin handlers clusters =========
     
           // (Re)brancher les interactions si besoin (évite doublons simples)
           map.off('click', 'clusters', __onClickClusters);
@@ -1308,22 +1367,6 @@
             drawLinksFrom(id, links);
           }
         };
-    
-        // Handlers d’interaction (définis une seule fois en haut de ton script si possible)
-        function __onClickClusters(e) {
-          const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-          const clusterId = features[0].properties.cluster_id;
-          map.getSource('notes').getClusterExpansionZoom(clusterId, (err, zoom) => {
-            if (err) return;
-            map.easeTo({ center: features[0].geometry.coordinates, zoom });
-          });
-        }
-        function __onClickNotePoint(e) {
-          const props = e.features[0].properties;
-          openSummaryInPanel(props.id);
-        }
-        function __onEnterClusters() { map.getCanvas().style.cursor = 'pointer'; }
-        function __onLeaveClusters() { map.getCanvas().style.cursor = ''; }
     
         // Reconstruire après chargement du style
         map.once('style.load', rebuild);
