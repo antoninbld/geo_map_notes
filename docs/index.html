@@ -916,42 +916,35 @@
       buildTagCheckboxes();
     }
 
-    // === Handlers réutilisables pour les clusters ===
-    function onClickClusters(e) {
-      const feature = e.features && e.features[0];
-      if (!feature) return;
-  
+    function onClickAnyCluster(e) {
+      // 1) Essayer e.features[0] si l'événement vient bien d'une couche de cluster
+      let feature = (e.features && e.features[0]) || null;
+    
+      // e.features peut être vide si une autre couche recouvre la zone (ex: lignes)
+      // 2) Dans ce cas, on force une recherche *ciblée* sur les couches de cluster
+      if (!feature) {
+        const hit = map.queryRenderedFeatures(e.point, {
+          layers: ['clusters', 'cluster-count']
+        });
+        feature = hit && hit[0];
+      }
+    
+      // 3) Sécurité + vérifier qu'on a bien un "cluster" (présence de point_count / cluster_id)
+      if (!feature || !feature.properties || feature.properties.point_count == null) return;
+    
       const clusterId = feature.properties.cluster_id;
       const src = map.getSource('notes');
       if (!src || !src.getClusterExpansionZoom) return;
-  
+    
       src.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err) { console.error(err); return; }
-          map.easeTo({
-              center: feature.geometry.coordinates,
-              zoom: Math.min(zoom + 1, 18),
-              duration: 800
-          });
+        if (err) { console.error(err); return; }
+        map.easeTo({
+          center: feature.geometry.coordinates,
+          zoom: Math.min(zoom + 1, 18),
+          duration: 800
+        });
       });
-  }
-  
-  function onClickClusterCount(e) {
-      const feature = e.features && e.features[0];
-      if (!feature) return;
-  
-      const clusterId = feature.properties.cluster_id;
-      const src = map.getSource('notes');
-      if (!src || !src.getClusterExpansionZoom) return;
-  
-      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err) { console.error(err); return; }
-          map.easeTo({
-              center: feature.geometry.coordinates,
-              zoom: Math.min(zoom + 1, 18),
-              duration: 800
-          });
-      });
-  }
+    }
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
     function onLeaveClusters(){ map.getCanvas().style.cursor = ''; }
@@ -1020,16 +1013,15 @@
         }
       });
     
-      // Bind initial (chargement)
-      map.on('click', 'clusters', onClickClusters);
-      map.on('click', 'cluster-count', onClickClusterCount);
+      map.on('click', 'clusters', onClickAnyCluster);
+      map.on('click', 'cluster-count', onClickAnyCluster);
       map.on('mouseenter', 'clusters', onEnterClusters);
       map.on('mouseleave', 'clusters', onLeaveClusters);
       map.on('mouseenter', 'cluster-count', onEnterClusters);
       map.on('mouseleave', 'cluster-count', onLeaveClusters);
       map.on('click', 'unclustered-point', onClickUnclustered);
-    
-      
+
+  
       
       // 3D + Monde par défaut
       CURRENT_PROJECTION = 'globe';
@@ -1042,6 +1034,8 @@
       }
     
       ensureLinksLayer();
+      bringClustersToFront();
+
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
       }
@@ -1061,6 +1055,8 @@
       ensureTerrain?.();
     
       ensureLinksLayer();
+      bringClustersToFront();
+      
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
       }
@@ -1314,8 +1310,8 @@
 
           // ========= (Re)bind propre (évite doublons après setStyle) =========
           // 1) Nettoyage préalable
-          map.off('click', 'clusters', onClickClusters);
-          map.off('click', 'cluster-count', onClickClusterCount);
+          map.off('click', 'clusters', onClickAnyCluster);
+          map.off('click', 'cluster-count', onClickAnyCluster);
           map.off('mouseenter', 'clusters', onEnterClusters);
           map.off('mouseleave', 'clusters', onLeaveClusters);
           map.off('mouseenter', 'cluster-count', onEnterClusters);
@@ -1323,8 +1319,8 @@
           map.off('click', 'unclustered-point', onClickUnclustered);
           
           // 2) Re-bind unique (handlers nommés)
-          map.on('click', 'clusters', onClickClusters);
-          map.on('click', 'cluster-count', onClickClusterCount);
+          map.on('click', 'clusters', onClickAnyCluster);
+          map.on('click', 'cluster-count', onClickAnyCluster);
           map.on('mouseenter', 'clusters', onEnterClusters);
           map.on('mouseleave', 'clusters', onLeaveClusters);
           map.on('mouseenter', 'cluster-count', onEnterClusters);
@@ -1762,6 +1758,12 @@
       // S'assurer que l'ordre est bon : casing en dessous de line
       try { map.moveLayer('note-links-casing'); } catch {}
       try { map.moveLayer('note-links-line'); } catch {}
+    }
+
+    
+    function bringClustersToFront() {
+      try { map.moveLayer('cluster-count'); } catch {}
+      try { map.moveLayer('clusters'); } catch {}
     }
     
     // Trace les liens à partir d'une note
