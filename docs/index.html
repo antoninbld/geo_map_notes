@@ -1321,6 +1321,8 @@
           map.off('mouseenter', 'cluster-count', onEnterClusters);
           map.off('mouseleave', 'cluster-count', onLeaveClusters);
           map.off('click', 'unclustered-point', onClickUnclustered);
+          map.off('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+          map.off('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
           
           // 2) Re-bind unique (handlers nommés)
           map.on('click', 'clusters', onClickAnyCluster);
