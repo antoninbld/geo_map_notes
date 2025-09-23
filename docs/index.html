@@ -916,7 +916,6 @@
       buildTagCheckboxes();
     }
 
-    // Casse le cluster en zoomant/centrant sur TOUTES ses feuilles
     function onClickAnyCluster(e) {
       const f = e.features && e.features[0];
       if (!f || !f.properties || f.properties.cluster_id == null) return;
@@ -926,44 +925,23 @@
     
       const clusterId = f.properties.cluster_id;
       const total = f.properties.point_count || 0;
-    
-      // Pour éviter de rater des feuilles, on les récupère par pages
-      const PAGE = 200;
       const bounds = new maplibregl.LngLatBounds();
     
-      const getLeavesPage = (offset = 0) =>
-        new Promise((resolve, reject) => {
-          src.getClusterLeaves(clusterId, PAGE, offset, (err, features) => {
-            if (err) return reject(err);
-            resolve(features || []);
-          });
-        });
-    
-      (async () => {
-        let offset = 0;
-        while (offset < total) {
-          const page = await getLeavesPage(offset);
-          if (!page.length) break;
-          page.forEach(ft => bounds.extend(ft.geometry.coordinates));
-          offset += page.length;
+      // récupère toutes les feuilles du cluster
+      src.getClusterLeaves(clusterId, total, 0, (err, leaves) => {
+        if (err) {
+          console.error("getClusterLeaves error:", err);
+          return;
         }
+        leaves.forEach(ft => bounds.extend(ft.geometry.coordinates));
     
         if (!bounds.isEmpty()) {
-          // Zoom/centre sur tous les marqueurs du cluster
           map.fitBounds(bounds, {
-            padding: 80,       // tu peux augmenter si ton panneau latéral masque la droite
+            padding: 80,
             duration: 700,
-            maxZoom: 16        // empêche de zoomer trop près, ajuste si besoin
-          });
-        } else {
-          // Fallback si jamais on ne récupère pas les feuilles
-          src.getClusterExpansionZoom(clusterId, (err, z) => {
-            const target = Math.min((z ?? map.getZoom() + 2) + 1, 18);
-            map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
+            maxZoom: 17
           });
         }
-      })().catch(err => {
-        console.error('getClusterLeaves error:', err);
       });
     }
     
