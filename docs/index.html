@@ -917,32 +917,53 @@
     }
 
     function onClickAnyCluster(e) {
-      // 1) Essayer e.features[0] si l'événement vient bien d'une couche de cluster
-      let feature = (e.features && e.features[0]) || null;
+      // Toujours récupérer le top feature sous le curseur, quel que soit le layer cliqué
+      const pt = e.point || map.project(e.lngLat);
+      const features = map.queryRenderedFeatures(pt, { layers: ['clusters', 'cluster-count'] });
+      const f = features && features.find(feat => feat.properties && feat.properties.cluster_id != null);
+      if (!f) return;
     
-      // e.features peut être vide si une autre couche recouvre la zone (ex: lignes)
-      // 2) Dans ce cas, on force une recherche *ciblée* sur les couches de cluster
-      if (!feature) {
-        const hit = map.queryRenderedFeatures(e.point, {
-          layers: ['clusters', 'cluster-count']
+      const src = map.getSource('notes');
+      if (!src) return;
+      const clusterId = f.properties.cluster_id;
+    
+      // 1) Chemin normal : expansion zoom calculé par MapLibre
+      if (typeof src.getClusterExpansionZoom === 'function') {
+        src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err || typeof zoom !== 'number') {
+            // Fallback doux si jamais l’API échoue
+            map.easeTo({
+              center: f.geometry.coordinates,
+              zoom: Math.min(map.getZoom() + 2, 18),
+              duration: 500
+            });
+            return;
+          }
+          map.easeTo({
+            center: f.geometry.coordinates,
+            zoom: Math.min(zoom + 1, 18),
+            duration: 600
+          });
         });
-        feature = hit && hit[0];
+        return;
       }
     
-      // 3) Sécurité + vérifier qu'on a bien un "cluster" (présence de point_count / cluster_id)
-      if (!feature || !feature.properties || feature.properties.point_count == null) return;
-    
-      const clusterId = feature.properties.cluster_id;
-      const src = map.getSource('notes');
-      if (!src || !src.getClusterExpansionZoom) return;
-    
-      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
-        if (err) { console.error(err); return; }
-        map.easeTo({
-          center: feature.geometry.coordinates,
-          zoom: Math.min(zoom + 1, 18),
-          duration: 800
+      // 2) Fallback costaud : fit sur les enfants (si dispo)
+      if (typeof src.getClusterChildren === 'function') {
+        src.getClusterChildren(clusterId, (err, children) => {
+          if (err || !children || !children.length) return;
+          const b = new maplibregl.LngLatBounds();
+          children.forEach(ch => b.extend(ch.geometry.coordinates));
+          map.fitBounds(b, { padding: 80, duration: 650 });
         });
+        return;
+      }
+    
+      // 3) Dernier recours
+      map.easeTo({
+        center: f.geometry.coordinates,
+        zoom: Math.min(map.getZoom() + 2, 18),
+        duration: 500
       });
     }
     
@@ -996,6 +1017,10 @@
           'text-field': '{point_count_abbreviated}',
           'text-size': 14
         }
+        paint: {
+          'text-color': '#000',
+          'text-halo-color': '#fff',
+          'text-halo-width': 1.2
       });
     
       // Points individuels (style rouge + bordure rouge foncé)
@@ -1293,6 +1318,10 @@
                 'text-field': '{point_count_abbreviated}',
                 'text-size': 14
               }
+              paint: {
+                'text-color': '#000',
+                'text-halo-color': '#fff',
+                'text-halo-width': 1.2
             });
           }
           if (!map.getLayer('unclustered-point')) {
