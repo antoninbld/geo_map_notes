@@ -916,7 +916,7 @@
       buildTagCheckboxes();
     }
 
-    // ⇩⇩⇩ VERSION SIMPLE ET FIABLE : s'appuie sur e.features fourni par l'event de couche
+    // Casse le cluster en zoomant/centrant sur TOUTES ses feuilles
     function onClickAnyCluster(e) {
       const f = e.features && e.features[0];
       if (!f || !f.properties || f.properties.cluster_id == null) return;
@@ -925,37 +925,46 @@
       if (!src) return;
     
       const clusterId = f.properties.cluster_id;
-      // LOGS DEBUG (laisse-les pour vérifier dans la console du navigateur)
-      console.log('[cluster click] id=', clusterId, 'center=', f.geometry.coordinates);
+      const total = f.properties.point_count || 0;
     
-      try {
-        src.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err) {
-            console.error('getClusterExpansionZoom error:', err);
-            map.easeTo({
-              center: f.geometry.coordinates,
-              zoom: Math.min(map.getZoom() + 2, 18),
-              duration: 600
-            });
-            return;
-          }
-          // +1 pour être sûr de “casser” le cluster
-          const targetZoom = Math.min((zoom ?? map.getZoom() + 2) + 1, 18);
-          console.log('[cluster click] expansion zoom =', zoom, '→ easeTo', targetZoom);
-          map.easeTo({
-            center: f.geometry.coordinates,
-            zoom: targetZoom,
-            duration: 650
+      // Pour éviter de rater des feuilles, on les récupère par pages
+      const PAGE = 200;
+      const bounds = new maplibregl.LngLatBounds();
+    
+      const getLeavesPage = (offset = 0) =>
+        new Promise((resolve, reject) => {
+          src.getClusterLeaves(clusterId, PAGE, offset, (err, features) => {
+            if (err) return reject(err);
+            resolve(features || []);
           });
         });
-      } catch (ex) {
-        console.error('getClusterExpansionZoom threw:', ex);
-        map.easeTo({
-          center: f.geometry.coordinates,
-          zoom: Math.min(map.getZoom() + 2, 18),
-          duration: 600
-        });
-      }
+    
+      (async () => {
+        let offset = 0;
+        while (offset < total) {
+          const page = await getLeavesPage(offset);
+          if (!page.length) break;
+          page.forEach(ft => bounds.extend(ft.geometry.coordinates));
+          offset += page.length;
+        }
+    
+        if (!bounds.isEmpty()) {
+          // Zoom/centre sur tous les marqueurs du cluster
+          map.fitBounds(bounds, {
+            padding: 80,       // tu peux augmenter si ton panneau latéral masque la droite
+            duration: 700,
+            maxZoom: 16        // empêche de zoomer trop près, ajuste si besoin
+          });
+        } else {
+          // Fallback si jamais on ne récupère pas les feuilles
+          src.getClusterExpansionZoom(clusterId, (err, z) => {
+            const target = Math.min((z ?? map.getZoom() + 2) + 1, 18);
+            map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
+          });
+        }
+      })().catch(err => {
+        console.error('getClusterLeaves error:', err);
+      });
     }
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
