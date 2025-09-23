@@ -1020,9 +1020,13 @@
       map.on('mouseenter', 'cluster-count', onEnterClusters);
       map.on('mouseleave', 'cluster-count', onLeaveClusters);
       map.on('click', 'unclustered-point', onClickUnclustered);
+      map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+      map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
 
-  
-      
+      // Assure l'ordre des couches : clusters au-dessus des traits
+      ensureLinksLayer();
+      bringClustersToFront();
+            
       // 3D + Monde par défaut
       CURRENT_PROJECTION = 'globe';
       applyProjection();
@@ -1326,6 +1330,8 @@
           map.on('mouseenter', 'cluster-count', onEnterClusters);
           map.on('mouseleave', 'cluster-count', onLeaveClusters);
           map.on('click', 'unclustered-point', onClickUnclustered);
+          map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+          map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
           // ========= fin (Re)bind propre =========
     
           // Appliquer filtres existants (à adapter : setData avec features filtrées)
@@ -1333,6 +1339,7 @@
     
           // Liens
           ensureLinksLayer?.();
+          bringClustersToFront?.();
           if (window.__lastLinksState) {
             const { id, links } = window.__lastLinksState;
             drawLinksFrom(id, links);
