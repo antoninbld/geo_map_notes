@@ -917,7 +917,6 @@
     }
 
     function onClickAnyCluster(e) {
-      // Toujours récupérer le top feature sous le curseur, quel que soit le layer cliqué
       const pt = e.point || map.project(e.lngLat);
       const features = map.queryRenderedFeatures(pt, { layers: ['clusters', 'cluster-count'] });
       const f = features && features.find(feat => feat.properties && feat.properties.cluster_id != null);
@@ -927,44 +926,19 @@
       if (!src) return;
       const clusterId = f.properties.cluster_id;
     
-      // 1) Chemin normal : expansion zoom calculé par MapLibre
       if (typeof src.getClusterExpansionZoom === 'function') {
         src.getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err || typeof zoom !== 'number') {
-            // Fallback doux si jamais l’API échoue
-            map.easeTo({
-              center: f.geometry.coordinates,
-              zoom: Math.min(map.getZoom() + 2, 18),
-              duration: 500
-            });
+            map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 500 });
             return;
           }
-          map.easeTo({
-            center: f.geometry.coordinates,
-            zoom: Math.min(zoom + 1, 18),
-            duration: 600
-          });
+          map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom + 1, 18), duration: 600 });
         });
         return;
       }
     
-      // 2) Fallback costaud : fit sur les enfants (si dispo)
-      if (typeof src.getClusterChildren === 'function') {
-        src.getClusterChildren(clusterId, (err, children) => {
-          if (err || !children || !children.length) return;
-          const b = new maplibregl.LngLatBounds();
-          children.forEach(ch => b.extend(ch.geometry.coordinates));
-          map.fitBounds(b, { padding: 80, duration: 650 });
-        });
-        return;
-      }
-    
-      // 3) Dernier recours
-      map.easeTo({
-        center: f.geometry.coordinates,
-        zoom: Math.min(map.getZoom() + 2, 18),
-        duration: 500
-      });
+      // Fallback si jamais l’API n’est pas là
+      map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 500 });
     }
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
@@ -981,71 +955,74 @@
       // Charger les données JSON
       await loadDataFromJSON();
     
-      // Convertir en GeoJSON
-      const features = allData.map(item => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
-        properties: { id: item.id, title: item.title }
-      }));
+    // === Source clusterisée + couches (propre et sans faute) ===
+    const features = allData.map(item => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+      properties: { id: item.id, title: item.title }
+    }));
     
-      map.addSource('notes', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features },
-        cluster: true,
-        clusterMaxZoom: 14,
-        clusterRadius: 50
-      });
+    map.addSource('notes', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features },
+      cluster: true,
+      clusterMaxZoom: 14,
+      clusterRadius: 50
+    });
     
-      // Couches clusters + labels
-      map.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'notes',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#facc15',
-          'circle-radius': 20
-        }
-      });
+    // Bulles de cluster (jaunes)
+    map.addLayer({
+      id: 'clusters',
+      type: 'circle',
+      source: 'notes',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#facc15',
+        'circle-radius': 20
+      }
+    });
     
-      map.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'notes',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': '{point_count_abbreviated}',
-          'text-size': 14
-        },
-        paint: {
-          'text-color': '#000',
-          'text-halo-color': '#fff',
-          'text-halo-width': 1.2
-      });
+    // Chiffres sur les bulles
+    map.addLayer({
+      id: 'cluster-count',
+      type: 'symbol',
+      source: 'notes',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-size': 14
+      },
+      paint: {
+        'text-color': '#000',
+        'text-halo-color': '#fff',
+        'text-halo-width': 1.2
+      }
+    });
     
-      // Points individuels (style rouge + bordure rouge foncé)
-      map.addLayer({
-        id: 'unclustered-point',
-        type: 'circle',
-        source: 'notes',
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': '#ff2d2d',       // rouge
-          'circle-radius': 6,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#7a0000' // rouge foncé
-        }
-      });
+    // Points individuels (rouges)
+    map.addLayer({
+      id: 'unclustered-point',
+      type: 'circle',
+      source: 'notes',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': '#ff2d2d',
+        'circle-radius': 6,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#7a0000'
+      }
+    });
     
-      map.on('click', 'clusters', onClickAnyCluster);
-      map.on('click', 'cluster-count', onClickAnyCluster);
-      map.on('mouseenter', 'clusters', onEnterClusters);
-      map.on('mouseleave', 'clusters', onLeaveClusters);
-      map.on('mouseenter', 'cluster-count', onEnterClusters);
-      map.on('mouseleave', 'cluster-count', onLeaveClusters);
-      map.on('click', 'unclustered-point', onClickUnclustered);
-      map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
-      map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
+    // Handlers (clic + curseur)
+    map.on('click', 'clusters', onClickAnyCluster);
+    map.on('click', 'cluster-count', onClickAnyCluster);
+    map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
+    map.on('mouseenter', 'cluster-count', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'cluster-count', () => map.getCanvas().style.cursor = '');
+    map.on('click', 'unclustered-point', onClickUnclustered);
+    map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
 
       // Assure l'ordre des couches : clusters au-dessus des traits
       ensureLinksLayer();
@@ -1282,7 +1259,7 @@
             properties: { id: item.id, title: item.title }
           }));
     
-          // (Re)ajouter la source clusterisée "notes"
+          // (Re)source clusterisée
           if (!map.getSource('notes')) {
             map.addSource('notes', {
               type: 'geojson',
@@ -1294,8 +1271,8 @@
           } else {
             map.getSource('notes').setData({ type: 'FeatureCollection', features });
           }
-    
-          // (Re)ajouter les couches si absentes
+          
+          // (Re)bulles de cluster
           if (!map.getLayer('clusters')) {
             map.addLayer({
               id: 'clusters',
@@ -1308,6 +1285,8 @@
               }
             });
           }
+          
+          // (Re)chiffres
           if (!map.getLayer('cluster-count')) {
             map.addLayer({
               id: 'cluster-count',
@@ -1322,8 +1301,11 @@
                 'text-color': '#000',
                 'text-halo-color': '#fff',
                 'text-halo-width': 1.2
+              }
             });
           }
+          
+          // (Re)points individuels
           if (!map.getLayer('unclustered-point')) {
             map.addLayer({
               id: 'unclustered-point',
@@ -1331,37 +1313,37 @@
               source: 'notes',
               filter: ['!', ['has', 'point_count']],
               paint: {
-                'circle-color': '#11b4da',
+                'circle-color': '#ff2d2d',
                 'circle-radius': 6,
-                'circle-stroke-width': 1,
-                'circle-stroke-color': '#fff'
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#7a0000'
               }
             });
           }
-
-          // ========= (Re)bind propre (évite doublons après setStyle) =========
-          // 1) Nettoyage préalable
+          
+          // (Re)bind propre (éviter doublons)
           map.off('click', 'clusters', onClickAnyCluster);
           map.off('click', 'cluster-count', onClickAnyCluster);
-          map.off('mouseenter', 'clusters', onEnterClusters);
-          map.off('mouseleave', 'clusters', onLeaveClusters);
-          map.off('mouseenter', 'cluster-count', onEnterClusters);
-          map.off('mouseleave', 'cluster-count', onLeaveClusters);
           map.off('click', 'unclustered-point', onClickUnclustered);
-          map.off('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
-          map.off('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
+          map.off('mouseenter', 'clusters', () => {});
+          map.off('mouseleave', 'clusters', () => {});
+          map.off('mouseenter', 'cluster-count', () => {});
+          map.off('mouseleave', 'cluster-count', () => {});
+          map.off('mouseenter', 'unclustered-point', () => {});
+          map.off('mouseleave', 'unclustered-point', () => {});
           
-          // 2) Re-bind unique (handlers nommés)
           map.on('click', 'clusters', onClickAnyCluster);
           map.on('click', 'cluster-count', onClickAnyCluster);
-          map.on('mouseenter', 'clusters', onEnterClusters);
-          map.on('mouseleave', 'clusters', onLeaveClusters);
-          map.on('mouseenter', 'cluster-count', onEnterClusters);
-          map.on('mouseleave', 'cluster-count', onLeaveClusters);
           map.on('click', 'unclustered-point', onClickUnclustered);
+          map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
+          map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
+          map.on('mouseenter', 'cluster-count', () => map.getCanvas().style.cursor = 'pointer');
+          map.on('mouseleave', 'cluster-count', () => map.getCanvas().style.cursor = '');
           map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
           map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
-          // ========= fin (Re)bind propre =========
+          
+          // Toujours remonter les clusters au-dessus des traits
+          bringClustersToFront?.();
     
           // Appliquer filtres existants (à adapter : setData avec features filtrées)
           applyFilters?.();
@@ -2172,6 +2154,10 @@
     
     loadCountries();
     applyUIConfig();
+
+    map.on('load', () => console.log('[OK] map load'));
+    map.on('style.load', () => console.log('[OK] style load'));
+    setTimeout(() => console.log('[CHK] source notes =', !!map.getSource('notes')), 1500);
     
   </script>
 </body>
