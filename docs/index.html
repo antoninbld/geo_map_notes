@@ -916,29 +916,46 @@
       buildTagCheckboxes();
     }
 
+    // ⇩⇩⇩ VERSION SIMPLE ET FIABLE : s'appuie sur e.features fourni par l'event de couche
     function onClickAnyCluster(e) {
-      const pt = e.point || map.project(e.lngLat);
-      const features = map.queryRenderedFeatures(pt, { layers: ['clusters', 'cluster-count'] });
-      const f = features && features.find(feat => feat.properties && feat.properties.cluster_id != null);
-      if (!f) return;
+      const f = e.features && e.features[0];
+      if (!f || !f.properties || f.properties.cluster_id == null) return;
     
       const src = map.getSource('notes');
       if (!src) return;
-      const clusterId = f.properties.cluster_id;
     
-      if (typeof src.getClusterExpansionZoom === 'function') {
+      const clusterId = f.properties.cluster_id;
+      // LOGS DEBUG (laisse-les pour vérifier dans la console du navigateur)
+      console.log('[cluster click] id=', clusterId, 'center=', f.geometry.coordinates);
+    
+      try {
         src.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || typeof zoom !== 'number') {
-            map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 500 });
+          if (err) {
+            console.error('getClusterExpansionZoom error:', err);
+            map.easeTo({
+              center: f.geometry.coordinates,
+              zoom: Math.min(map.getZoom() + 2, 18),
+              duration: 600
+            });
             return;
           }
-          map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(zoom + 1, 18), duration: 600 });
+          // +1 pour être sûr de “casser” le cluster
+          const targetZoom = Math.min((zoom ?? map.getZoom() + 2) + 1, 18);
+          console.log('[cluster click] expansion zoom =', zoom, '→ easeTo', targetZoom);
+          map.easeTo({
+            center: f.geometry.coordinates,
+            zoom: targetZoom,
+            duration: 650
+          });
         });
-        return;
+      } catch (ex) {
+        console.error('getClusterExpansionZoom threw:', ex);
+        map.easeTo({
+          center: f.geometry.coordinates,
+          zoom: Math.min(map.getZoom() + 2, 18),
+          duration: 600
+        });
       }
-    
-      // Fallback si jamais l’API n’est pas là
-      map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 500 });
     }
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
