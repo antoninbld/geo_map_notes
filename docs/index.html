@@ -709,18 +709,24 @@
       try { map.setProjection({ type }); } catch (err) { console.warn('Projection non supportée:', err); }
     
       if (type === 'globe') {
-      // teinte l’horizon et l’extérieur du globe
-      map.setFog({
-        range: [0.5, 10],
-        color: 'rgba(160,190,220,0.9)',
-        'horizon-blend': 0.25
-      });
-      startSun();
-    } else {
-      map.setFog(null);
-      if (__sunTimer) { clearInterval(__sunTimer); __sunTimer = null; }
+        // Ajoute le brouillard *seulement si disponible*
+        if (typeof map.setFog === 'function') {
+          try {
+            map.setFog({
+              range: [0.5, 10],
+              color: 'rgba(160,190,220,0.9)',
+              'horizon-blend': 0.25
+            });
+          } catch (e) { console.warn('setFog indisponible:', e); }
+        }
+        startSun?.();
+      } else {
+        if (typeof map.setFog === 'function') {
+          try { map.setFog(null); } catch {}
+        }
+        if (__sunTimer) { clearInterval(__sunTimer); __sunTimer = null; }
+      }
     }
-  }
 
     // Met à jour la position du "soleil"
     function updateSun() {
