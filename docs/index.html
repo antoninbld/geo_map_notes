@@ -1041,7 +1041,7 @@
       }
     });
     
-    // Chiffres sur les bulles
+    // Chiffres sur les bulles (forcer l'affichage au-dessus des labels du fond)
     map.addLayer({
       id: 'cluster-count',
       type: 'symbol',
@@ -1049,7 +1049,10 @@
       filter: ['has', 'point_count'],
       layout: {
         'text-field': '{point_count_abbreviated}',
-        'text-size': 14
+        'text-size': 14,
+        'text-anchor': 'center',
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
       },
       paint: {
         'text-color': '#000',
@@ -1346,7 +1349,7 @@
             });
           }
           
-          // (Re)chiffres
+          // (Re)chiffres (forcer l'affichage)
           if (!map.getLayer('cluster-count')) {
             map.addLayer({
               id: 'cluster-count',
@@ -1355,7 +1358,10 @@
               filter: ['has', 'point_count'],
               layout: {
                 'text-field': '{point_count_abbreviated}',
-                'text-size': 14
+                'text-size': 14,
+                'text-anchor': 'center',
+                'text-allow-overlap': true,
+                'text-ignore-placement': true
               },
               paint: {
                 'text-color': '#000',
