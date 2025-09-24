@@ -1856,10 +1856,15 @@
 
     
     function bringClustersToFront() {
-      ['cluster-count', 'clusters', 'unclustered-point'].forEach(id => {
-        if (map.getLayer(id)) { try { map.moveLayer(id); } catch {} }
-      });
+    // D'abord les cercles et les points…
+    ['clusters', 'unclustered-point'].forEach(id => {
+      if (map.getLayer(id)) { try { map.moveLayer(id); } catch {} }
+    });
+    // …et **en dernier** le texte pour qu'il soit au-dessus de tout
+    if (map.getLayer('cluster-count')) {
+      try { map.moveLayer('cluster-count'); } catch {}
     }
+  }
     
     // Trace les liens à partir d'une note
     function drawLinksFrom(noteId, linkedIds) {
