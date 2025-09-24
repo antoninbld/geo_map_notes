@@ -1041,7 +1041,7 @@
       }
     });
     
-    // Chiffres sur les bulles (forcer l'affichage au-dessus des labels du fond)
+    // Chiffres sur les bulles — forcer affichage + police compatible MapTiler
     map.addLayer({
       id: 'cluster-count',
       type: 'symbol',
@@ -1052,7 +1052,9 @@
         'text-size': 14,
         'text-anchor': 'center',
         'text-allow-overlap': true,
-        'text-ignore-placement': true
+        'text-ignore-placement': true,
+        // Police: stack compatible styles MapTiler
+        'text-font': ['Noto Sans Regular', 'Open Sans Regular']
       },
       paint: {
         'text-color': '#000',
@@ -1060,6 +1062,9 @@
         'text-halo-width': 1.2
       }
     });
+    
+    // S'assurer que le texte passe au-dessus des cercles et du reste
+    try { map.moveLayer('cluster-count'); } catch {}
     
     // Points individuels (rouges)
     map.addLayer({
@@ -1349,7 +1354,7 @@
             });
           }
           
-          // (Re)chiffres (forcer l'affichage)
+          // (Re)chiffres — mêmes options + remonter le calque
           if (!map.getLayer('cluster-count')) {
             map.addLayer({
               id: 'cluster-count',
@@ -1361,7 +1366,8 @@
                 'text-size': 14,
                 'text-anchor': 'center',
                 'text-allow-overlap': true,
-                'text-ignore-placement': true
+                'text-ignore-placement': true,
+                'text-font': ['Noto Sans Regular', 'Open Sans Regular']
               },
               paint: {
                 'text-color': '#000',
@@ -1370,6 +1376,7 @@
               }
             });
           }
+          try { map.moveLayer('cluster-count'); } catch {}
           
           // (Re)points individuels
           if (!map.getLayer('unclustered-point')) {
@@ -1849,8 +1856,9 @@
 
     
     function bringClustersToFront() {
-      if (map.getLayer('cluster-count')) { try { map.moveLayer('cluster-count'); } catch {} }
-      if (map.getLayer('clusters'))      { try { map.moveLayer('clusters'); }      catch {} }
+      ['cluster-count', 'clusters', 'unclustered-point'].forEach(id => {
+        if (map.getLayer(id)) { try { map.moveLayer(id); } catch {} }
+      });
     }
     
     // Trace les liens à partir d'une note
