@@ -1448,10 +1448,10 @@
     
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() < 4) {
           map.easeTo({
-            pitch: Math.min(map.getPitch() + 10, 82),
-            bearing: (map.getBearing() + 30) % 360,
-            duration: 1800,
-            easing: t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2 // cubic ease-in-out
+            pitch: 75,
+            bearing: 120,
+            duration: 7000, // 7 s
+            easing: t => 1 - Math.cos((t * Math.PI)/2) // ease-out doux
           });
         }
       });
