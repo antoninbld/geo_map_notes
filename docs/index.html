@@ -969,7 +969,7 @@
       };
     
       // Timeout de sécurité : si l'API ne rappelle pas, on zoome quand même
-      const tm = setTimeout(() => finish('fallback'), 400);
+      const tm = setTimeout(() => finish('fallback'), 1200);
     
       try {
         if (typeof src.getClusterExpansionZoom === 'function') {
@@ -2141,45 +2141,6 @@
         try { hits = map.queryRenderedFeatures(e.point, { layers: layerIds }); } catch {}
       }
       map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
-    });
-
-    // Clic global : priorise les clusters, puis les points rouges
-    map.on('click', (e) => {
-      console.log('[click] global');
-    
-      // élargit la zone d’échantillonnage autour du clic (±5 px)
-      const pad = 5;
-      const box = [
-        { x: e.point.x - pad, y: e.point.y - pad },
-        { x: e.point.x + pad, y: e.point.y + pad }
-      ];
-    
-      let hits = [];
-      try { hits = map.queryRenderedFeatures(box); } catch {}
-      if (!hits.length) {
-        if (typeof clearLinks === 'function') clearLinks();
-        return;
-      }
-    
-      // 1) Un cluster ? (bulle ou chiffre)
-      const clusterHit = hits.find(ft => {
-        const p = ft && ft.properties;
-        return p && (p.cluster === true || p.cluster_id != null || p.point_count != null);
-      });
-      if (clusterHit) {
-        onClickAnyCluster({ features: [clusterHit] });
-        return;
-      }
-    
-      // 2) Sinon un point rouge individuel
-      const pointHit = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
-      if (pointHit) {
-        onClickUnclustered({ features: [pointHit] });
-        return;
-      }
-    
-      // 3) Clic dans le vide
-      if (typeof clearLinks === 'function') clearLinks();
     });
 
   // === Fermeture du panneau (✖) ===
