@@ -1069,8 +1069,8 @@
     });
     
     // Handlers (clic + curseur)
-    map.on('click', 'clusters', onClickAnyCluster);
-    map.on('click', 'cluster-count', onClickAnyCluster);
+    //map.on('click', 'clusters', onClickAnyCluster);
+    //map.on('click', 'cluster-count', onClickAnyCluster);
     map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
     map.on('mouseenter', 'cluster-count', () => map.getCanvas().style.cursor = 'pointer');
@@ -1388,8 +1388,8 @@
           map.off('mouseenter', 'unclustered-point', () => {});
           map.off('mouseleave', 'unclustered-point', () => {});
           
-          map.on('click', 'clusters', onClickAnyCluster);
-          map.on('click', 'cluster-count', onClickAnyCluster);
+          //map.on('click', 'clusters', onClickAnyCluster);
+          //map.on('click', 'cluster-count', onClickAnyCluster);
           map.on('click', 'unclustered-point', onClickUnclustered);
           map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
           map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
