@@ -1447,7 +1447,11 @@
         updateRotateButtonVisibility(); // ← affiche/masque le bouton rotation
     
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() < 4) {
-          map.easeTo({ center: [0, 20], zoom: 5, pitch: 70, bearing: 45, duration: 600 });
+          map.easeTo({
+            pitch: Math.min(map.getPitch() + 10, 82),
+            bearing: (map.getBearing() + 30) % 360,
+            duration: 500
+          });
         }
       });
     });
