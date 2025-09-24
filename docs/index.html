@@ -1446,9 +1446,8 @@
         ensureTerrain();
         updateRotateButtonVisibility(); // ← affiche/masque le bouton rotation
     
-        // Pour bien voir la sphère la 1ère fois :
-        if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
-          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 80, bearing: 0, duration: 500 });
+        if (CURRENT_PROJECTION === 'globe' && map.getZoom() < 4) {
+          map.easeTo({ center: [0, 20], zoom: 5, pitch: 70, bearing: 45, duration: 600 });
         }
       });
     });
