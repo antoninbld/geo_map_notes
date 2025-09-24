@@ -743,50 +743,53 @@
     }
 
     function ensureTerrain() {
-      if (CURRENT_PROJECTION !== 'globe') {
-        try { map.setTerrain(null); } catch {}
-        return;
-      }
-    
-      if (!map.getSource('terrain-dem')) {
-        map.addSource('terrain-dem', {
+    // En "globe", on coupe le terrain/hillshade pour éviter les erreurs near-pole
+    if (CURRENT_PROJECTION === 'globe') {
+      try { map.setTerrain(null); } catch {}
+      try { if (map.getLayer('terrain-hillshade')) map.removeLayer('terrain-hillshade'); } catch {}
+      try { if (map.getSource('terrain-dem-hs')) map.removeSource('terrain-dem-hs'); } catch {}
+      try { if (map.getSource('terrain-dem'))    map.removeSource('terrain-dem'); }    catch {}
+      return;
+    }
+  
+    // --- Mercator (2D) : terrain/hillshade OK ---
+    if (!map.getSource('terrain-dem')) {
+      map.addSource('terrain-dem', {
+        type: 'raster-dem',
+        url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,
+        tileSize: 512,
+        maxzoom: 14
+      });
+    }
+    try {
+      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 });
+  
+      // Hillshade sur une source séparée
+      if (!map.getSource('terrain-dem-hs')) {
+        map.addSource('terrain-dem-hs', {
           type: 'raster-dem',
           url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,
           tileSize: 512,
           maxzoom: 14
         });
       }
-    
-      try {
-        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 });
-    
-        // Ombres portées du relief (visibles même de dessus)
-        if (!map.getLayer('terrain-hillshade')) {
-          // créer une source séparée pour le hillshade
-          if (!map.getSource('terrain-dem-hs')) {
-            map.addSource('terrain-dem-hs', {
-              type: 'raster-dem',
-              url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,
-              tileSize: 512,
-              maxzoom: 14
-            });
+      if (!map.getLayer('terrain-hillshade')) {
+        const beforeId = map.getLayer('note-links-casing') ? 'note-links-casing' : undefined;
+        map.addLayer({
+          id: 'terrain-hillshade',
+          type: 'hillshade',
+          source: 'terrain-dem-hs',
+          paint: {
+            'hillshade-exaggeration': 0.6,
+            'hillshade-shadow-color': '#000',
+            'hillshade-highlight-color': '#fff'
           }
-          const beforeId = map.getLayer('note-links-casing') ? 'note-links-casing' : undefined;
-          map.addLayer({
-            id: 'terrain-hillshade',
-            type: 'hillshade',
-            source: 'terrain-dem-hs',
-            paint: {
-              'hillshade-exaggeration': 0.6,
-              'hillshade-shadow-color': '#000',
-              'hillshade-highlight-color': '#fff'
-            }
-          }, beforeId);
-        }
-      } catch (e) {
-        console.warn('Impossible de définir le terrain:', e);
+        }, beforeId);
       }
+    } catch (e) {
+      console.warn('Impossible de définir le terrain:', e);
     }
+  }
           
     let __sunTimer = null;
     function startSun() {
@@ -815,6 +818,7 @@
       center: WORLD_CENTER,
       zoom:   WORLD_ZOOM,
       projection: 'globe'
+      renderWorldCopies: false,
     });
   
     // --- Rotation auto du globe (MapLibre) ---
