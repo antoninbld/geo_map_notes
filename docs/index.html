@@ -2096,23 +2096,28 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-    // Interception globale des clics : gérer d'abord un éventuel CLUSTER sous la souris
+    // Interception globale : on délègue aux handlers par calque
     map.on('click', (e) => {
-      // 1) Si un cluster est sous la souris, on laisse le handler de couche gérer
-      const hit = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count'] });
-        if (hit && hit.length) {
-          onClickAnyCluster({ ...e, features: hit }); // réutilise le même “fitBounds”
-          return;
-        }
+      const hits = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count','unclustered-point'] });
+      if (!hits.length) {
+        // clic dans le vide → logique habituelle
+        clearLinks?.();
+        return;
+      }
     
-      // 2) Sinon, clic “dans le vide” → règles habituelles
-      if (window.__justClickedMarker) return;
-      const path = e.originalEvent?.composedPath?.() || [];
-      const onMarker = path.some(n => n?.classList?.contains?.('maplibregl-marker'));
-      const onCtrl   = path.some(n => n?.classList?.contains?.('maplibregl-ctrl'));
-      if (onMarker || onCtrl) return;
+      const f = hits[0];
     
-      clearLinks();
+      // Si c’est un cluster (bulle ou chiffre) → on réutilise ton handler
+      if (f.properties && (f.properties.cluster || f.properties.cluster_id != null)) {
+        onClickAnyCluster({ features: [f] });
+        return;
+      }
+    
+      // Si c’est un point individuel → on ouvre la note
+      if (f.layer && f.layer.id === 'unclustered-point') {
+        onClickUnclustered({ features: [f] });
+        return;
+      }
     });
 
     // Curseur main dès qu’un point/cluster est sous la souris (même s'il est recouvert)
