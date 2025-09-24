@@ -2130,10 +2130,36 @@
       clearLinks?.();
     });
 
-    // Curseur main dès qu’un point/cluster est sous la souris (même s'il est recouvert)
+    // Curseur main si un point/cluster est sous la souris (sans casser si les couches n'existent pas)
     map.on('mousemove', (e) => {
-      const f = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count','unclustered-point'] });
-      map.getCanvas().style.cursor = f.length ? 'pointer' : '';
+      const layerIds = ['clusters','cluster-count','unclustered-point'].filter(id => map.getLayer(id));
+      let hits = [];
+      if (layerIds.length) {
+        try { hits = map.queryRenderedFeatures(e.point, { layers: layerIds }); } catch {}
+      }
+      map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
+    });
+
+    // Clic global : priorise les clusters, puis les points rouges
+    map.on('click', (e) => {
+      // Ne PAS filtrer par layers : on veut aussi capturer le symbole du nombre {point_count}
+      let hits = [];
+      try { hits = map.queryRenderedFeatures(e.point); } catch {}
+      if (!hits.length) { if (typeof clearLinks === 'function') clearLinks(); return; }
+    
+      // 1) Un cluster ? (bulle ou chiffre)
+      const clusterHit = hits.find(ft => {
+        const p = ft && ft.properties;
+        return p && (p.cluster === true || p.cluster_id != null || p.point_count != null);
+      });
+      if (clusterHit) { onClickAnyCluster({ features: [clusterHit] }); return; }
+    
+      // 2) Sinon un point rouge individuel
+      const pointHit = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
+      if (pointHit) { onClickUnclustered({ features: [pointHit] }); return; }
+    
+      // 3) Clic dans le vide
+      if (typeof clearLinks === 'function') clearLinks();
     });
 
   // === Fermeture du panneau (✖) ===
