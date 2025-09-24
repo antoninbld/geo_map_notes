@@ -736,7 +736,9 @@
       const altitude = Math.sin(t * 2 * Math.PI) * 35 + 25; // -10..60
     
       try {
-        map.setPaintProperty('sky', 'sky-atmosphere-sun', [azimuth, altitude]);
+        if (map.getLayer('sky')) {
+          map.setPaintProperty('sky', 'sky-atmosphere-sun', [azimuth, altitude]);
+        }
       } catch {}
     }
 
@@ -754,10 +756,13 @@
           maxzoom: 14
         });
       }
+    
       try {
         map.setTerrain({ source: 'terrain-dem', exaggeration: 1.4 });
+    
         // Ombres portées du relief (visibles même de dessus)
         if (!map.getLayer('terrain-hillshade')) {
+          const beforeId = map.getLayer('note-links-casing') ? 'note-links-casing' : undefined;
           map.addLayer({
             id: 'terrain-hillshade',
             type: 'hillshade',
@@ -767,7 +772,7 @@
               'hillshade-shadow-color': '#000',
               'hillshade-highlight-color': '#fff'
             }
-          }, 'note-links-casing'); // l’ajouter sous tes traits/labels
+          }, beforeId);
         }
       } catch (e) {
         console.warn('Impossible de définir le terrain:', e);
@@ -1812,15 +1817,15 @@
       }
     
       // S'assurer que l'ordre est bon : casing en dessous de line
-      try { map.moveLayer('note-links-casing'); } catch {}
-      try { map.moveLayer('note-links-line'); } catch {}
+      if (map.getLayer('note-links-casing')) { try { map.moveLayer('note-links-casing'); } catch {} }
+      if (map.getLayer('note-links-line'))   { try { map.moveLayer('note-links-line'); }   catch {} }
       bringClustersToFront?.();
     }
 
     
     function bringClustersToFront() {
-      try { map.moveLayer('cluster-count'); } catch {}
-      try { map.moveLayer('clusters'); } catch {}
+      if (map.getLayer('cluster-count')) { try { map.moveLayer('cluster-count'); } catch {} }
+      if (map.getLayer('clusters'))      { try { map.moveLayer('clusters'); }      catch {} }
     }
     
     // Trace les liens à partir d'une note
@@ -1850,9 +1855,9 @@
       src.setData({ type: 'FeatureCollection', features });
 
       // S'assurer que nos traits sont au-dessus
-      try { map.moveLayer('note-links-casing'); } catch {}
-      try { map.moveLayer('note-links-line'); } catch {}
-      try { map.moveLayer('note-links-arrows'); } catch {}
+      if (map.getLayer('note-links-casing')) { try { map.moveLayer('note-links-casing'); } catch {} }
+      if (map.getLayer('note-links-line'))   { try { map.moveLayer('note-links-line'); }   catch {} }
+      if (map.getLayer('note-links-arrows')) { try { map.moveLayer('note-links-arrows'); } catch {} }
     }
     
     // Effacer les traits
@@ -2096,28 +2101,31 @@
       Array.from(sel.options).forEach(o => o.selected = false);
     });
 
-    // Interception globale : on délègue aux handlers par calque
+    // Interception globale : un seul clic pour tout (cluster ou point)
     map.on('click', (e) => {
-      const hits = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count','unclustered-point'] });
-      if (!hits.length) {
-        // clic dans le vide → logique habituelle
-        clearLinks?.();
+      // Ne PAS filtrer par layers → on veut aussi le symbol du cluster (le chiffre)
+      const hits = map.queryRenderedFeatures(e.point);
+      if (!hits.length) { clearLinks?.(); return; }
+    
+      // Priorité aux clusters (bulle OU chiffre)
+      const clusterHit = hits.find(ft => {
+        const p = ft && ft.properties;
+        return p && (p.cluster === true || p.cluster_id != null || p.point_count != null);
+      });
+      if (clusterHit) {
+        onClickAnyCluster({ features: [clusterHit] });
         return;
       }
     
-      const f = hits[0];
-    
-      // Si c’est un cluster (bulle ou chiffre) → on réutilise ton handler
-      if (f.properties && (f.properties.cluster || f.properties.cluster_id != null)) {
-        onClickAnyCluster({ features: [f] });
+      // Sinon, un point rouge individuel
+      const pointHit = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
+      if (pointHit) {
+        onClickUnclustered({ features: [pointHit] });
         return;
       }
     
-      // Si c’est un point individuel → on ouvre la note
-      if (f.layer && f.layer.id === 'unclustered-point') {
-        onClickUnclustered({ features: [f] });
-        return;
-      }
+      // Clic sur “rien d’utile”
+      clearLinks?.();
     });
 
     // Curseur main dès qu’un point/cluster est sous la souris (même s'il est recouvert)
