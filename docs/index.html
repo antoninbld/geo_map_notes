@@ -940,43 +940,59 @@
       const f = e && e.features && e.features[0];
       if (!f) { console.warn('[cluster] no feature in event'); return; }
     
-      const props     = f.properties || {};
-      const clusterId = (props.cluster_id ?? props.clusterId);
-      const sourceId  = (f.layer && f.layer.source) ? f.layer.source : 'notes';
-      const src       = map.getSource(sourceId);
+      const props        = f.properties || {};
+      const rawId        = (props.cluster_id ?? props.clusterId);
+      const clusterId    = typeof rawId === 'string' ? parseInt(rawId, 10) : rawId; // ⚠️ numériser
+      const sourceId     = (f.layer && f.layer.source) ? f.layer.source : 'notes';
+      const src          = map.getSource(sourceId);
+      const center       = (f.geometry && f.geometry.coordinates) || map.getCenter();
+      const fallbackZoom = Math.min(map.getZoom() + 3, 18); // filet de sécurité
     
       console.log('[cluster] click', { sourceId, layerId: f.layer?.id, clusterId, hasSrc: !!src });
     
-      const center = f.geometry && f.geometry.coordinates;
-    
-      // Filet de sécurité: si pas de source/clusterId → zoom +2 sur le centre
+      // Si on n'a pas la source ou pas d'ID → fallback direct
       if (!src || clusterId == null || !Array.isArray(center)) {
-        console.warn('[cluster] missing src/clusterId/center → zoom +2');
-        map.easeTo({ center: center || map.getCenter(), zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+        console.warn('[cluster] missing src/clusterId/center → fallback zoom');
+        map.easeTo({ center, zoom: fallbackZoom, duration: 600 });
         return;
       }
     
-      // Méthode robuste: utiliser l’EXPANSION ZOOM du cluster puis se centrer dessus
+      // Tente l'expansion, mais ne bloque jamais l'UX (timeout)
+      let done = false;
+      const finish = (action) => {
+        if (done) return;
+        done = true;
+        if (action === 'fallback') {
+          console.warn('[cluster] expansion unavailable/timeout → fallback zoom');
+          map.easeTo({ center, zoom: fallbackZoom, duration: 600 });
+        }
+      };
+    
+      // Timeout de sécurité : si l'API ne rappelle pas, on zoome quand même
+      const tm = setTimeout(() => finish('fallback'), 400);
+    
       try {
         if (typeof src.getClusterExpansionZoom === 'function') {
           src.getClusterExpansionZoom(clusterId, (err, z) => {
+            if (done) return;
+            clearTimeout(tm);
             if (err || typeof z !== 'number') {
-              console.warn('[cluster] expansion error → zoom +2', err);
-              map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
-              return;
+              console.warn('[cluster] expansion error → fallback', err);
+              return finish('fallback');
             }
-            // Un petit cran en plus garantit l'éclatement visuel
-            const target = Math.min(z + 1, 18);
+            const target = Math.min(z + 1, 18); // +1 assure l'éclatement visuel
             console.log('[cluster] expansion to', target);
+            done = true;
             map.easeTo({ center, zoom: target, duration: 600 });
           });
         } else {
-          console.log('[cluster] no expansion API → zoom +2');
-          map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+          clearTimeout(tm);
+          finish('fallback');
         }
       } catch (ex) {
-        console.warn('[cluster] exception → zoom +2', ex);
-        map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+        clearTimeout(tm);
+        console.warn('[cluster] exception → fallback', ex);
+        finish('fallback');
       }
     }
     
