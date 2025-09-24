@@ -940,71 +940,43 @@
       const f = e && e.features && e.features[0];
       if (!f) { console.warn('[cluster] no feature in event'); return; }
     
-      const props = f.properties || {};
-      const clusterId  = (props.cluster_id ?? props.clusterId);
-      const pointCount = (props.point_count ?? props.pointCount);
-      const sourceId   = (f.layer && f.layer.source) ? f.layer.source : 'notes';
-      const src        = map.getSource(sourceId);
+      const props     = f.properties || {};
+      const clusterId = (props.cluster_id ?? props.clusterId);
+      const sourceId  = (f.layer && f.layer.source) ? f.layer.source : 'notes';
+      const src       = map.getSource(sourceId);
     
-      console.log('[cluster] click',
-        { sourceId, layerId: f.layer?.id, clusterId, pointCount, hasSrc: !!src });
+      console.log('[cluster] click', { sourceId, layerId: f.layer?.id, clusterId, hasSrc: !!src });
     
-      // Sécurité: si on ne récupère pas la source, au moins zoomer un cran
-      if (!src) {
-        console.warn('[cluster] source introuvable → zoom +2');
-        map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+      const center = f.geometry && f.geometry.coordinates;
+    
+      // Filet de sécurité: si pas de source/clusterId → zoom +2 sur le centre
+      if (!src || clusterId == null || !Array.isArray(center)) {
+        console.warn('[cluster] missing src/clusterId/center → zoom +2');
+        map.easeTo({ center: center || map.getCenter(), zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
         return;
       }
     
-      // Fallback "expansion" (même si on n’a pas toutes les props)
-      const goExpansion = () => {
-        if (typeof src.getClusterExpansionZoom === 'function' && clusterId != null) {
+      // Méthode robuste: utiliser l’EXPANSION ZOOM du cluster puis se centrer dessus
+      try {
+        if (typeof src.getClusterExpansionZoom === 'function') {
           src.getClusterExpansionZoom(clusterId, (err, z) => {
-            if (err) {
-              console.warn('[cluster] expansion err → zoom +2', err);
-              map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+            if (err || typeof z !== 'number') {
+              console.warn('[cluster] expansion error → zoom +2', err);
+              map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
               return;
             }
-            const target = Math.min(((z ?? map.getZoom() + 1) + 1), 18);
+            // Un petit cran en plus garantit l'éclatement visuel
+            const target = Math.min(z + 1, 18);
             console.log('[cluster] expansion to', target);
-            map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
+            map.easeTo({ center, zoom: target, duration: 600 });
           });
         } else {
-          console.log('[cluster] no expansion API or no clusterId → zoom +2');
-          map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+          console.log('[cluster] no expansion API → zoom +2');
+          map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
         }
-      };
-    
-      // Si leaves dispo ET qu’on a un pointCount raisonnable → fitBounds
-      if (typeof src.getClusterLeaves === 'function' && clusterId != null && pointCount != null) {
-        try {
-          // Limite de sécurité pour éviter des requêtes énormes si pointCount >> 1000
-          const limit = Math.min(pointCount, 500);
-          src.getClusterLeaves(clusterId, limit, 0, (err, leaves) => {
-            if (err || !Array.isArray(leaves) || leaves.length === 0) {
-              if (err) console.warn('[cluster] leaves err → expansion', err);
-              return goExpansion();
-            }
-            const bounds = new maplibregl.LngLatBounds();
-            for (const lf of leaves) {
-              const c = lf && lf.geometry && lf.geometry.coordinates;
-              if (Array.isArray(c)) bounds.extend(c);
-            }
-            if (!bounds.isEmpty()) {
-              console.log('[cluster] fitBounds on', leaves.length, 'leaves');
-              map.fitBounds(bounds, { padding: 96, duration: 700, maxZoom: 16 });
-            } else {
-              console.log('[cluster] empty bounds → expansion');
-              goExpansion();
-            }
-          });
-        } catch (ex) {
-          console.warn('[cluster] exception on leaves → expansion', ex);
-          goExpansion();
-        }
-      } else {
-        console.log('[cluster] leaves not available → expansion');
-        goExpansion();
+      } catch (ex) {
+        console.warn('[cluster] exception → zoom +2', ex);
+        map.easeTo({ center, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
       }
     }
     
