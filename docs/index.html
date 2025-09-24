@@ -1053,7 +1053,6 @@
         'text-anchor': 'center',
         'text-allow-overlap': true,
         'text-ignore-placement': true,
-        // Police: stack compatible styles MapTiler
         'text-font': ['Noto Sans Regular', 'Open Sans Regular']
       },
       paint: {
@@ -1354,28 +1353,26 @@
             });
           }
           
-          // (Re)chiffres — mêmes options + remonter le calque
-          if (!map.getLayer('cluster-count')) {
-            map.addLayer({
-              id: 'cluster-count',
-              type: 'symbol',
-              source: 'notes',
-              filter: ['has', 'point_count'],
-              layout: {
-                'text-field': '{point_count_abbreviated}',
-                'text-size': 14,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-                'text-font': ['Noto Sans Regular', 'Open Sans Regular']
-              },
-              paint: {
-                'text-color': '#000',
-                'text-halo-color': '#fff',
-                'text-halo-width': 1.2
-              }
-            });
-          }
+          // Chiffres sur les bulles — forcer affichage + police compatible MapTiler
+          map.addLayer({
+            id: 'cluster-count',
+            type: 'symbol',
+            source: 'notes',
+            filter: ['has', 'point_count'],
+            layout: {
+              'text-field': '{point_count_abbreviated}',
+              'text-size': 14,
+              'text-anchor': 'center',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-font': ['Noto Sans Regular', 'Open Sans Regular']
+            },
+            paint: {
+              'text-color': '#000',
+              'text-halo-color': '#fff',
+              'text-halo-width': 1.2
+            }
+          });
           try { map.moveLayer('cluster-count'); } catch {}
           
           // (Re)points individuels
