@@ -2100,9 +2100,10 @@
     map.on('click', (e) => {
       // 1) Si un cluster est sous la souris, on laisse le handler de couche gérer
       const hit = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count'] });
-      if (hit && hit.length) {
-        return; // on ne fait rien ici, on laisse onClickAnyCluster déclenché par la couche
-      }
+        if (hit && hit.length) {
+          onClickAnyCluster({ ...e, features: hit }); // réutilise le même “fitBounds”
+          return;
+        }
     
       // 2) Sinon, clic “dans le vide” → règles habituelles
       if (window.__justClickedMarker) return;
