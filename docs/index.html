@@ -2098,22 +2098,10 @@
 
     // Interception globale des clics : gérer d'abord un éventuel CLUSTER sous la souris
     map.on('click', (e) => {
-      // 1) Si un cluster est sous la souris, on zoome et on s'arrête
+      // 1) Si un cluster est sous la souris, on laisse le handler de couche gérer
       const hit = map.queryRenderedFeatures(e.point, { layers: ['clusters','cluster-count'] });
-      if (hit && hit.length && hit[0].properties && (hit[0].properties.cluster || hit[0].properties.cluster_id != null)) {
-        const f = hit[0];
-        const src = map.getSource('notes');
-        if (src && src.getClusterExpansionZoom) {
-          src.getClusterExpansionZoom(f.properties.cluster_id, (err, zoom) => {
-            if (err) return console.error(err);
-            map.easeTo({
-              center: f.geometry.coordinates,
-              zoom: Math.min(zoom + 1, 18),
-              duration: 800
-            });
-          });
-        }
-        return; // IMPORTANT : ne pas tomber dans le clearLinks() ci-dessous
+      if (hit && hit.length) {
+        return; // on ne fait rien ici, on laisse onClickAnyCluster déclenché par la couche
       }
     
       // 2) Sinon, clic “dans le vide” → règles habituelles
