@@ -1029,14 +1029,14 @@
       clusterRadius: 50
     });
     
-    // Bulles de cluster (jaunes)
+    // Bulles de cluster (rose)
     map.addLayer({
       id: 'clusters',
       type: 'circle',
       source: 'notes',
       filter: ['has', 'point_count'],
       paint: {
-        'circle-color': '#facc15',
+        'circle-color': '#ba274f',
         'circle-radius': 20
       }
     });
@@ -1348,7 +1348,7 @@
               source: 'notes',
               filter: ['has', 'point_count'],
               paint: {
-                'circle-color': '#facc15',
+                'circle-color': '#ba274f',
                 'circle-radius': 20
               }
             });
