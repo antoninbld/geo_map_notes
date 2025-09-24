@@ -1041,7 +1041,6 @@
       }
     });
     
-    // Chiffres sur les bulles — forcer affichage + police compatible MapTiler
     map.addLayer({
       id: 'cluster-count',
       type: 'symbol',
@@ -1049,16 +1048,18 @@
       filter: ['has', 'point_count'],
       layout: {
         'text-field': '{point_count_abbreviated}',
-        'text-size': 14,
+        // safer font stack for MapTiler styles:
+        'text-font': ['Open Sans Regular', 'Noto Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 0, 12, 6, 14, 10, 16],
         'text-anchor': 'center',
+        'text-offset': [0, 0],
         'text-allow-overlap': true,
-        'text-ignore-placement': true,
-        'text-font': ['Noto Sans Regular', 'Open Sans Regular']
+        'text-ignore-placement': true
       },
       paint: {
         'text-color': '#000',
         'text-halo-color': '#fff',
-        'text-halo-width': 1.2
+        'text-halo-width': 1.5
       }
     });
     
@@ -1353,7 +1354,6 @@
             });
           }
           
-          // Chiffres sur les bulles — forcer affichage + police compatible MapTiler
           map.addLayer({
             id: 'cluster-count',
             type: 'symbol',
@@ -1361,18 +1361,21 @@
             filter: ['has', 'point_count'],
             layout: {
               'text-field': '{point_count_abbreviated}',
-              'text-size': 14,
+              // safer font stack for MapTiler styles:
+              'text-font': ['Open Sans Regular', 'Noto Sans Regular', 'Arial Unicode MS Regular'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 0, 12, 6, 14, 10, 16],
               'text-anchor': 'center',
+              'text-offset': [0, 0],
               'text-allow-overlap': true,
-              'text-ignore-placement': true,
-              'text-font': ['Noto Sans Regular', 'Open Sans Regular']
+              'text-ignore-placement': true
             },
             paint: {
               'text-color': '#000',
               'text-halo-color': '#fff',
-              'text-halo-width': 1.2
+              'text-halo-width': 1.5
             }
           });
+          
           try { map.moveLayer('cluster-count'); } catch {}
           
           // (Re)points individuels
