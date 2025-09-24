@@ -762,11 +762,20 @@
     
         // Ombres portées du relief (visibles même de dessus)
         if (!map.getLayer('terrain-hillshade')) {
+          // créer une source séparée pour le hillshade
+          if (!map.getSource('terrain-dem-hs')) {
+            map.addSource('terrain-dem-hs', {
+              type: 'raster-dem',
+              url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,
+              tileSize: 512,
+              maxzoom: 14
+            });
+          }
           const beforeId = map.getLayer('note-links-casing') ? 'note-links-casing' : undefined;
           map.addLayer({
             id: 'terrain-hillshade',
             type: 'hillshade',
-            source: 'terrain-dem',
+            source: 'terrain-dem-hs',
             paint: {
               'hillshade-exaggeration': 0.6,
               'hillshade-shadow-color': '#000',
@@ -1100,6 +1109,7 @@
     map.on('style.load', () => {
       CURRENT_PROJECTION = 'globe';
       applyProjection();
+      try { if (CURRENT_PROJECTION === 'globe') map.setFog(null); } catch {}
       ensureTerrain?.();
     
       ensureLinksLayer();
@@ -1415,12 +1425,10 @@
     
     window.addEventListener('load', updateMapBackgroundClass);
     window.addEventListener('load', () => {
-      // Force la valeur par défaut à 'globe' et synchronise le radio
       CURRENT_PROJECTION = 'globe';
       const globeRadio = document.querySelector('input[name="projection"][value="globe"]');
       if (globeRadio) globeRadio.checked = true;
-      applyProjection();
-      ensureTerrain(); // active le relief si dispo
+      // applyProjection et ensureTerrain seront appelées en 'style.load'
     });
     
     // Projection (2D / 3D)
@@ -2103,28 +2111,22 @@
 
     // Interception globale : un seul clic pour tout (cluster ou point)
     map.on('click', (e) => {
-      // Ne PAS filtrer par layers → on veut aussi le symbol du cluster (le chiffre)
+      // On ne filtre pas par layers → capte aussi le symbole (chiffre) du cluster
       const hits = map.queryRenderedFeatures(e.point);
       if (!hits.length) { clearLinks?.(); return; }
     
-      // Priorité aux clusters (bulle OU chiffre)
-      const clusterHit = hits.find(ft => {
+      // 1) Cluster détecté (bulle ou chiffre)
+      const cl = hits.find(ft => {
         const p = ft && ft.properties;
         return p && (p.cluster === true || p.cluster_id != null || p.point_count != null);
       });
-      if (clusterHit) {
-        onClickAnyCluster({ features: [clusterHit] });
-        return;
-      }
+      if (cl) { onClickAnyCluster({ features: [cl] }); return; }
     
-      // Sinon, un point rouge individuel
-      const pointHit = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
-      if (pointHit) {
-        onClickUnclustered({ features: [pointHit] });
-        return;
-      }
+      // 2) Point rouge individuel
+      const pt = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
+      if (pt) { onClickUnclustered({ features: [pt] }); return; }
     
-      // Clic sur “rien d’utile”
+      // 3) Rien de pertinent → clear
       clearLinks?.();
     });
 
