@@ -937,58 +937,73 @@
     }
 
     function onClickAnyCluster(e) {
-      const f = e.features && e.features[0];
-      if (!f || !f.properties) return;
+      const f = e && e.features && e.features[0];
+      if (!f) { console.warn('[cluster] no feature in event'); return; }
     
-      const clusterId   = f.properties.cluster_id;
-      const pointCount  = f.properties.point_count;
-      if (clusterId == null || pointCount == null) return;
+      const props = f.properties || {};
+      const clusterId  = (props.cluster_id ?? props.clusterId);
+      const pointCount = (props.point_count ?? props.pointCount);
+      const sourceId   = (f.layer && f.layer.source) ? f.layer.source : 'notes';
+      const src        = map.getSource(sourceId);
     
-      const sourceId = (f.layer && f.layer.source) ? f.layer.source : 'notes';
-      const src = map.getSource(sourceId);
-      if (!src) { console.warn('[cluster] Source introuvable:', sourceId); return; }
+      console.log('[cluster] click',
+        { sourceId, layerId: f.layer?.id, clusterId, pointCount, hasSrc: !!src });
     
+      // Sécurité: si on ne récupère pas la source, au moins zoomer un cran
+      if (!src) {
+        console.warn('[cluster] source introuvable → zoom +2');
+        map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+        return;
+      }
+    
+      // Fallback "expansion" (même si on n’a pas toutes les props)
       const goExpansion = () => {
-        if (typeof src.getClusterExpansionZoom === 'function') {
+        if (typeof src.getClusterExpansionZoom === 'function' && clusterId != null) {
           src.getClusterExpansionZoom(clusterId, (err, z) => {
-            if (err) { console.error('[cluster] expansion err:', err); return; }
-            const target = Math.min(((z ?? map.getZoom()+2) + 1), 18);
+            if (err) {
+              console.warn('[cluster] expansion err → zoom +2', err);
+              map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
+              return;
+            }
+            const target = Math.min(((z ?? map.getZoom() + 1) + 1), 18);
+            console.log('[cluster] expansion to', target);
             map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
           });
         } else {
-          // dernier filet de sécurité
-          map.easeTo({
-            center: f.geometry.coordinates,
-            zoom: Math.min(map.getZoom() + 2, 18),
-            duration: 600
-          });
+          console.log('[cluster] no expansion API or no clusterId → zoom +2');
+          map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(map.getZoom() + 2, 18), duration: 600 });
         }
       };
     
-      // Si getClusterLeaves est dispo → fitBounds complet ; sinon → expansion directe
-      if (typeof src.getClusterLeaves === 'function') {
+      // Si leaves dispo ET qu’on a un pointCount raisonnable → fitBounds
+      if (typeof src.getClusterLeaves === 'function' && clusterId != null && pointCount != null) {
         try {
-          src.getClusterLeaves(clusterId, pointCount, 0, (err, leaves) => {
+          // Limite de sécurité pour éviter des requêtes énormes si pointCount >> 1000
+          const limit = Math.min(pointCount, 500);
+          src.getClusterLeaves(clusterId, limit, 0, (err, leaves) => {
             if (err || !Array.isArray(leaves) || leaves.length === 0) {
-              if (err) console.error('[cluster] getClusterLeaves error:', err);
+              if (err) console.warn('[cluster] leaves err → expansion', err);
               return goExpansion();
             }
             const bounds = new maplibregl.LngLatBounds();
-            leaves.forEach(ft => {
-              const c = ft && ft.geometry && ft.geometry.coordinates;
+            for (const lf of leaves) {
+              const c = lf && lf.geometry && lf.geometry.coordinates;
               if (Array.isArray(c)) bounds.extend(c);
-            });
+            }
             if (!bounds.isEmpty()) {
+              console.log('[cluster] fitBounds on', leaves.length, 'leaves');
               map.fitBounds(bounds, { padding: 96, duration: 700, maxZoom: 16 });
             } else {
+              console.log('[cluster] empty bounds → expansion');
               goExpansion();
             }
           });
         } catch (ex) {
-          console.error('[cluster] exception:', ex);
+          console.warn('[cluster] exception on leaves → expansion', ex);
           goExpansion();
         }
       } else {
+        console.log('[cluster] leaves not available → expansion');
         goExpansion();
       }
     }
@@ -2142,21 +2157,38 @@
 
     // Clic global : priorise les clusters, puis les points rouges
     map.on('click', (e) => {
-      // Ne PAS filtrer par layers : on veut aussi capturer le symbole du nombre {point_count}
+      console.log('[click] global');
+    
+      // élargit la zone d’échantillonnage autour du clic (±5 px)
+      const pad = 5;
+      const box = [
+        { x: e.point.x - pad, y: e.point.y - pad },
+        { x: e.point.x + pad, y: e.point.y + pad }
+      ];
+    
       let hits = [];
-      try { hits = map.queryRenderedFeatures(e.point); } catch {}
-      if (!hits.length) { if (typeof clearLinks === 'function') clearLinks(); return; }
+      try { hits = map.queryRenderedFeatures(box); } catch {}
+      if (!hits.length) {
+        if (typeof clearLinks === 'function') clearLinks();
+        return;
+      }
     
       // 1) Un cluster ? (bulle ou chiffre)
       const clusterHit = hits.find(ft => {
         const p = ft && ft.properties;
         return p && (p.cluster === true || p.cluster_id != null || p.point_count != null);
       });
-      if (clusterHit) { onClickAnyCluster({ features: [clusterHit] }); return; }
+      if (clusterHit) {
+        onClickAnyCluster({ features: [clusterHit] });
+        return;
+      }
     
       // 2) Sinon un point rouge individuel
       const pointHit = hits.find(ft => ft.layer && ft.layer.id === 'unclustered-point');
-      if (pointHit) { onClickUnclustered({ features: [pointHit] }); return; }
+      if (pointHit) {
+        onClickUnclustered({ features: [pointHit] });
+        return;
+      }
     
       // 3) Clic dans le vide
       if (typeof clearLinks === 'function') clearLinks();
