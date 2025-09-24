@@ -969,7 +969,7 @@
       };
     
       // Timeout de sécurité : si l'API ne rappelle pas, on zoome quand même
-      const tm = setTimeout(() => finish('fallback'), 1200);
+      const tm = setTimeout(() => finish('fallback'), 200);
     
       try {
         if (typeof src.getClusterExpansionZoom === 'function') {
@@ -1444,7 +1444,7 @@
     
         // Pour bien voir la sphère la 1ère fois :
         if (CURRENT_PROJECTION === 'globe' && map.getZoom() > 2) {
-          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 40, bearing: 0, duration: 500 });
+          map.easeTo({ center: [0, 20], zoom: 1.2, pitch: 0, bearing: 0, duration: 500 });
         }
       });
     });
