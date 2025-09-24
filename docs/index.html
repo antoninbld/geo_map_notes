@@ -922,80 +922,60 @@
       buildTagCheckboxes();
     }
 
-    // Casse un cluster en centrant/zoomant sur TOUTES ses feuilles (fitBounds),
-    // avec logs détaillés + fallbacks.
     function onClickAnyCluster(e) {
-      // la feature cliquée (cluster ou son label)
       const f = e.features && e.features[0];
       if (!f || !f.properties) return;
     
-      const clusterId = f.properties.cluster_id;
-      const pointCount = f.properties.point_count;
-      // si ce n’est pas un cluster (ex: une feuille), on ne fait rien ici
+      const clusterId   = f.properties.cluster_id;
+      const pointCount  = f.properties.point_count;
       if (clusterId == null || pointCount == null) return;
     
-      // Récupère la bonne source depuis la couche cliquée (évite un mauvais id en dur)
-      const sourceId = f.layer && f.layer.source ? f.layer.source : 'notes';
+      const sourceId = (f.layer && f.layer.source) ? f.layer.source : 'notes';
       const src = map.getSource(sourceId);
-      if (!src) {
-        console.warn('[cluster] Source introuvable:', sourceId);
-        return;
-      }
+      if (!src) { console.warn('[cluster] Source introuvable:', sourceId); return; }
     
-      console.log('[cluster] click → id=', clusterId, 'count=', pointCount, 'source=', sourceId);
-    
-      // 1) Essai principal : getClusterLeaves => fitBounds sur toutes les feuilles
-      try {
-        src.getClusterLeaves(clusterId, pointCount, 0, (err, leaves) => {
-          if (err) {
-            console.error('[cluster] getClusterLeaves error:', err);
-            // 2) Fallback : expansionZoom
-            return src.getClusterExpansionZoom(clusterId, (err2, z) => {
-              if (err2) {
-                console.error('[cluster] getClusterExpansionZoom error:', err2);
-                return;
-              }
-              const target = Math.min((z ?? map.getZoom() + 2) + 1, 18);
-              console.log('[cluster] fallback expansion zoom →', target);
-              map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
-            });
-          }
-    
-          if (!Array.isArray(leaves) || leaves.length === 0) {
-            console.warn('[cluster] 0 leaves retournées (count annoncé =', pointCount, ')');
-            // 2) Autre fallback : zoom +2 centré sur le cluster
-            return map.easeTo({
-              center: f.geometry.coordinates,
-              zoom: Math.min(map.getZoom() + 2, 18),
-              duration: 600
-            });
-          }
-    
-          // Construit la bbox des feuilles
-          const bounds = new maplibregl.LngLatBounds();
-          leaves.forEach((ft) => {
-            const c = ft && ft.geometry && ft.geometry.coordinates;
-            if (Array.isArray(c)) bounds.extend(c);
+      const goExpansion = () => {
+        if (typeof src.getClusterExpansionZoom === 'function') {
+          src.getClusterExpansionZoom(clusterId, (err, z) => {
+            if (err) { console.error('[cluster] expansion err:', err); return; }
+            const target = Math.min(((z ?? map.getZoom()+2) + 1), 18);
+            map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
           });
+        } else {
+          // dernier filet de sécurité
+          map.easeTo({
+            center: f.geometry.coordinates,
+            zoom: Math.min(map.getZoom() + 2, 18),
+            duration: 600
+          });
+        }
+      };
     
-          console.log('[cluster] leaves=', leaves.length, 'bounds empty?', bounds.isEmpty());
-          if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, {
-              padding: 96,    // augmente si le panneau droit masque
-              duration: 700,
-              maxZoom: 16     // limite le zoom (ajuste si besoin)
+      // Si getClusterLeaves est dispo → fitBounds complet ; sinon → expansion directe
+      if (typeof src.getClusterLeaves === 'function') {
+        try {
+          src.getClusterLeaves(clusterId, pointCount, 0, (err, leaves) => {
+            if (err || !Array.isArray(leaves) || leaves.length === 0) {
+              if (err) console.error('[cluster] getClusterLeaves error:', err);
+              return goExpansion();
+            }
+            const bounds = new maplibregl.LngLatBounds();
+            leaves.forEach(ft => {
+              const c = ft && ft.geometry && ft.geometry.coordinates;
+              if (Array.isArray(c)) bounds.extend(c);
             });
-          } else {
-            // si pour une raison X la bbox est vide, dernier filet de sécurité
-            src.getClusterExpansionZoom(clusterId, (err3, z) => {
-              const target = Math.min((z ?? map.getZoom() + 2) + 1, 18);
-              console.log('[cluster] empty bounds → fallback expansion zoom →', target);
-              map.easeTo({ center: f.geometry.coordinates, zoom: target, duration: 600 });
-            });
-          }
-        });
-      } catch (ex) {
-        console.error('[cluster] exception:', ex);
+            if (!bounds.isEmpty()) {
+              map.fitBounds(bounds, { padding: 96, duration: 700, maxZoom: 16 });
+            } else {
+              goExpansion();
+            }
+          });
+        } catch (ex) {
+          console.error('[cluster] exception:', ex);
+          goExpansion();
+        }
+      } else {
+        goExpansion();
       }
     }
     
