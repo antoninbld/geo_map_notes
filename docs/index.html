@@ -2272,15 +2272,27 @@
     const closePanel = () => {
       const panel = document.getElementById('notePanel');
       if (panel) panel.style.display = 'none';
+    
+      // Revenir à la largeur de base du panneau (si tu l’élargis à l’ouverture)
       try {
         const baseW = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
-        document.getElementById('notePanel').style.width = baseW + 'px';
+        panel.style.width = baseW + 'px';
       } catch {}
     
       // Efface les traits [[liens]] s'ils sont affichés
       if (typeof clearLinks === 'function') clearLinks();
     
-      // Désactive le marqueur actif (revient à la couleur rouge par défaut)
+      // 🔁 Recentrer le globe et remettre le padding à 0 (sinon la vue reste décalée)
+      try {
+        map.easeTo({
+          center: WORLD_CENTER,
+          zoom:   ARRIVAL_ZOOM,                     // même zoom que l’arrivée
+          padding:{ top:0, left:0, bottom:0, right:0 },
+          duration: 500
+        });
+      } catch {}
+    
+      // Désactive le marqueur DOM "actif" s'il y en a un (sélecteur legacy)
       if (window.__activeMarkerEl) {
         window.__activeMarkerEl.classList.remove('marker--active');
         window.__activeMarkerEl.style.zIndex = '';
