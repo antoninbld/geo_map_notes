@@ -1126,7 +1126,7 @@
       ensureTerrain?.();
       // Arrivée normalisée sur la vue "Recentrer monde", sans animation
       recenterWorld({ animate: false });
-      map.setZoom(map.getZoom() + 2); // ← rapprocher de 2 crans, instantanément
+      map.setZoom(map.getZoom() + 1); // ← rapprocher de 2 crans, instantanément
 
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
