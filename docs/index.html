@@ -805,6 +805,22 @@
     let linksSourceReady = false;   // source/layer pour les traits
     window.__lastLinksState = null; // dernier état dessiné
 
+    // --- Panel sizing helpers ---
+    const PANEL_SCALE = 1.25; // ← facteur d’agrandissement quand le panneau est ouvert
+    
+    function isPanelOpen() {
+      const p = document.getElementById('notePanel');
+      return p && p.style.display === 'block';
+    }
+    
+    function getPanelDims() {
+      const baseW = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+      const mr    = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
+      const width = isPanelOpen() ? Math.round(baseW * PANEL_SCALE) : baseW;
+      return { width, marginRight: mr };
+    }
+
+    
     // 🎯 Vues par défaut
     const DEFAULT_ZOOM   = 3.8;
     const EUROPE_CENTER  = [10, 50];
@@ -1744,6 +1760,11 @@
   
     // ---- Affichage panneau
     $panel.style.display = 'block';
+    // Agrandir le panneau de façon proportionnelle quand il s'ouvre
+    try {
+      const baseW = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+      $panel.style.width = Math.round(baseW * PANEL_SCALE) + 'px';
+    } catch {}
 
     // --- Harmoniser la sélection visuelle même si l'ouverture vient du panneau
     try {
@@ -1778,9 +1799,8 @@
           // Recentrer comme au clic sur un marqueur : zoom d'arrivée + décalage à gauche
           const from = idToItem.get(id);
           if (from && typeof from.lon === 'number' && typeof from.lat === 'number') {
-            const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);       // largeur panneau
-            const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);  // marge droite panneau
-            const rightPad = pw + pr + 10; // petit buffer
+            const dims = getPanelDims();
+            const rightPad = dims.width + dims.marginRight + 10;
         
             map.easeTo({
               center: [from.lon, from.lat],
@@ -2252,6 +2272,10 @@
     const closePanel = () => {
       const panel = document.getElementById('notePanel');
       if (panel) panel.style.display = 'none';
+      try {
+        const baseW = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+        document.getElementById('notePanel').style.width = baseW + 'px';
+      } catch {}
     
       // Efface les traits [[liens]] s'ils sont affichés
       if (typeof clearLinks === 'function') clearLinks();
