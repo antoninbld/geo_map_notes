@@ -1744,6 +1744,15 @@
   
     // ---- Affichage panneau
     $panel.style.display = 'block';
+
+    // --- Harmoniser la sélection visuelle même si l'ouverture vient du panneau
+    try {
+      if (__selectedId != null && __selectedId !== noteId) {
+        map.setFeatureState({ source: 'notes', id: __selectedId }, { selected: false });
+      }
+      map.setFeatureState({ source: 'notes', id: noteId }, { selected: true });
+      __selectedId = noteId;
+    } catch {}
   
     // ---- Navigation interne dans le panneau
     $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
@@ -1754,7 +1763,14 @@
         const id = decodeURIComponent(href.split('id=')[1] || '');
         if (!id) return;
         openSummaryInPanel(id);
-        setActiveMarker(id);
+        // marquer visuellement le marqueur correspondant (comme un clic carte)
+        try {
+          if (__selectedId != null && __selectedId !== id) {
+            map.setFeatureState({ source: 'notes', id: __selectedId }, { selected: false });
+          }
+          map.setFeatureState({ source: 'notes', id }, { selected: true });
+          __selectedId = id;
+        } catch {}
         getOutgoingLinks(id).then(lnk => {
           drawLinksFrom(id, lnk);
           window.__lastLinksState = { id, links: lnk };
