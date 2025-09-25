@@ -118,5 +118,15 @@
     "recap": "En 1957, en pleine guerre d’Algérie, le service français de renseignement (SDECE / GRE) lance une opération d’infiltration et d’intoxication politico-militaire appelée “La Bleuite”. Elle vise à semer la méfiance au sein du FLN en diffusant des rumeurs de collaboration et des listes de “traîtres”, incitant les purges internes.",
     "tags": [""],
     "noteUrl": "note.html?id=la-bleuite-le-virus-du-soupçon"
+  },
+  {
+    "id": "la-fin-de-gorbatchev-et-de-l-urss",
+    "title": "La fin de Gorbatchev et de l'URSS",
+    "lat": 54.70932,
+    "lon": 25.24349,
+    "locationName": "Vilnius, URSS",
+    "recap": "",
+    "tags": [""],
+    "noteUrl": "note.html?id=la-fin-de-gorbatchev-et-de-l-urss"
   }
 ]
