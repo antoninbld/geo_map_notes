@@ -1002,10 +1002,24 @@
     
     function onEnterClusters(){ map.getCanvas().style.cursor = 'pointer'; }
     function onLeaveClusters(){ map.getCanvas().style.cursor = ''; }
-    
+    let __selectedId = null;
     function onClickUnclustered(e){
-      const props = e.features[0].properties;
-      openSummaryInPanel(props.id);
+      const f = e.features && e.features[0];
+      if (!f || !f.properties || f.properties.id == null) return;
+    
+      const id = f.properties.id;
+    
+      // 1) retirer l’état de l’ancien sélectionné
+      if (__selectedId != null) {
+        try { map.setFeatureState({ source: 'notes', id: __selectedId }, { selected: false }); } catch {}
+      }
+    
+      // 2) marquer le nouveau comme sélectionné
+      try { map.setFeatureState({ source: 'notes', id }, { selected: true }); } catch {}
+      __selectedId = id;
+    
+      // 3) logique existante d’ouverture du panneau
+      openSummaryInPanel(id);
     }
 
     
@@ -1024,6 +1038,7 @@
     map.addSource('notes', {
       type: 'geojson',
       data: { type: 'FeatureCollection', features },
+      promoteId: 'id',                // ← ajouté
       cluster: true,
       clusterMaxZoom: 14,
       clusterRadius: 50
@@ -1073,8 +1088,18 @@
       source: 'notes',
       filter: ['!', ['has', 'point_count']],
       paint: {
-        'circle-color': '#ff2d2d',
-        'circle-radius': 6,
+        'circle-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          '#208208',   // ← vert quand sélectionné
+          '#ff2d2d'    // ← rouge par défaut
+        ],
+        'circle-radius': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          8,           // ← un peu plus grand quand sélectionné
+          6
+        ],
         'circle-stroke-width': 2,
         'circle-stroke-color': '#7a0000'
       }
@@ -1325,6 +1350,7 @@
             map.addSource('notes', {
               type: 'geojson',
               data: { type: 'FeatureCollection', features },
+              promoteId: 'id',
               cluster: true,
               clusterMaxZoom: 14,
               clusterRadius: 50
@@ -1379,8 +1405,18 @@
               source: 'notes',
               filter: ['!', ['has', 'point_count']],
               paint: {
-                'circle-color': '#ff2d2d',
-                'circle-radius': 6,
+                'circle-color': [
+                  'case',
+                  ['boolean', ['feature-state', 'selected'], false],
+                  '#208208',   // ← vert quand sélectionné
+                  '#ff2d2d'    // ← rouge par défaut
+                ],
+                'circle-radius': [
+                  'case',
+                  ['boolean', ['feature-state', 'selected'], false],
+                  8,           // ← un peu plus grand quand sélectionné
+                  6
+                ],
                 'circle-stroke-width': 2,
                 'circle-stroke-color': '#7a0000'
               }
