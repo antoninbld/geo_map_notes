@@ -1302,16 +1302,14 @@
       map.easeTo({ center: EUROPE_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     }
     function recenterWorld(opts = { animate: true }) {
-      // >>>> mets ici les mêmes valeurs que ton bouton "Recentrer monde"
       const target = {
-        center: [0, 20], // <— centre de ta vue "Recentrer monde"
-        zoom: 1.4,       // <— zoom de ta vue "Recentrer monde"
+        center: WORLD_CENTER,
+        zoom:   ARRIVAL_ZOOM, // ← même zoom que l’arrivée
         bearing: 0,
-        pitch: 0
+        pitch:   0
       };
-    
       if (opts && opts.animate === false) {
-        map.jumpTo(target); // instantané (aucune animation)
+        map.jumpTo(target);
       } else {
         map.easeTo({ ...target, duration: 800 });
       }
