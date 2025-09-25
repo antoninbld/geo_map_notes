@@ -1099,14 +1099,7 @@
       CURRENT_PROJECTION = 'globe';
       applyProjection();
       ensureTerrain?.();
-      if (typeof recenterWorld === 'function') {
-        recenterWorld();
-      } else {
-        map.easeTo({ center: [0, 20], zoom: 1.4, duration: 0 });
-      }
-    
-      ensureLinksLayer();
-      bringClustersToFront();
+      map.jumpTo({ center: WORLD_CENTER, zoom: WORLD_ZOOM, bearing: 0, pitch: 0 });
 
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
@@ -1458,15 +1451,6 @@
         applyProjection();
         ensureTerrain();
         updateRotateButtonVisibility(); // ← affiche/masque le bouton rotation
-    
-        if (CURRENT_PROJECTION === 'globe' && map.getZoom() < 4) {
-          map.easeTo({
-            pitch: 75,
-            bearing: 120,
-            duration: 7000, // 7 s
-            easing: t => 1 - Math.cos((t * Math.PI)/2) // ease-out doux
-          });
-        }
       });
     });
       
