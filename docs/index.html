@@ -810,6 +810,7 @@
     const EUROPE_CENTER  = [10, 50];
     const WORLD_CENTER   = [0, 20];   // Atlantique, vue équilibrée
     const WORLD_ZOOM     = 2.2;       // zoom faible = vue globale
+    const ARRIVAL_ZOOM = WORLD_ZOOM + 2;
 
     // Carte
     const map = new maplibregl.Map({
@@ -1008,6 +1009,7 @@
       if (!f || !f.properties || f.properties.id == null) return;
     
       const id = f.properties.id;
+      const coords = (f.geometry && f.geometry.coordinates) || null;
     
       // 1) retirer l’état de l’ancien sélectionné
       if (__selectedId != null) {
@@ -1018,8 +1020,25 @@
       try { map.setFeatureState({ source: 'notes', id }, { selected: true }); } catch {}
       __selectedId = id;
     
-      // 3) logique existante d’ouverture du panneau
+      // 3) ouvrir le panneau (ton code existant)
       openSummaryInPanel(id);
+    
+      // 4) Décaler la carte vers la gauche + zoom d’arrivée centré sur le marqueur
+      //    On réserve de la place côté droit = largeur panneau + marge droite
+      try {
+        const pw = parseInt((UI_CONFIG.panel && UI_CONFIG.panel.width) || '400', 10);      // ex: "400px" -> 400
+        const pr = parseInt((UI_CONFIG.panel && UI_CONFIG.panel.marginRight) || '10', 10); // ex: "10px"  -> 10
+        const rightPad = pw + pr + 10; // petit buffer
+    
+        if (coords && Array.isArray(coords)) {
+          map.easeTo({
+            center: coords,
+            zoom: ARRIVAL_ZOOM,                            // ← zoom d’arrivée défini plus haut
+            padding: { top: 20, left: 20, bottom: 20, right: rightPad }, // ← décale la vue à gauche
+            duration: 600
+          });
+        }
+      } catch {}
     }
 
     
@@ -1126,7 +1145,7 @@
       ensureTerrain?.();
       // Arrivée normalisée sur la vue "Recentrer monde", sans animation
       recenterWorld({ animate: false });
-      map.setZoom(map.getZoom() + 1); // ← rapprocher de 2 crans, instantanément
+      map.setZoom(ARRIVAL_ZOOM);
 
       if (window.__lastLinksState) {
         drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
@@ -1739,10 +1758,21 @@
         getOutgoingLinks(id).then(lnk => {
           drawLinksFrom(id, lnk);
           window.__lastLinksState = { id, links: lnk };
-          const b = new maplibregl.LngLatBounds();
-          const from = idToItem.get(id); if (from) b.extend([from.lon, from.lat]);
-          lnk.forEach(L => { const t = idToItem.get(L); if (t) b.extend([t.lon, t.lat]); });
-          if (!b.isEmpty()) map.fitBounds(b, { padding: 80, duration: 650 });
+        
+          // Recentrer comme au clic sur un marqueur : zoom d'arrivée + décalage à gauche
+          const from = idToItem.get(id);
+          if (from && typeof from.lon === 'number' && typeof from.lat === 'number') {
+            const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);       // largeur panneau
+            const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);  // marge droite panneau
+            const rightPad = pw + pr + 10; // petit buffer
+        
+            map.easeTo({
+              center: [from.lon, from.lat],
+              zoom: ARRIVAL_ZOOM, // ← même zoom que l'arrivée (WORLD_ZOOM + 2)
+              padding: { top: 20, left: 20, bottom: 20, right: rightPad },
+              duration: 600
+            });
+          }
         });
       });
     });
