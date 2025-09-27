@@ -1730,10 +1730,15 @@
           if (res.ok) {
             const md = await res.text();
             const { meta } = parseAndStripFrontMatter(md);
-            const ents = Array.isArray(meta.entities) ? meta.entities : [];
-            ents.forEach(eid => {
-              if (!EVENTS_BY_ENTITY.has(eid)) EVENTS_BY_ENTITY.set(eid, new Set());
-              EVENTS_BY_ENTITY.get(eid).add(it.id);
+    
+            // 🚧 Normalisation des entités du front-matter -> IDs "ent-..."
+            let ents = Array.isArray(meta.entities) ? meta.entities : [];
+            ents = ents.map(e => normalizeEntityLabelToId(e)).filter(Boolean);
+    
+            // Indexation: entId -> Set<eventId>
+            ents.forEach(entId => {
+              if (!EVENTS_BY_ENTITY.has(entId)) EVENTS_BY_ENTITY.set(entId, new Set());
+              EVENTS_BY_ENTITY.get(entId).add(it.id);
             });
           }
         } catch {}
