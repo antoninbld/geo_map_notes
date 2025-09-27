@@ -1,16 +1,8 @@
 ---
-id: 
 title: L'affaire Conrad Kilian
-date: 
-location:
-  name: Fezzan, Lybie
-  lat: 26.332778
-  lon: 13.425278
-tags: []
+date:
+entities: [France, CIA, Conrad Kilian]
 sources:
-  - title: 
-    url: 
-links: [ ]
 ---
 
 ## Résumé
