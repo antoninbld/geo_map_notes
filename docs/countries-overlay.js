@@ -1,41 +1,34 @@
 // countries-overlay.js
-// Overlay GeoJSON local pour afficher la vraie géométrie d’un pays via son ISO3.
-
+// Overlay GeoJSON local pour afficher la géométrie réelle d’un pays via son ISO3
 (function () {
   let mapRef = null;
-  let ready = false;
+  let isReady = false;
 
-  // Ids de la source et des couches
-  const SRC_ID = "co-src";
-  const FILL_ID = "co-fill";
-  const OUTLINE_ID = "co-outline";
+  // Harmonisation avec le HTML (ids utilisés par bringCountryOverlayToFront)
+  const SRC_ID = "country-overlay-src";
+  const FILL_ID = "country-overlay-fill";
+  const OUTLINE_ID = "country-overlay-outline";
 
-  // Petite table de correspondance optionnelle (si tu utilises parfois des codes ISO2)
-  const ISO2_TO_ISO3 = {
-    FR: "FRA", GB: "GBR", US: "USA", DE: "DEU", IT: "ITA", ES: "ESP",
-    RU: "RUS", EG: "EGY", IL: "ISR" // complète si besoin
-  };
-
-  function toISO3(code) {
+  // table ISO2 -> ISO3 (complète si besoin)
+  const ISO2_TO_ISO3 = { FR:"FRA", GB:"GBR", US:"USA", DE:"DEU", IT:"ITA", ES:"ESP", RU:"RUS", EG:"EGY", IL:"ISR" };
+  const toISO3 = (code) => {
     if (!code) return null;
     const c = String(code).trim().toUpperCase();
-    return c.length === 2 ? (ISO2_TO_ISO3[c] || null) : c;
-  }
+    return c.startsWith("ent-country-")
+      ? c.replace(/^ent-country-/, "").toUpperCase() // ent-country-FRA -> FRA (si tu encodes déjà ISO3)
+      : (c.length === 2 ? (ISO2_TO_ISO3[c] || null) : c);
+  };
 
   async function ensureLoaded(map) {
-    if (ready && mapRef === map) return true;
+    if (isReady && mapRef === map) return true;
     mapRef = map;
 
-    // Ajoute la source GeoJSON locale
+    // IMPORTANT : adapte ce chemin à ton déploiement (idéalement "data/countries.geojson")
+    // Le fichier doit contenir un champ propriété "ADM0_A3" (Natural Earth)
     if (!map.getSource(SRC_ID)) {
-      map.addSource(SRC_ID, {
-        type: "geojson",
-        // IMPORTANT : ton fichier est dans /data/countries.geojson
-        data: "data/countries.geojson"
-      });
+      map.addSource(SRC_ID, { type: "geojson", data: "data/countries.geojson" });
     }
 
-    // Calque de remplissage (caché par défaut)
     if (!map.getLayer(FILL_ID)) {
       map.addLayer({
         id: FILL_ID,
@@ -43,14 +36,9 @@
         source: SRC_ID,
         filter: ["==", ["get", "ADM0_A3"], "__NONE__"],
         layout: { visibility: "none" },
-        paint: {
-          "fill-color": "#60a5fa",
-          "fill-opacity": 0.25
-        }
+        paint: { "fill-color": "#60a5fa", "fill-opacity": 0.25 }
       });
     }
-
-    // Calque de contour
     if (!map.getLayer(OUTLINE_ID)) {
       map.addLayer({
         id: OUTLINE_ID,
@@ -58,49 +46,78 @@
         source: SRC_ID,
         filter: ["==", ["get", "ADM0_A3"], "__NONE__"],
         layout: { visibility: "none" },
-        paint: {
-          "line-color": "#3b82f6",
-          "line-width": 1.5
-        }
+        paint: { "line-color": "#3b82f6", "line-width": 1.5 }
       });
     }
 
-    // Option : remonter au-dessus des traits/liens si tu en as
-    try {
-      map.moveLayer(FILL_ID);
-      map.moveLayer(OUTLINE_ID);
-    } catch (_) {}
-
-    ready = true;
+    try { map.moveLayer(FILL_ID); map.moveLayer(OUTLINE_ID); } catch {}
+    isReady = true;
     return true;
   }
 
-  function show(iso) {
-    if (!mapRef) return;
-    const iso3 = toISO3(iso);
-    if (!iso3) return;
+  // Renvoie { center:[lon,lat], bounds:[[minX,minY],[maxX,maxY]] } pour aider au centrage
+  function show(map, isoLike) {
+    if (!mapRef) mapRef = map;
+    const iso3 = toISO3(isoLike);
+    if (!iso3) return null;
 
     try {
       mapRef.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], iso3]);
       mapRef.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], iso3]);
       mapRef.setLayoutProperty(FILL_ID, "visibility", "visible");
       mapRef.setLayoutProperty(OUTLINE_ID, "visibility", "visible");
-    } catch (_) {}
+    } catch {}
+
+    // Tente d’extraire bbox + centroïde depuis la source pour renvoyer à l’appelant
+    try {
+      const src = mapRef.getSource(SRC_ID);
+      const data = src?._data || src?.serialize?.().data; // maplibre n’expose pas toujours les features
+      // Si pas accessible, renvoie juste null (le fit sera géré autrement)
+      if (!data || !data.features) return null;
+
+      const feat = data.features.find(f => f?.properties?.ADM0_A3 === iso3);
+      if (!feat) return null;
+
+      // bbox "maison"
+      const coords = (feat.geometry.type === "MultiPolygon")
+        ? feat.geometry.coordinates.flat(2)
+        : (feat.geometry.type === "Polygon"
+            ? feat.geometry.coordinates.flat()
+            : null);
+
+      if (!coords || !coords.length) return null;
+
+      let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
+      for (const [x,y] of coords) {
+        if (x<minX) minX=x; if (x>maxX) maxX=x;
+        if (y<minY) minY=y; if (y>maxY) maxY=y;
+      }
+      const center=[(minX+maxX)/2, (minY+maxY)/2];
+      const bounds=[[minX,minY],[maxX,maxY]];
+
+      return { center, bounds };
+    } catch { return null; }
   }
 
-  function hide() {
-    if (!mapRef) return;
+  function hide(map) {
+    if (!mapRef) mapRef = map;
     try {
       mapRef.setLayoutProperty(FILL_ID, "visibility", "none");
       mapRef.setLayoutProperty(OUTLINE_ID, "visibility", "none");
       mapRef.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
       mapRef.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
-    } catch (_) {}
+    } catch {}
   }
 
-  // API publique
-  window.initCountryOverlay = async function initCountryOverlay(map) {
-    await ensureLoaded(map);
-    return { show, hide };
+  function bringToFront() {
+    try { mapRef?.moveLayer(FILL_ID); mapRef?.moveLayer(OUTLINE_ID); } catch {}
+  }
+
+  // Expose une API qui colle à ton HTML
+  window.CountryOverlay = {
+    init: ensureLoaded, // optionnel : tu peux appeler init au chargement
+    show: async (map, isoLike) => { await ensureLoaded(map); return show(map, isoLike); },
+    hide: (map) => hide(map),
+    bringToFront
   };
 })();
