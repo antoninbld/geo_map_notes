@@ -1,7 +1,8 @@
 ---
-id: ent-margaret-thatcher 
+id: ent-person-margaret-thatcher 
 title: Margaret Thatcher 
 type: entity
+entityClass: person
 aliases: [Dame de fer, Thatcher, Margaret]
 summary:
 ---
