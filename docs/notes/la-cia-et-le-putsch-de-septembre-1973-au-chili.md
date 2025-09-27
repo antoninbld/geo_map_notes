@@ -1,15 +1,8 @@
 ---
-id: 
 title: La CIA et le putsch de septembre 1973 au Chili
 date: 11/09/1973
-location:
-  name: Santiago, Chili
-  lat: -33.442410
-  lon: -70.653940
-tags: [ ]
+entities: [USA, Chili, CIA, Richard Richard Nixon, Henry Kissinger, Augusto Pinochet, Salvador Allende]
 sources:
-  - title: 
-    url: 
 links:
 Voir aussi : [[la-mort-du-che|La mort du Che]]
 ---
