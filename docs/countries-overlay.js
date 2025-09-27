@@ -4,19 +4,20 @@
 
   const SRC_ID="country-overlay-src";
   const FILL_ID="country-overlay-fill";
-  // Centres manuels pour certains pays (lon, lat)
-  // Ajuste si tu veux un autre point de référence.
-  const COUNTRY_ORIGIN_OVERRIDES = new Map([
-    ["RUS", [56.84309, 60.6454]],  // Iekaterinbourg
-    ["USA", [41.13474, -104.82119]], // Cheyenne
-    ["CAN", [53.54616, -113.49373]], // Edmonton
-    ["AUS", [-23.69804, 133.88074]], // Alice Springs
-    ["IDN", [117.285, -2.5489]],
-    ["CHL", [-33.44888, -70.66926]], // Santiago
-    ["GRL", [-41.0, 74.0]],
-    ["NOR", [15.47, 64.5]]
-  ]);
   const OUTLINE_ID="country-overlay-outline";
+
+  // Centres manuels pour certains pays (lon, lat) — IMPORTANT: ordre [lon, lat]
+  const COUNTRY_ORIGIN_OVERRIDES = new Map([
+    ["RUS", [60.64540, 56.84309]],   // Iekaterinbourg (lon, lat)
+    ["USA", [-104.82119, 41.13474]], // Cheyenne (lon, lat)
+    ["CAN", [-113.49373, 53.54616]], // Edmonton
+    ["AUS", [133.88074, -23.69804]], // Alice Springs
+    ["IDN", [117.28500, -2.54890]],
+    ["CHL", [-70.66926, -33.44888]], // Santiago
+    ["GRL", [-41.00000, 74.00000]],
+    ["NOR", [15.47000, 64.50000]]
+  ]);
+
   const DATA_URL="data/countries.geojson"; // <-- adapte si nécessaire
 
   // Index mémoire
@@ -112,14 +113,14 @@
 
   function computeGeometryInfo(feat){
     if(!feat || !feat.geometry) return null;
-  
+
     // 1) Turf: centerOfMass + bbox (gère MultiPolygons et antiméridien)
     try{
       if(typeof turf !== "undefined" && turf){
         const bb = turf.bbox(feat);
-        let c  = turf.centerOfMass(feat);                 // centre pondéré par la surface
+        let c  = turf.centerOfMass(feat); // centre pondéré par la surface
         if(!c?.geometry?.coordinates){
-          c = turf.pointOnFeature(feat);                  // point garanti sur la géométrie
+          c = turf.pointOnFeature(feat);  // point garanti sur la géométrie
         }
         return {
           bounds: [[bb[0],bb[1]],[bb[2],bb[3]]],
@@ -129,14 +130,14 @@
     }catch(e){
       console.warn("[CountryOverlay] turf.centerOfMass/pointOnFeature error:", e);
     }
-  
+
     // 2) Fallback manuel (moins précis)
     const g=feat.geometry;
     const flat = g.type==="MultiPolygon" ? g.coordinates.flat(2)
                : g.type==="Polygon"      ? g.coordinates.flat()
                : null;
     if(!flat||!flat.length) return null;
-  
+
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     for(const [x,y] of flat){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
     return { center:[(minX+maxX)/2,(minY+maxY)/2], bounds:[[minX,minY],[maxX,maxY]] };
@@ -154,11 +155,11 @@
     await ensureLoaded(map);
     const iso3 = resolveIso3(entLike);
     if(!iso3) return null;
-  
+
     // Info géométrique depuis l’index mémoire
     const feat = getFeatureByIso3(iso3);
     const info = computeGeometryInfo(feat) || {};
-  
+
     // Override manuel si défini
     let origin = info.center || null;
     if (COUNTRY_ORIGIN_OVERRIDES.has(iso3)) {
@@ -174,7 +175,7 @@
       console.debug("[CountryOverlay] Pays introuvable pour:", entLike);
       return null;
     }
-  
+
     // Applique l’overlay (fill/outline)
     try{
       const prop=["coalesce",
@@ -187,7 +188,7 @@
     }catch(e){
       console.warn("[CountryOverlay] setFilter/visibility a échoué:", e);
     }
-  
+
     // Utilise le helper pour récupérer un centre pertinent + bounds
     const info = await getOriginForCountry(map, iso3);
     return info ? { center: info.origin, bounds: info.bounds } : null;
@@ -210,7 +211,7 @@
     init: async (map)=>{ await ensureLoaded(map); },
     show: async (map, entLike)=>show(map, entLike),
     hide: (map)=>hide(map),
-    bringToFront
+    bringToFront, // ← VIRGULE ICI (était manquante)
     getOriginForCountry: async (map, entLike) => getOriginForCountry(map, entLike),
   };
 })();
