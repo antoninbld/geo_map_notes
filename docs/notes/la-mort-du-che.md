@@ -1,15 +1,8 @@
 ---
-id: 
 title: La mort du Che
 date: 09/10/1967
-location:
-  name: La Higuera, Bolivie
-  lat: -18.79476
-  lon: -64.20143
-tags: [ ]
+entities: [Cuba, USA, CIA, Che Guevara, Fidel Castro]
 sources:
-  - title: 
-    url: 
 links: [[la-cia-et-le-putsch-de-septembre-1973-au-chili|Putsch au Chili (1973)]]
 Voir aussi : [[l'attentat-contre-anouar-al-sadate|Attentat contre Sadate]]
 
