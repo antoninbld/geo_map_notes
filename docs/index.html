@@ -360,8 +360,8 @@
       // centre/zoom automatique (override -> easeTo, sinon fitBounds pays)
       try{
         await CountryOverlay.focus(map, entId, {
-          zoom: 4.5,
-          duration: 700,
+          zoom: 3,
+          duration: 200,
           rightPanelPx: parseInt((UI_CONFIG?.panel?.width ?? 400), 10),
           marginRight: parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10)
         });
