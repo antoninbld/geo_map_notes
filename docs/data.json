@@ -128,5 +128,35 @@
     "recap": "Le 13 janvier 1991, les troupes spéciales soviétiques interviennent à Vilnius pour reprendre la tour de télévision tenue par des indépendantistes lituaniens. L’assaut cause 14 morts et des centaines de blessés. Cet épisode, symbole de la répression et de l’impuissance croissante de Moscou face aux velléités d’indépendance, marque l’un des tournants décisifs de l’effondrement de l’URSS qui culminera en décembre de la même année.",
     "tags": [""],
     "noteUrl": "note.html?id=la-fin-de-gorbatchev-et-de-l-urss"
+  },
+  {
+    "id": "décembre-1979-l-Afghanistan-est-envahi-par-l-urss",
+    "title": "Décembre 1979, l'Afghanistan est envahi par l'URSS",
+    "lat": 34.55954,
+    "lon": 69.17821,
+    "locationName": "Kaboul, Afghanistan",
+    "recap": "En décembre 1979, l’Union soviétique décide d’intervenir militairement en Afghanistan pour soutenir un régime communiste vacillant. Le 24 décembre, des milliers de soldats franchissent la frontière. Trois jours plus tard, un commando des forces spéciales exécute le président afghan Hafizullah Amin dans son palais de Kaboul. Cette guerre, qui durera dix ans et mobilisera plus de 600 000 soldats soviétiques au total, s’avère être un désastre militaire, politique et économique pour Moscou. Qualifiée de « Vietnam de l’URSS », elle contribue à affaiblir le régime soviétique et prépare indirectement sa chute moins d’une décennie plus tard.",
+    "tags": [""],
+    "noteUrl": "note.html?id="
+  },
+  {
+    "id": "l-invasion-du-timor-oriental",
+    "title": "L'invasion du Timor oriental",
+    "lat": -8.5569,
+    "lon": 125.5603,
+    "locationName": "Dili, Timor oriental",
+    "recap": "Le 7 décembre 1975, l’armée indonésienne envahit le Timor oriental, ancienne colonie portugaise qui venait de proclamer son indépendance. L’opération, menée avec l’aval tacite des États-Unis et de l’Australie, vise à empêcher la formation d’un État indépendant dirigé par le parti Fretilin, jugé trop proche du communisme. L’occupation indonésienne, qui durera jusqu’en 1999, provoque des dizaines de milliers de morts parmi la population civile en raison des combats, de la répression et des famines. Ce conflit long et meurtrier restera l’un des plus sombres épisodes de l’Asie du Sud-Est durant la guerre froide.",
+    "tags": [""],
+    "noteUrl": "note.html?id="
+  },
+  {
+    "id": "en-1954-la-guerre-secrète-franco-américaine-en-indochine",
+    "title": "En 1954, la guerre secrète franco-américaine en Indochine",
+    "lat": 21.3860,
+    "lon": 103.0169,
+    "locationName": "Diên Biên Phu, Viêt Nam",
+    "recap": "En 1954, alors que la guerre d’Indochine oppose la France au Viet Minh, les États-Unis soutiennent discrètement l’effort français par une aide financière et logistique considérable, dans le cadre de la lutte contre le communisme en Asie du Sud-Est. Cette coopération reste toutefois ambiguë : Washington, déjà réticent face à l’enlisement militaire, profite de la défaite française à Diên Biên Phu le 7 mai 1954 pour s’imposer comme acteur clé dans la région. La conférence de Genève, qui suit, scelle la partition du Viêt Nam et prépare l’intervention directe américaine dans les années 1960.",
+    "tags": [""],
+    "noteUrl": "note.html?id="
   }
 ]
