@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <!-- Marked (pour Markdown des notes) -->
-   src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <!-- Overlay pays (géométries réelles) -->
   <script src="countries-overlay.js"></script>
@@ -535,9 +535,35 @@
     ensureLinksLayer();
 
     // Constellation (source/layers)
-    if(!map.getSource('entity-focus')) map.addSource('entity-focus',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-    if(!map.getLayer('entity-focus-links')) map.addLayer({id:'entity-focus-links',type:'line',source:'entity-focus',filter:['==',['get','kind'],'edge'],layout:{visibility:'none'},paint:{'line-width':2,'line-color':'#0ea5e9','line-opacity':0.8,'line-dasharray':[1.5,1.5]}},'clusters');
-
+    if(!map.getSource('entity-focus')){
+      map.addSource('entity-focus',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    }
+    if(!map.getLayer('entity-focus-links')){
+      map.addLayer({
+        id:'entity-focus-links',
+        type:'line',
+        source:'entity-focus',
+        filter:['==',['get','kind'],'edge'],
+        layout:{ visibility:'none' },
+        paint:{ 'line-width':2,'line-color':'#0ea5e9','line-opacity':0.8,'line-dasharray':[1.5,1.5] }
+      }, 'clusters');
+    }
+    // ➊ — AJOUTE CE BLOC :
+    if(!map.getLayer('entity-focus-point')){
+      map.addLayer({
+        id:'entity-focus-point',
+        type:'circle',
+        source:'entity-focus',
+        layout:{ visibility:'none' },
+        paint:{
+          'circle-radius':6,
+          'circle-color':'#0ea5e9',
+          'circle-stroke-width':2,
+          'circle-stroke-color':'#ffffff'
+        }
+      }, 'clusters');
+    }
+    
     // Projection/terrain
     CURRENT_PROJECTION='globe'; applyProjection(); ensureTerrain?.();
 
@@ -552,7 +578,36 @@
     CURRENT_PROJECTION='globe';
     applyProjection(); ensureTerrain?.();
     ensureLinksLayer();
-  
+
+    // Constellation (source/layers) — garantir après style.load aussi
+    if(!map.getSource('entity-focus')){
+      map.addSource('entity-focus',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    }
+    if(!map.getLayer('entity-focus-links')){
+      map.addLayer({
+        id:'entity-focus-links',
+        type:'line',
+        source:'entity-focus',
+        filter:['==',['get','kind'],'edge'],
+        layout:{ visibility:'none' },
+        paint:{ 'line-width':2,'line-color':'#0ea5e9','line-opacity':0.8,'line-dasharray':[1.5,1.5] }
+      }, 'clusters');
+    }
+    if(!map.getLayer('entity-focus-point')){
+      map.addLayer({
+        id:'entity-focus-point',
+        type:'circle',
+        source:'entity-focus',
+        layout:{ visibility:'none' },
+        paint:{
+          'circle-radius':6,
+          'circle-color':'#0ea5e9',
+          'circle-stroke-width':2,
+          'circle-stroke-color':'#ffffff'
+        }
+      }, 'clusters');
+    }
+    
     // Si un pays est déjà en focus, on ré-applique l’overlay
     if (CURRENT_FOCUSED_COUNTRY && window.CountryOverlay){
       await CountryOverlay.show(map, CURRENT_FOCUSED_COUNTRY);
