@@ -1,6 +1,6 @@
 // countries-overlay.js
-// Overlay pays (GeoJSON) + centrage depuis le pays sélectionné.
-// API : window.CountryOverlay.{ init, show, hide, bringToFront, getOriginForCountry, setColors }
+// Overlay pays (GeoJSON) + centrage (centerOfMass + overrides) + focus pratique.
+// API publique : window.CountryOverlay.{ init, show, hide, bringToFront, getOriginForCountry, setColors, focus }
 
 (function () {
   let mapRef = null;
@@ -16,7 +16,7 @@
 
   // Style overlay (modifiable à chaud via setColors)
   let COUNTRY_OVERLAY_STYLE = {
-    fill: "#db6402",      // demandé
+    fill: "#db6402",   // demandé
     fillOpacity: 0.30,
     outline: "#db6402",
     outlineWidth: 1.6
@@ -35,7 +35,7 @@
   ]);
   // ================================================
 
-  // Index mémoire
+  // Index mémoire (pour résolution nom/ISO et calculs)
   let _features = [];
   const iso2ToIso3 = new Map();
   const nameToIso3 = new Map();
@@ -253,12 +253,56 @@
     } catch {}
   }
 
+  // -------- Focus helper (centrage/zoom selon override ou fitBounds pays) --------
+  function computeRightPadding(map, { rightPanelPx = 420, marginRight = 12 } = {}) {
+    const w = map.getContainer().clientWidth || 800;
+    let rightPad = Math.round(rightPanelPx * 1.15) + marginRight + 8;
+    return Math.min(rightPad, Math.max(0, w - 120)); // clamp pour éviter l'erreur "cannot fit"
+  }
+
+  async function focus(map, entLike, {
+    zoom = 5.2,           // zoom utilisé si override (centre défini)
+    duration = 700,
+    curve = 1.42,
+    rightPanelPx = 420,   // largeur de ton panneau latéral (px)
+    marginRight = 12
+  } = {}) {
+    // 1) Afficher l’overlay + récupérer un centre/bounds pertinents
+    const info = await show(map, entLike);
+    if (!info) return;
+
+    // 2) Origin prenant en compte overrides
+    const originInfo = await getOriginForCountry(map, entLike);
+    const hasOverride = !!(originInfo && originInfo.origin && originInfo.iso3 && COUNTRY_ORIGIN_OVERRIDES.has(originInfo.iso3));
+    const origin = originInfo?.origin || info.center || null;
+
+    // 3) Focus
+    if (hasOverride && origin) {
+      map.easeTo({ center: origin, zoom, duration, curve });
+    } else if (info.bounds) {
+      const rightPad = computeRightPadding(map, { rightPanelPx, marginRight });
+      try {
+        map.fitBounds(info.bounds, {
+          padding: { top: 40, left: 40, bottom: 40, right: rightPad },
+          duration,
+          curve
+        });
+      } catch {
+        if (origin) map.easeTo({ center: origin, zoom: Math.max(map.getZoom(), zoom), duration, curve });
+      }
+    } else if (origin) {
+      map.easeTo({ center: origin, zoom, duration, curve });
+    }
+  }
+  // -------------------------------------------------------------------------------
+
   window.CountryOverlay = {
     init: async (map) => { await ensureLoaded(map); },
     show: async (map, entLike) => show(map, entLike),
     hide: (map) => hide(map),
     bringToFront,
     getOriginForCountry: async (map, entLike) => getOriginForCountry(map, entLike),
-    setColors: (opts) => setCountryOverlayColors(opts)
+    setColors: (opts) => setCountryOverlayColors(opts),
+    focus: async (map, entLike, opts) => focus(map, entLike, opts)
   };
 })();
