@@ -1800,6 +1800,30 @@
       }
     }
 
+    // — Normalisation "libellé humain" -> id canonique ent-…
+    // Ajoute ici au fur et à mesure (insensible à la casse et aux accents)
+    const ENTITY_NAME_TO_ID = new Map([
+      ['anouar al sadate', 'ent-person-anouar-al-sadate'],
+      ['sadate', 'ent-person-anouar-al-sadate'],
+    
+      ['egypte', 'ent-country-egypte'],
+      ['israël', 'ent-country-israel'],
+      ['israel', 'ent-country-israel'],
+      ['usa', 'ent-country-usa'],
+      ['urss', 'ent-country-urss'],
+    
+      ['cia', 'ent-org-cia'],
+      ['kgb', 'ent-org-kgb'],
+    ]);
+    
+    function normalizeEntityLabelToId(label){
+      if (!label) return null;
+      if (String(label).startsWith('ent-')) return label; // déjà un id
+      // minuscules + retrait des accents de base
+      const key = String(label).normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
+      return ENTITY_NAME_TO_ID.get(key) || null;
+    }
+    
     async function openNoteInPanel(noteId){
       try{
         const url = resolveNoteURL(noteId);
@@ -1807,8 +1831,14 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const md = await res.text();
         const { meta, body } = parseAndStripFrontMatter(md);
-        if (Array.isArray(meta.entities) && meta.entities.length) {
-          renderEntityChips(meta.entities);
+        // Normalisation des entités : accepter soit des IDs ent-..., soit des libellés "humains"
+        let ents = Array.isArray(meta.entities) ? meta.entities : [];
+        ents = ents
+          .map(e => normalizeEntityLabelToId(e)) // ← mappe "Egypte", "URSS", "CIA", "Anouar al Sadate" -> ent-...
+          .filter(Boolean);
+        
+        if (ents.length) {
+          renderEntityChips(ents);
         } else {
           const box = document.getElementById('npEntities');
           if (box) box.innerHTML = '';
