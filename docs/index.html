@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <!-- Marked (pour Markdown des notes) -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+   src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <!-- Overlay pays (géométries réelles) -->
   <script src="countries-overlay.js"></script>
@@ -175,6 +175,14 @@
     }
   };
 
+  // pays actuellement mis en avant (pour le restaurer après style.load)
+  let CURRENT_FOCUSED_COUNTRY = null;
+  
+  function bringCountryOverlayToFront(){
+    try { if (map.getLayer('country-overlay-outline')) map.moveLayer('country-overlay-outline'); } catch {}
+    try { if (map.getLayer('country-overlay-fill'))    map.moveLayer('country-overlay-fill');    } catch {}
+  }
+
   function setUIStyle(css){ let tag=document.getElementById('ui-overrides'); if(!tag){tag=document.createElement('style');tag.id='ui-overrides';document.head.appendChild(tag);} tag.textContent=css; }
   function applyUIConfig(){
     const P=UI_CONFIG.panel,H=UI_CONFIG.header,C=UI_CONFIG.card,L=UI_CONFIG.links;
@@ -313,68 +321,85 @@
   function clearEntityFocus(){
     setEntityFocusVisibility(false);
     try { map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
-    try {
-      allData.forEach(it => {
-        if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false });
-      });
-    } catch {}
+    try { allData.forEach(it => { if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false }); }); } catch {}
     try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
     try { undimAll(); } catch {}
-    try { CountryOverlay?.hide(map); } catch {}
+  
+    // masque l’overlay pays si présent
+    try { window.CountryOverlay?.hide(map); } catch {}
+    CURRENT_FOCUSED_COUNTRY = null;
   }
   document.getElementById('btnClearEntityFocus')?.addEventListener('click', clearEntityFocus);
 
   // ——— Affiche la constellation & overlay pays via CountryOverlay.show ———
   async function showEntityConstellation(entId){
-    const linked=await ensureEntityIndexFilled(entId);
-    if(!linked||!linked.size){ clearEntityFocus(); return; }
-
-    let origin=null;
-    let overlayInfo=null;
-
-    if(entId.startsWith('ent-country-') && window.CountryOverlay){
-      overlayInfo = await CountryOverlay.show(map, entId); // {center, bounds}
-      if(overlayInfo?.center) origin = overlayInfo.center;
-
-      if(overlayInfo?.bounds){
+    const linked = await ensureEntityIndexFilled(entId);
+    if(!linked || !linked.size){
+      CURRENT_FOCUSED_COUNTRY = null;
+      clearEntityFocus();
+      return;
+    }
+  
+    let origin = null;
+    let overlayInfo = null;
+  
+    // ---- overlay & centrage pays ----
+    if (entId.startsWith('ent-country-') && window.CountryOverlay){
+      overlayInfo = await CountryOverlay.show(map, entId); // { center, bounds }
+      CURRENT_FOCUSED_COUNTRY = entId;
+  
+      // s'assurer que l’overlay passe au dessus
+      bringCountryOverlayToFront();
+  
+      // centrage : d’abord bounds, sinon center (fallback)
+      if (overlayInfo?.bounds){
         const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
         const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
         const rightPad = Math.round(pw * 1.25) + pr + 10;
         map.fitBounds(overlayInfo.bounds, { padding:{ top:40, left:40, bottom:40, right:rightPad }, duration:650 });
+      } else if (overlayInfo?.center){
+        map.easeTo({ center: overlayInfo.center, zoom: Math.max(map.getZoom(), 4.2), duration: 600 });
+      }
+  
+      if (overlayInfo?.center) origin = overlayInfo.center;
+    }
+  
+    // ---- si pas d’overlay ou pas de center, calcule un centre moyen des notes liées ----
+    if(!origin){
+      const pts = Array.from(linked).map(id=>idToItem.get(id)).filter(Boolean);
+      if(pts.length){
+        const sx = pts.reduce((a,p)=>a+p.lon,0), sy = pts.reduce((a,p)=>a+p.lat,0);
+        origin = [sx/pts.length, sy/pts.length];
+      } else {
+        origin = map.getCenter().toArray();
       }
     }
-
-    if(!origin){
-      const pts=Array.from(linked).map(id=>idToItem.get(id)).filter(Boolean);
-      if(pts.length){
-        const sx=pts.reduce((a,p)=>a+p.lon,0), sy=pts.reduce((a,p)=>a+p.lat,0);
-        origin=[sx/pts.length,sy/pts.length];
-      } else origin=map.getCenter().toArray();
-    }
-
+  
+    // ---- constellations de liens ----
     const features=[]; const bounds=new maplibregl.LngLatBounds().extend(origin);
     for(const eid of linked){
       const it=idToItem.get(eid); if(!it) continue;
-      features.push({type:'Feature',geometry:{type:'LineString',coordinates:[origin,[it.lon,it.lat]]},properties:{kind:'edge',entityId:entId,to:eid}});
+      features.push({
+        type:'Feature',
+        geometry:{type:'LineString',coordinates:[origin,[it.lon,it.lat]]},
+        properties:{kind:'edge',entityId:entId,to:eid}
+      });
       bounds.extend([it.lon,it.lat]);
     }
-
+  
     try{
-      const src=map.getSource('entity-focus');
-      if(src && src.setData){ src.setData({ type:'FeatureCollection', features }); }
+      const src = map.getSource('entity-focus');
+      if(src && src.setData) src.setData({ type:'FeatureCollection', features });
       setEntityFocusVisibility(true);
     }catch{}
-
+  
     try{
-      allData.forEach(it => {
-        if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: true });
-      });
-      Array.from(linked).forEach(id => {
-        map.setFeatureState({ source:'notes', id }, { dim: false });
-      });
+      allData.forEach(it=>{ if(it && it.id!=null) map.setFeatureState({source:'notes',id:it.id},{dim:true}); });
+      Array.from(linked).forEach(id=>{ map.setFeatureState({source:'notes',id},{dim:false}); });
     }catch{}
-
-    if(!overlayInfo?.bounds && !bounds.isEmpty()){
+  
+    // si on n’a pas déjà fitBounds sur l’overlay, fit sur la constellation
+    if(!(overlayInfo && overlayInfo.bounds) && !bounds.isEmpty()){
       const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
       const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
       const rightPad = Math.round(pw * 1.25) + pr + 10;
@@ -522,11 +547,20 @@
   });
 
   // Style reload
-  map.on('style.load', ()=>{
+  map.on('style.load', async ()=>{
     CURRENT_PROJECTION='globe';
     applyProjection(); ensureTerrain?.();
     ensureLinksLayer();
-    if(window.__lastLinksState){ drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links); }
+  
+    // Si un pays est déjà en focus, on ré-applique l’overlay
+    if (CURRENT_FOCUSED_COUNTRY && window.CountryOverlay){
+      await CountryOverlay.show(map, CURRENT_FOCUSED_COUNTRY);
+      bringCountryOverlayToFront();
+    }
+  
+    if(window.__lastLinksState){
+      drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
+    }
     updateRotateButtonVisibility();
   });
 
