@@ -1225,53 +1225,6 @@
             
     // 3D + Monde par défaut
     CURRENT_PROJECTION = 'globe';
-
-    // === Overlay pays (type "True Size" light) ============================
-    try {
-      // 1) Source vecteur de limites admin (MapTiler). Si ton tileset diffère, adapte l'URL et le source-layer plus bas.
-      if (!map.getSource('country-tiles')) {
-        map.addSource('country-tiles', {
-          type: 'vector',
-          url: `https://api.maptiler.com/tiles/administrative-boundaries-v2/tiles.json?key=${MAPTILER_KEY}`
-          // Variante possible selon ton compte: administrative-boundaries, boundaries, etc.
-        });
-      }
-    
-      // 2) Remplissage du pays
-      if (!map.getLayer('entity-country-fill')) {
-        map.addLayer({
-          id: 'entity-country-fill',
-          type: 'fill',
-          source: 'country-tiles',
-          // ⚠️ adapte "source-layer" si nécessaire : cherche la couche 'country'/'admin_0' dans ce tileset
-          'source-layer': 'admin_0', // ← ESSAI COURANT. Essaie 'country' ou 'boundaries' si tu as un autre tileset
-          filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'], // rien au départ
-          paint: {
-            'fill-color': '#60a5fa',
-            'fill-opacity': 0.25
-          },
-          layout: { visibility: 'none' }
-        });
-      }
-    
-      // 3) Contour du pays
-      if (!map.getLayer('entity-country-outline')) {
-        map.addLayer({
-          id: 'entity-country-outline',
-          type: 'line',
-          source: 'country-tiles',
-          'source-layer': 'admin_0', // idem remarque ci-dessus
-          filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'],
-          paint: {
-            'line-color': '#3b82f6',
-            'line-width': 1.5
-          },
-          layout: { visibility: 'none' }
-        }, 'cluster-count'); // le placer sous les labels/nombres de clusters
-      }
-    } catch (e) {
-      console.warn('[country overlay] non chargé:', e);
-    }
       
     applyProjection();
     ensureTerrain?.();
@@ -1819,17 +1772,63 @@
         if (map.getLayer('entity-country-fill')) {
           map.setLayoutProperty('entity-country-fill', 'visibility', 'none');
           map.setLayoutProperty('entity-country-outline', 'visibility', 'none');
-          map.setFilter('entity-country-fill', ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
+          map.setFilter('entity-country-fill',    ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
           map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
         }
       } catch {}
-    }
 
     // — bouton "Afficher tout" : sort du focus entité
     document.getElementById('btnClearEntityFocus')?.addEventListener('click', () => {
       clearEntityFocus();
     });
 
+    let COUNTRY_OVERLAY_READY = false;
+    
+    function ensureCountryOverlay() {
+      if (COUNTRY_OVERLAY_READY) return true;
+      try {
+        // 1) Source vector – adapte l’URL si tu utilises un autre tileset
+        if (!map.getSource('country-tiles')) {
+          map.addSource('country-tiles', {
+            type: 'vector',
+            url: `https://api.maptiler.com/tiles/administrative-boundaries-v2/tiles.json?key=${MAPTILER_KEY}`
+          });
+        }
+    
+        // 2) Fill
+        if (!map.getLayer('entity-country-fill')) {
+          map.addLayer({
+            id: 'entity-country-fill',
+            type: 'fill',
+            source: 'country-tiles',
+            'source-layer': 'admin_0',                 // <-- à adapter si besoin
+            filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'],
+            paint: { 'fill-color': '#60a5fa', 'fill-opacity': 0.25 },
+            layout: { visibility: 'none' }
+          });
+        }
+    
+        // 3) Outline
+        if (!map.getLayer('entity-country-outline')) {
+          map.addLayer({
+            id: 'entity-country-outline',
+            type: 'line',
+            source: 'country-tiles',
+            'source-layer': 'admin_0',                 // <-- à adapter si besoin
+            filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'],
+            paint: { 'line-color': '#3b82f6', 'line-width': 1.5 },
+            layout: { visibility: 'none' }
+          }, 'cluster-count');
+        }
+    
+        COUNTRY_OVERLAY_READY = true;
+        return true;
+      } catch (e) {
+        console.warn('[country overlay] indisponible:', e);
+        return false;
+      }
+    }
+    
     async function showEntityConstellation(entId){
       // 1) Récupère la liste d'événements liés (fonction que tu as déjà)
       const linked = await ensureEntityIndexFilled(entId); // Set<eventId>
@@ -1839,22 +1838,22 @@
     
       // Si entité pays : on tente l’overlay + centre pays
       const isCountry = entId.startsWith('ent-country-');
-      if (isCountry && COUNTRY_META[entId]) {
-        origin = COUNTRY_META[entId].center;
-    
-        // Active/filtre l’overlay pays si possible
-        const iso3 = COUNTRY_META[entId].iso3;
-        if (iso3 && map.getLayer('entity-country-fill')) {
-          try {
-            map.setFilter('entity-country-fill', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
-            map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
-            map.setLayoutProperty('entity-country-fill', 'visibility', 'visible');
-            map.setLayoutProperty('entity-country-outline', 'visibility', 'visible');
-          } catch(e) {
-            console.warn('[country overlay] filtre impossible:', e);
+        if (isCountry && COUNTRY_META[entId]) {
+          origin = COUNTRY_META[entId].center;
+        
+          // Activer l’overlay si disponible (sinon on continue sans)
+          const iso3 = COUNTRY_META[entId].iso3;
+          if (iso3 && ensureCountryOverlay()) {
+            try {
+              map.setFilter('entity-country-fill',    ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+              map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+              map.setLayoutProperty('entity-country-fill', 'visibility', 'visible');
+              map.setLayoutProperty('entity-country-outline', 'visibility', 'visible');
+            } catch (e) {
+              console.warn('[country overlay] filtre impossible:', e);
+            }
           }
         }
-      }
     
       // Fallback si pas un pays (ou pas de meta/overlay) : ton origine actuelle
       if (!origin) {
