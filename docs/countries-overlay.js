@@ -99,23 +99,36 @@
   }
 
   function computeBboxAndCenter(feat){
-    if(!feat||!feat.geometry) return null;
-    // Si Turf est dispo (tu l’as dans ton HTML), utilise bbox/centroid pour gérer l’antiméridien (Russie, etc.)
+    if(!feat || !feat.geometry) return null;
+  
+    // 1) Utiliser turf.centerOfMass (plus pertinent pour les grands pays / MultiPolygons)
     try{
-      if(typeof turf!=="undefined" && turf){
+      if(typeof turf !== "undefined" && turf){
         const bb = turf.bbox(feat);
-        const c  = turf.center(feat);
-        return { bounds:[[bb[0],bb[1]],[bb[2],bb[3]]], center:c?.geometry?.coordinates||null };
+        const cm = turf.centerOfMass(feat); // <-- différence ici
+        return {
+          bounds: [[bb[0], bb[1]], [bb[2], bb[3]]],
+          center: cm?.geometry?.coordinates || null
+        };
       }
-    }catch(_){}
-    // Fallback maison
+    }catch(e){
+      console.warn("[CountryOverlay] turf.centerOfMass/bbox error:", e);
+    }
+  
+    // 2) Fallback si Turf indisponible
     const g=feat.geometry;
     const flat = g.type==="MultiPolygon" ? g.coordinates.flat(2)
                : g.type==="Polygon" ? g.coordinates.flat()
                : null;
     if(!flat||!flat.length) return null;
-    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-    for(const [x,y] of flat){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const [x,y] of flat){
+      if(x<minX)minX=x;
+      if(x>maxX)maxX=x;
+      if(y<minY)minY=y;
+      if(y>maxY)maxY=y;
+    }
     return { center:[(minX+maxX)/2,(minY+maxY)/2], bounds:[[minX,minY],[maxX,maxY]] };
   }
 
