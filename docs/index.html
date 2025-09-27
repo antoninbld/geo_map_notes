@@ -333,6 +333,7 @@
 
   // ——— Affiche la constellation & overlay pays via CountryOverlay.show ———
   async function showEntityConstellation(entId){
+    // 1) Construire l’ensemble des éléments liés
     const linked = await ensureEntityIndexFilled(entId);
     if(!linked || !linked.size){
       CURRENT_FOCUSED_COUNTRY = null;
@@ -340,31 +341,48 @@
       return;
     }
   
-    let origin = null;
-    let overlayInfo = null;
-  
-    // ---- overlay & centrage pays ----
-    if (entId.startsWith('ent-country-') && window.CountryOverlay){
-      overlayInfo = await CountryOverlay.show(map, entId); // { center, bounds }
-      CURRENT_FOCUSED_COUNTRY = entId;
-  
-      // s'assurer que l’overlay passe au dessus
-      bringCountryOverlayToFront();
-  
-      // centrage : d’abord bounds, sinon center (fallback)
-      if (overlayInfo?.bounds){
-        const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
-        const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
-        const rightPad = Math.round(pw * 1.25) + pr + 10;
-        map.fitBounds(overlayInfo.bounds, { padding:{ top:40, left:40, bottom:40, right:rightPad }, duration:650 });
-      } else if (overlayInfo?.center){
-        map.easeTo({ center: overlayInfo.center, zoom: Math.max(map.getZoom(), 4.2), duration: 600 });
-      }
-  
-      if (overlayInfo?.center) origin = overlayInfo.center;
+    // petit helper padding droit (panneau latéral)
+    function computeRightPad(){
+      const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+      const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
+      const w  = map.getContainer().clientWidth || 800;
+      let rightPad = Math.round(pw * 1.25) + pr + 10;
+      return Math.min(rightPad, Math.max(0, w - 120)); // clamp pour éviter l’erreur "cannot fit"
     }
   
-    // ---- si pas d’overlay ou pas de center, calcule un centre moyen des notes liées ----
+    let origin = null;
+    let overlayDidFrame = false; // vrai si l’overlay a déjà cadré la vue
+  
+    // 2) Si c’est un pays : afficher overlay + focus (centre override si dispo, sinon fitBounds pays)
+    if (entId.startsWith('ent-country-') && window.CountryOverlay){
+      CURRENT_FOCUSED_COUNTRY = entId;
+  
+      // centre/zoom automatique (override -> easeTo, sinon fitBounds pays)
+      try{
+        await CountryOverlay.focus(map, entId, {
+          zoom: 5.2,
+          duration: 700,
+          rightPanelPx: parseInt((UI_CONFIG?.panel?.width ?? 400), 10),
+          marginRight: parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10)
+        });
+        overlayDidFrame = true;
+      }catch{}
+  
+      // s’assurer que l’overlay passe au-dessus
+      try { CountryOverlay.bringToFront(); } catch {}
+  
+      // récupérer un centre pertinent (override > centerOfMass > fallback)
+      try{
+        const originInfo = await CountryOverlay.getOriginForCountry(map, entId);
+        if (originInfo?.origin) origin = originInfo.origin;
+      }catch{}
+    } else {
+      // si on clique autre chose qu'un pays, on désactive l'overlay courant
+      CURRENT_FOCUSED_COUNTRY = null;
+      try { if (window.CountryOverlay) CountryOverlay.hide(map); } catch {}
+    }
+  
+    // 3) Si pas d’origin encore (pas un pays ou pays sans centre), moyenne des notes liées
     if(!origin){
       const pts = Array.from(linked).map(id=>idToItem.get(id)).filter(Boolean);
       if(pts.length){
@@ -375,8 +393,9 @@
       }
     }
   
-    // ---- constellations de liens ----
-    const features=[]; const bounds=new maplibregl.LngLatBounds().extend(origin);
+    // 4) Construire la constellation (lignes depuis origin -> chaque note liée)
+    const features=[]; 
+    const bounds=new maplibregl.LngLatBounds().extend(origin);
     for(const eid of linked){
       const it=idToItem.get(eid); if(!it) continue;
       features.push({
@@ -387,23 +406,27 @@
       bounds.extend([it.lon,it.lat]);
     }
   
+    // 5) Pousser la constellation dans la source + rendre visible
     try{
       const src = map.getSource('entity-focus');
       if(src && src.setData) src.setData({ type:'FeatureCollection', features });
-      setEntityFocusVisibility(true);
+      setEntityFocusVisibility(true); // doit rendre visibles 'entity-focus-links' et 'entity-focus-point'
     }catch{}
   
+    // 6) Dim toutes les notes sauf celles liées
     try{
       allData.forEach(it=>{ if(it && it.id!=null) map.setFeatureState({source:'notes',id:it.id},{dim:true}); });
       Array.from(linked).forEach(id=>{ map.setFeatureState({source:'notes',id},{dim:false}); });
     }catch{}
   
-    // si on n’a pas déjà fitBounds sur l’overlay, fit sur la constellation
-    if(!(overlayInfo && overlayInfo.bounds) && !bounds.isEmpty()){
-      const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
-      const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
-      const rightPad = Math.round(pw * 1.25) + pr + 10;
-      map.fitBounds(bounds, { padding:{ top:40, left:40, bottom:40, right:rightPad }, duration:650 });
+    // 7) Si l’overlay n’a pas cadré la vue (cas non-pays ou pays sans fit), fit sur la constellation
+    if(!overlayDidFrame && !bounds.isEmpty()){
+      try{
+        map.fitBounds(bounds, { padding:{ top:40, left:40, bottom:40, right: computeRightPad() }, duration:650 });
+      }catch{
+        // fallback: centre simple
+        map.easeTo({ center: origin, zoom: Math.max(map.getZoom(), 4.2), duration: 600 });
+      }
     }
   }
 
@@ -575,6 +598,7 @@
 
   // Style reload
   map.on('style.load', async ()=>{
+    await CountryOverlay.init(map);
     CURRENT_PROJECTION='globe';
     applyProjection(); ensureTerrain?.();
     ensureLinksLayer();
