@@ -515,6 +515,7 @@
 
   // ========= CHARGEMENT CARTE =========
   map.on('load', async ()=>{
+    await CountryOverlay.init(map); 
     await loadDataFromJSON();
 
     // Source clusterisée
