@@ -1,12 +1,7 @@
 ---
-id: 
 title: L'attentat contre Anouar al Sadate
 date: 06/10/1981
-location:
-  name: Le Caire, Egypte
-  lat: 30.064167
-  lon: 31.314722
-tags: [ ]
+Entities: [Anouar al Sadate, Egypte, Israël, USA, URSS]
 sources:
   - title: 
     url: 
