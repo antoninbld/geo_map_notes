@@ -1830,72 +1830,89 @@
     }
     
     async function showEntityConstellation(entId){
-      // 1) Récupère la liste d'événements liés (fonction que tu as déjà)
-      const linked = await ensureEntityIndexFilled(entId); // Set<eventId>
-    
-      // 2) Point d'origine des traits
-      let origin = null;
-    
-      // Si entité pays : on tente l’overlay + centre pays
-      const isCountry = entId.startsWith('ent-country-');
-        if (isCountry && COUNTRY_META[entId]) {
-          origin = COUNTRY_META[entId].center;
-        
-          // Activer l’overlay si disponible (sinon on continue sans)
-          const iso3 = COUNTRY_META[entId].iso3;
-          if (iso3 && ensureCountryOverlay()) {
-            try {
-              map.setFilter('entity-country-fill',    ['==', ['get','iso_3166_1_alpha_3'], iso3]);
-              map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
-              map.setLayoutProperty('entity-country-fill', 'visibility', 'visible');
-              map.setLayoutProperty('entity-country-outline', 'visibility', 'visible');
-            } catch (e) {
-              console.warn('[country overlay] filtre impossible:', e);
-            }
-          }
+    // 1) Récupère la liste d'événements liés
+    const linked = await ensureEntityIndexFilled(entId); // Set<eventId>
+    if (!linked || !linked.size) {
+      clearEntityFocus();
+      return;
+    }
+  
+    // 2) Point d'origine des traits
+    let origin = null;
+  
+    // Si entité "pays" : on tente l’overlay + centre pays
+    const isCountry = entId.startsWith('ent-country-');
+    if (isCountry && COUNTRY_META[entId]) {
+      origin = COUNTRY_META[entId].center;
+  
+      // Activer l’overlay pays si possible
+      const iso3 = COUNTRY_META[entId].iso3;
+      try {
+        if (iso3 && ensureCountryOverlay()) {
+          map.setFilter('entity-country-fill',    ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+          map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+          map.setLayoutProperty('entity-country-fill', 'visibility', 'visible');
+          map.setLayoutProperty('entity-country-outline', 'visibility', 'visible');
         }
-    
-      // Fallback si pas un pays (ou pas de meta/overlay) : ton origine actuelle
-      if (!origin) {
-        // ton calcul existant de centroïde (ou premier event, etc.)
-        // Exemple minimal : moyenne des coords des events liés
-        const pts = [...linked].map(id => idToItem.get(id)).filter(Boolean);
-        if (pts.length) {
-          const sx = pts.reduce((a,p)=>a+p.lon,0), sy = pts.reduce((a,p)=>a+p.lat,0);
-          origin = [sx/pts.length, sy/pts.length];
-        } else {
-          origin = map.getCenter().toArray(); // repli
-        }
-      }
-    
-      // 3) Génère les features de traits depuis origin -> chaque event
-      const lines = [];
-      const bounds = new maplibregl.LngLatBounds().extend(origin);
-      for (const eid of linked) {
-        const it = idToItem.get(eid);
-        if (!it) continue;
-        lines.push({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: [origin, [it.lon, it.lat]] },
-          properties: {}
-        });
-        bounds.extend([it.lon, it.lat]);
-      }
-    
-      // 4) Pousse les traits dans ta source 'entity-focus-links'
-      const src = map.getSource('entity-focus-links');
-      if (src && src.setData) {
-        src.setData({ type:'FeatureCollection', features: lines });
-      }
-    
-      // 5) Atténue les autres points (comme déjà chez toi)
-      dimAllExcept([...linked]);
-    
-      // 6) Cadrage (on inclut origin + les events)
-      if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, { padding: { top: 40, right: 420, bottom: 40, left: 40 }, duration: 650 });
+      } catch (e) {
+        console.warn('[country overlay] filtre impossible:', e);
       }
     }
+  
+    // Fallback : centroïde des événements liés si pas de centre pays
+    if (!origin) {
+      const pts = Array.from(linked).map(id => idToItem.get(id)).filter(Boolean);
+      if (pts.length) {
+        const sx = pts.reduce((a,p)=>a+p.lon,0);
+        const sy = pts.reduce((a,p)=>a+p.lat,0);
+        origin = [sx/pts.length, sy/pts.length];
+      } else {
+        origin = map.getCenter().toArray();
+      }
+    }
+  
+    // 3) Génère les traits depuis origin -> chaque event
+    const features = [];
+    const bounds = new maplibregl.LngLatBounds().extend(origin);
+  
+    for (const eid of linked) {
+      const it = idToItem.get(eid);
+      if (!it) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: [origin, [it.lon, it.lat]] },
+        properties: { kind:'edge', entityId: entId, to: eid }
+      });
+      bounds.extend([it.lon, it.lat]);
+    }
+  
+    // 4) Pousse les traits dans la source 'entity-focus'
+    try {
+      const src = map.getSource('entity-focus');
+      if (src && src.setData) {
+        src.setData({ type:'FeatureCollection', features });
+      }
+      setEntityFocusVisibility(true);
+    } catch {}
+  
+    // 5) Atténue les autres points (comme dans ta version “événements”)
+    try {
+      allData.forEach(it => {
+        if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: true });
+      });
+      Array.from(linked).forEach(id => {
+        map.setFeatureState({ source:'notes', id }, { dim: false });
+      });
+    } catch {}
+  
+    // 6) Cadrage (on inclut origin + les events et on garde de la place pour le panneau)
+    if (!bounds.isEmpty()) {
+      const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+      const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
+      const rightPad = Math.round(pw * 1.25) + pr + 10;
+      map.fitBounds(bounds, { padding: { top:40, left:40, bottom:40, right:rightPad }, duration: 650 });
+    }
+  }
 
     // — Normalisation "libellé humain" -> id canonique ent-…
     // Ajoute ici au fur et à mesure (insensible à la casse et aux accents)
