@@ -1,10 +1,8 @@
 ---
 title: L'attentat contre Anouar al Sadate
 date: 06/10/1981
-Entities: [Anouar al Sadate, Egypte, Israël, USA, URSS]
+entities: [Anouar al Sadate, Egypte, Israël, USA, URSS]
 sources:
-  - title: 
-    url: 
 links: [[la-cia-et-le-putsch-de-septembre-1973-au-chili|Putsch au Chili (1973)]]
 ---
 
