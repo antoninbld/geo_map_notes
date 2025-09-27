@@ -1,32 +1,61 @@
 // countries-overlay.js
-// Overlay GeoJSON local pour afficher la géométrie réelle d’un pays via son ISO3
+// Overlay pays (GeoJSON) — filtre par ADM0_A3 et renvoie {center,bounds}
+
 (function () {
   let mapRef = null;
-  let isReady = false;
+  let ready = false;
 
-  // Harmonisation avec le HTML (ids utilisés par bringCountryOverlayToFront)
+  // IDs attendus par ton HTML
   const SRC_ID = "country-overlay-src";
   const FILL_ID = "country-overlay-fill";
   const OUTLINE_ID = "country-overlay-outline";
 
-  // table ISO2 -> ISO3 (complète si besoin)
-  const ISO2_TO_ISO3 = { FR:"FRA", GB:"GBR", US:"USA", DE:"DEU", IT:"ITA", ES:"ESP", RU:"RUS", EG:"EGY", IL:"ISR" };
-  const toISO3 = (code) => {
-    if (!code) return null;
-    const c = String(code).trim().toUpperCase();
-    return c.startsWith("ent-country-")
-      ? c.replace(/^ent-country-/, "").toUpperCase() // ent-country-FRA -> FRA (si tu encodes déjà ISO3)
-      : (c.length === 2 ? (ISO2_TO_ISO3[c] || null) : c);
-  };
+  // Où est servi le GeoJSON ?
+  const DATA_URL = "data/countries.geojson"; // ← mets ton fichier ici (renomme “countries (1).geojson”)
+
+  // Index mémoire pour résoudre noms/ISO2 -> ISO3 et pour bbox
+  let _features = [];
+  const iso2ToIso3 = new Map();
+  const nameToIso3 = new Map();
+
+  const slug = (s) =>
+    String(s || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  async function buildIndex(json) {
+    _features = json.features || [];
+    for (const f of _features) {
+      const p = f.properties || {};
+      const iso3 = p.ADM0_A3 || p.ISO_A3 || p.SOV_A3;
+      if (!iso3) continue;
+      if (p.ISO_A2) iso2ToIso3.set(String(p.ISO_A2).toUpperCase(), iso3);
+      const names = [
+        p.NAME_EN, p.NAME_FR, p.ADMIN, p.BRK_NAME, p.SOVEREIGNT,
+        p.FORMAL_EN, p.FORMAL_FR
+      ].filter(Boolean);
+      for (const n of names) nameToIso3.set(slug(n), iso3);
+      nameToIso3.set(slug(iso3), iso3); // "usa", "fra"…
+    }
+    // alias FR utiles
+    nameToIso3.set("etats-unis", "USA");
+    nameToIso3.set("egypte", "EGY");
+    nameToIso3.set("israel", "ISR");
+  }
 
   async function ensureLoaded(map) {
-    if (isReady && mapRef === map) return true;
+    if (ready && mapRef === map) return true;
     mapRef = map;
 
-    // IMPORTANT : adapte ce chemin à ton déploiement (idéalement "data/countries.geojson")
-    // Le fichier doit contenir un champ propriété "ADM0_A3" (Natural Earth)
+    // source (affichage)
     if (!map.getSource(SRC_ID)) {
-      map.addSource(SRC_ID, { type: "geojson", data: "data/countries.geojson" });
+      map.addSource(SRC_ID, { type: "geojson", data: DATA_URL });
+    }
+    // index (résolution noms -> ISO3 + bbox)
+    if (_features.length === 0) {
+      const res = await fetch(DATA_URL, { cache: "no-store" });
+      const json = await res.json();
+      await buildIndex(json);
     }
 
     if (!map.getLayer(FILL_ID)) {
@@ -49,63 +78,63 @@
         paint: { "line-color": "#3b82f6", "line-width": 1.5 }
       });
     }
-
     try { map.moveLayer(FILL_ID); map.moveLayer(OUTLINE_ID); } catch {}
-    isReady = true;
+
+    ready = true;
     return true;
   }
 
-  // Renvoie { center:[lon,lat], bounds:[[minX,minY],[maxX,maxY]] } pour aider au centrage
-  function show(map, isoLike) {
-    if (!mapRef) mapRef = map;
-    const iso3 = toISO3(isoLike);
+  function resolveIso3(anyId) {
+    if (!anyId) return null;
+    let tok = String(anyId).trim();
+    if (tok.toLowerCase().startsWith("ent-country-")) tok = tok.slice("ent-country-".length);
+
+    const up = tok.toUpperCase();
+    if (/^[A-Z]{3}$/.test(up)) return up; // ISO3 direct
+    if (/^[A-Z]{2}$/.test(up)) return iso2ToIso3.get(up) || null; // ISO2
+
+    return nameToIso3.get(slug(tok)) || null; // nom FR/EN
+  }
+
+  function computeBboxAndCenter(feat) {
+    const g = feat?.geometry; if (!g) return null;
+    const coords = g.type === "MultiPolygon" ? g.coordinates.flat(2)
+                 : g.type === "Polygon"      ? g.coordinates.flat()
+                 : null;
+    if (!coords || !coords.length) return null;
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    for (const [x,y] of coords) { if (x<minX) minX=x; if (x>maxX) maxX=x; if (y<minY) minY=y; if (y>maxY) maxY=y; }
+    const center=[(minX+maxX)/2, (minY+maxY)/2];
+    const bounds=[[minX,minY],[maxX,maxY]];
+    return { center, bounds };
+  }
+
+  function getFeatureByIso3(iso3) {
+    return _features.find(f => f?.properties?.ADM0_A3 === iso3) || null;
+  }
+
+  async function show(map, entLike) {
+    await ensureLoaded(map);
+    const iso3 = resolveIso3(entLike);
     if (!iso3) return null;
 
     try {
-      mapRef.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], iso3]);
-      mapRef.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], iso3]);
-      mapRef.setLayoutProperty(FILL_ID, "visibility", "visible");
-      mapRef.setLayoutProperty(OUTLINE_ID, "visibility", "visible");
+      map.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], iso3]);
+      map.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], iso3]);
+      map.setLayoutProperty(FILL_ID, "visibility", "visible");
+      map.setLayoutProperty(OUTLINE_ID, "visibility", "visible");
     } catch {}
 
-    // Tente d’extraire bbox + centroïde depuis la source pour renvoyer à l’appelant
-    try {
-      const src = mapRef.getSource(SRC_ID);
-      const data = src?._data || src?.serialize?.().data; // maplibre n’expose pas toujours les features
-      // Si pas accessible, renvoie juste null (le fit sera géré autrement)
-      if (!data || !data.features) return null;
-
-      const feat = data.features.find(f => f?.properties?.ADM0_A3 === iso3);
-      if (!feat) return null;
-
-      // bbox "maison"
-      const coords = (feat.geometry.type === "MultiPolygon")
-        ? feat.geometry.coordinates.flat(2)
-        : (feat.geometry.type === "Polygon"
-            ? feat.geometry.coordinates.flat()
-            : null);
-
-      if (!coords || !coords.length) return null;
-
-      let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
-      for (const [x,y] of coords) {
-        if (x<minX) minX=x; if (x>maxX) maxX=x;
-        if (y<minY) minY=y; if (y>maxY) maxY=y;
-      }
-      const center=[(minX+maxX)/2, (minY+maxY)/2];
-      const bounds=[[minX,minY],[maxX,maxY]];
-
-      return { center, bounds };
-    } catch { return null; }
+    const feat = getFeatureByIso3(iso3);
+    return computeBboxAndCenter(feat);
   }
 
   function hide(map) {
-    if (!mapRef) mapRef = map;
     try {
-      mapRef.setLayoutProperty(FILL_ID, "visibility", "none");
-      mapRef.setLayoutProperty(OUTLINE_ID, "visibility", "none");
-      mapRef.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
-      mapRef.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
+      map.setLayoutProperty(FILL_ID, "visibility", "none");
+      map.setLayoutProperty(OUTLINE_ID, "visibility", "none");
+      map.setFilter(FILL_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
+      map.setFilter(OUTLINE_ID, ["==", ["get", "ADM0_A3"], "__NONE__"]);
     } catch {}
   }
 
@@ -113,10 +142,9 @@
     try { mapRef?.moveLayer(FILL_ID); mapRef?.moveLayer(OUTLINE_ID); } catch {}
   }
 
-  // Expose une API qui colle à ton HTML
   window.CountryOverlay = {
-    init: ensureLoaded, // optionnel : tu peux appeler init au chargement
-    show: async (map, isoLike) => { await ensureLoaded(map); return show(map, isoLike); },
+    init: async (map) => { await ensureLoaded(map); },
+    show: async (map, entLike) => show(map, entLike),  // → {center,bounds} | null
     hide: (map) => hide(map),
     bringToFront
   };
