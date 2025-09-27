@@ -1611,11 +1611,25 @@
             const idx = line.indexOf(':');
             if (idx > -1) {
               const key = line.slice(0, idx).trim();
-              let val = line.slice(idx + 1).trim();
-              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-                val = val.slice(1, -1);
+              let raw = line.slice(idx + 1).trim();
+    
+              const unquote = v => {
+                if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+                  return v.slice(1, -1);
+                }
+                return v;
+              };
+    
+              if (raw.startsWith('[') && raw.endsWith(']')) {
+                const inside = raw.slice(1, -1).trim();
+                meta[key] = inside
+                  ? inside.split(',').map(s => unquote(s.trim())).filter(Boolean)
+                  : [];
+              } else {
+                if (/^(true|false)$/i.test(raw)) meta[key] = /^true$/i.test(raw);
+                else if (/^-?\d+(\.\d+)?$/.test(raw)) meta[key] = Number(raw);
+                else meta[key] = unquote(raw);
               }
-              meta[key] = val;
             }
           });
         }
@@ -1831,11 +1845,10 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const md = await res.text();
         const { meta, body } = parseAndStripFrontMatter(md);
-        // Normalisation des entités : accepter soit des IDs ent-..., soit des libellés "humains"
+        // ── Badges d'entités (normalisés vers des IDs ent-...)
+        console.log('[FM] entities RAW =', meta.entities); // debug
         let ents = Array.isArray(meta.entities) ? meta.entities : [];
-        ents = ents
-          .map(e => normalizeEntityLabelToId(e)) // ← mappe "Egypte", "URSS", "CIA", "Anouar al Sadate" -> ent-...
-          .filter(Boolean);
+        ents = ents.map(e => normalizeEntityLabelToId(e)).filter(Boolean);
         
         if (ents.length) {
           renderEntityChips(ents);
@@ -1942,11 +1955,22 @@
     // ---- NOTE COMPLÈTE (lecture .md) + date + recap (fallback)
     let links = [];
     try {
-      const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+      const url = resolveNoteURL(noteId);
       const res = await fetch(url, { cache:'no-store' });
       if (res.ok) {
         const mdRaw = await res.text();
         const { meta, body } = parseAndStripFrontMatter(mdRaw);
+        // ── Badges d'entités (normalisés vers des IDs ent-...)
+        console.log('[FM] entities RAW =', meta.entities); // debug utile une fois
+        let ents = Array.isArray(meta.entities) ? meta.entities : [];
+        ents = ents.map(e => normalizeEntityLabelToId(e)).filter(Boolean);
+        
+        if (ents.length) {
+          renderEntityChips(ents);
+        } else {
+          const box = document.getElementById('npEntities');
+          if (box) box.innerHTML = '';
+        }
   
         // date (front-matter)
         if ($dateText && !$dateText.textContent && meta.date) {
