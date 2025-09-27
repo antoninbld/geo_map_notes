@@ -1,1 +1,50 @@
+{
+  "type": "FeatureCollection",
+  "name": "countries_min",
+  "crs": { "type": "name", "properties": { "name": "EPSG:4326" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "entId": "ent-country-egypte",
+        "iso3": "EGY",
+        "name_fr": "Égypte"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [24.0, 22.0], [36.0, 22.0], [36.0, 32.0], [24.0, 32.0], [24.0, 22.0]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "entId": "ent-country-israel",
+        "iso3": "ISR",
+        "name_fr": "Israël"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [34.2, 29.5], [35.7, 29.5], [35.7, 33.3], [34.2, 33.3], [34.2, 29.5]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "entId": "ent-country-usa",
+        "iso3": "USA",
+        "name_fr": "États-Unis"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-125.0, 24.0], [-66.0, 24.0], [-66.0, 49.0], [-125.0, 49.0], [-125.0, 24.0]
+        ]]
+      }
+    }
+  ]
+}
 
