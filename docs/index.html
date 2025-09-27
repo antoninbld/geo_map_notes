@@ -320,7 +320,7 @@
     } catch {}
     try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
     try { undimAll(); } catch {}
-    try { CountryOverlay?.hide(map); } catch {}
+    try { countryOverlay?.hide(); } catch(_) {}
   }
   document.getElementById('btnClearEntityFocus')?.addEventListener('click', clearEntityFocus);
 
@@ -519,6 +519,7 @@
     map.jumpTo({center:WORLD_CENTER, zoom:ARRIVAL_ZOOM});
 
     updateRotateButtonVisibility();
+    countryOverlay = await initCountryOverlay(map);
   });
 
   // Style reload
@@ -690,6 +691,7 @@
     };
     btn.addEventListener('click',closePanel);
     document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closePanel(); });
+    try { countryOverlay?.hide(); } catch(_) {}
   })();
 
   // Panneau "Map views"
