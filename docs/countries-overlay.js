@@ -4,6 +4,18 @@
 
   const SRC_ID="country-overlay-src";
   const FILL_ID="country-overlay-fill";
+  // Centres manuels pour certains pays (lon, lat)
+  // Ajuste si tu veux un autre point de référence.
+  const COUNTRY_ORIGIN_OVERRIDES = new Map([
+    ["RUS", [56.84309, 60.6454]],  // Iekaterinbourg
+    ["USA", [41.13474, -104.82119]], // Cheyenne
+    ["CAN", [53.54616, -113.49373]], // Edmonton
+    ["AUS", [-23.69804, 133.88074]], // Alice Springs
+    ["IDN", [117.285, -2.5489]],
+    ["CHL", [-33.44888, -70.66926]], // Santiago
+    ["GRL", [-41.0, 74.0]],
+    ["NOR", [15.47, 64.5]]
+  ]);
   const OUTLINE_ID="country-overlay-outline";
   const DATA_URL="data/countries.geojson"; // <-- adapte si nécessaire
 
@@ -98,37 +110,35 @@
     return nameToIso3.get(key)||null;
   }
 
-  function computeBboxAndCenter(feat){
+  function computeGeometryInfo(feat){
     if(!feat || !feat.geometry) return null;
   
-    // 1) Utiliser turf.centerOfMass (plus pertinent pour les grands pays / MultiPolygons)
+    // 1) Turf: centerOfMass + bbox (gère MultiPolygons et antiméridien)
     try{
       if(typeof turf !== "undefined" && turf){
         const bb = turf.bbox(feat);
-        const cm = turf.centerOfMass(feat); // <-- différence ici
+        let c  = turf.centerOfMass(feat);                 // centre pondéré par la surface
+        if(!c?.geometry?.coordinates){
+          c = turf.pointOnFeature(feat);                  // point garanti sur la géométrie
+        }
         return {
-          bounds: [[bb[0], bb[1]], [bb[2], bb[3]]],
-          center: cm?.geometry?.coordinates || null
+          bounds: [[bb[0],bb[1]],[bb[2],bb[3]]],
+          center: c?.geometry?.coordinates || null
         };
       }
     }catch(e){
-      console.warn("[CountryOverlay] turf.centerOfMass/bbox error:", e);
+      console.warn("[CountryOverlay] turf.centerOfMass/pointOnFeature error:", e);
     }
   
-    // 2) Fallback si Turf indisponible
+    // 2) Fallback manuel (moins précis)
     const g=feat.geometry;
     const flat = g.type==="MultiPolygon" ? g.coordinates.flat(2)
-               : g.type==="Polygon" ? g.coordinates.flat()
+               : g.type==="Polygon"      ? g.coordinates.flat()
                : null;
     if(!flat||!flat.length) return null;
   
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    for(const [x,y] of flat){
-      if(x<minX)minX=x;
-      if(x>maxX)maxX=x;
-      if(y<minY)minY=y;
-      if(y>maxY)maxY=y;
-    }
+    for(const [x,y] of flat){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
     return { center:[(minX+maxX)/2,(minY+maxY)/2], bounds:[[minX,minY],[maxX,maxY]] };
   }
 
@@ -140,13 +150,34 @@
     })||null;
   }
 
+  async function getOriginForCountry(map, entLike){
+    await ensureLoaded(map);
+    const iso3 = resolveIso3(entLike);
+    if(!iso3) return null;
+  
+    // Info géométrique depuis l’index mémoire
+    const feat = getFeatureByIso3(iso3);
+    const info = computeGeometryInfo(feat) || {};
+  
+    // Override manuel si défini
+    let origin = info.center || null;
+    if (COUNTRY_ORIGIN_OVERRIDES.has(iso3)) {
+      origin = COUNTRY_ORIGIN_OVERRIDES.get(iso3);
+    }
+    return { iso3, origin, bounds: info.bounds || null };
+  }
+
   async function show(map, entLike){
     await ensureLoaded(map);
-    const iso3=resolveIso3(entLike);
-    if(!iso3){ log("resolve failed for", entLike); return null; }
-
+    const iso3 = resolveIso3(entLike);
+    if(!iso3){
+      console.debug("[CountryOverlay] Pays introuvable pour:", entLike);
+      return null;
+    }
+  
+    // Applique l’overlay (fill/outline)
     try{
-      const prop = ["coalesce",
+      const prop=["coalesce",
         ["get","ADM0_A3"],["get","ISO_A3"],["get","SOV_A3"],["get","GU_A3"],["get","ISO3"],["get","ISO_3"],["get","ISO3_CODE"]];
       map.setFilter(FILL_ID, ["==", prop, iso3]);
       map.setFilter(OUTLINE_ID, ["==", prop, iso3]);
@@ -154,13 +185,12 @@
       map.setLayoutProperty(OUTLINE_ID, "visibility", "visible");
       try{ map.moveLayer(FILL_ID); map.moveLayer(OUTLINE_ID); }catch(_){}
     }catch(e){
-      console.warn("[CountryOverlay] setFilter/visibility failed:", e);
+      console.warn("[CountryOverlay] setFilter/visibility a échoué:", e);
     }
-
-    const feat=getFeatureByIso3(iso3);
-    const info=computeBboxAndCenter(feat);
-    if(!info) log("bbox/center not computed for", iso3);
-    return info||{center:null,bounds:null};
+  
+    // Utilise le helper pour récupérer un centre pertinent + bounds
+    const info = await getOriginForCountry(map, iso3);
+    return info ? { center: info.origin, bounds: info.bounds } : null;
   }
 
   function hide(map){
@@ -181,5 +211,6 @@
     show: async (map, entLike)=>show(map, entLike),
     hide: (map)=>hide(map),
     bringToFront
+    getOriginForCountry: async (map, entLike) => getOriginForCountry(map, entLike),
   };
 })();
