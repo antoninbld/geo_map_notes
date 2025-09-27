@@ -1225,6 +1225,54 @@
             
     // 3D + Monde par défaut
     CURRENT_PROJECTION = 'globe';
+
+    // === Overlay pays (type "True Size" light) ============================
+    try {
+      // 1) Source vecteur de limites admin (MapTiler). Si ton tileset diffère, adapte l'URL et le source-layer plus bas.
+      if (!map.getSource('country-tiles')) {
+        map.addSource('country-tiles', {
+          type: 'vector',
+          url: `https://api.maptiler.com/tiles/administrative-boundaries-v2/tiles.json?key=${MAPTILER_KEY}`
+          // Variante possible selon ton compte: administrative-boundaries, boundaries, etc.
+        });
+      }
+    
+      // 2) Remplissage du pays
+      if (!map.getLayer('entity-country-fill')) {
+        map.addLayer({
+          id: 'entity-country-fill',
+          type: 'fill',
+          source: 'country-tiles',
+          // ⚠️ adapte "source-layer" si nécessaire : cherche la couche 'country'/'admin_0' dans ce tileset
+          'source-layer': 'admin_0', // ← ESSAI COURANT. Essaie 'country' ou 'boundaries' si tu as un autre tileset
+          filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'], // rien au départ
+          paint: {
+            'fill-color': '#60a5fa',
+            'fill-opacity': 0.25
+          },
+          layout: { visibility: 'none' }
+        });
+      }
+    
+      // 3) Contour du pays
+      if (!map.getLayer('entity-country-outline')) {
+        map.addLayer({
+          id: 'entity-country-outline',
+          type: 'line',
+          source: 'country-tiles',
+          'source-layer': 'admin_0', // idem remarque ci-dessus
+          filter: ['==', ['get', 'iso_3166_1_alpha_3'], '__NONE__'],
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 1.5
+          },
+          layout: { visibility: 'none' }
+        }, 'cluster-count'); // le placer sous les labels/nombres de clusters
+      }
+    } catch (e) {
+      console.warn('[country overlay] non chargé:', e);
+    }
+      
     applyProjection();
     ensureTerrain?.();
     // Arrivée normalisée sur la vue "Recentrer monde", sans animation
@@ -1761,6 +1809,20 @@
           if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false });
         });
       } catch {}
+      // retire les traits
+      try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
+      // réinitialise l'opacité des points
+      undimAll();
+      
+      // cache l’overlay pays s’il était visible
+      try {
+        if (map.getLayer('entity-country-fill')) {
+          map.setLayoutProperty('entity-country-fill', 'visibility', 'none');
+          map.setLayoutProperty('entity-country-outline', 'visibility', 'none');
+          map.setFilter('entity-country-fill', ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
+          map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
+        }
+      } catch {}
     }
 
     // — bouton "Afficher tout" : sort du focus entité
@@ -1768,59 +1830,71 @@
       clearEntityFocus();
     });
 
-    async function showEntityConstellation(entityId){
-      const ids = await ensureEntityIndexFilled(entityId);
-      if (!ids.size) { clearEntityFocus(); return; }
+    async function showEntityConstellation(entId){
+      // 1) Récupère la liste d'événements liés (fonction que tu as déjà)
+      const linked = await ensureEntityIndexFilled(entId); // Set<eventId>
     
-      const center = computeCentroidFromIds(ids);
-      const features = [];
+      // 2) Point d'origine des traits
+      let origin = null;
     
-      if (center) {
-        features.push({
-          type:'Feature',
-          geometry: { type:'Point', coordinates: center },
-          properties: { kind:'center', entityId }
-        });
-        ids.forEach(id => {
-          const it = idToItem.get(id);
-          if (!it) return;
-          features.push({
-            type:'Feature',
-            geometry: { type:'LineString', coordinates: [center, [it.lon, it.lat]] },
-            properties: { kind:'edge', entityId, to:id }
-          });
-        });
+      // Si entité pays : on tente l’overlay + centre pays
+      const isCountry = entId.startsWith('ent-country-');
+      if (isCountry && COUNTRY_META[entId]) {
+        origin = COUNTRY_META[entId].center;
+    
+        // Active/filtre l’overlay pays si possible
+        const iso3 = COUNTRY_META[entId].iso3;
+        if (iso3 && map.getLayer('entity-country-fill')) {
+          try {
+            map.setFilter('entity-country-fill', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+            map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], iso3]);
+            map.setLayoutProperty('entity-country-fill', 'visibility', 'visible');
+            map.setLayoutProperty('entity-country-outline', 'visibility', 'visible');
+          } catch(e) {
+            console.warn('[country overlay] filtre impossible:', e);
+          }
+        }
       }
     
-      try {
-        map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features });
-        setEntityFocusVisibility(true);
-      } catch {}
+      // Fallback si pas un pays (ou pas de meta/overlay) : ton origine actuelle
+      if (!origin) {
+        // ton calcul existant de centroïde (ou premier event, etc.)
+        // Exemple minimal : moyenne des coords des events liés
+        const pts = [...linked].map(id => idToItem.get(id)).filter(Boolean);
+        if (pts.length) {
+          const sx = pts.reduce((a,p)=>a+p.lon,0), sy = pts.reduce((a,p)=>a+p.lat,0);
+          origin = [sx/pts.length, sy/pts.length];
+        } else {
+          origin = map.getCenter().toArray(); // repli
+        }
+      }
     
-      // Atténuer le reste
-      try {
-        allData.forEach(it => {
-          if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: true });
+      // 3) Génère les features de traits depuis origin -> chaque event
+      const lines = [];
+      const bounds = new maplibregl.LngLatBounds().extend(origin);
+      for (const eid of linked) {
+        const it = idToItem.get(eid);
+        if (!it) continue;
+        lines.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [origin, [it.lon, it.lat]] },
+          properties: {}
         });
-        ids.forEach(id => {
-          map.setFeatureState({ source:'notes', id }, { dim: false });
-        });
-      } catch {}
+        bounds.extend([it.lon, it.lat]);
+      }
     
-      // Fit bounds (avec padding droit pour le panneau)
-      const b = new maplibregl.LngLatBounds();
-      if (center) b.extend(center);
-      ids.forEach(id => {
-        const it = idToItem.get(id);
-        if (it) b.extend([it.lon, it.lat]);
-      });
+      // 4) Pousse les traits dans ta source 'entity-focus-links'
+      const src = map.getSource('entity-focus-links');
+      if (src && src.setData) {
+        src.setData({ type:'FeatureCollection', features: lines });
+      }
     
-      const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
-      const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
-      const rightPad = Math.round(pw * 1.25) + pr + 10; // panneau agrandi
+      // 5) Atténue les autres points (comme déjà chez toi)
+      dimAllExcept([...linked]);
     
-      if (!b.isEmpty()) {
-        map.fitBounds(b, { padding: { top:20, left:20, bottom:20, right:rightPad }, duration: 600 });
+      // 6) Cadrage (on inclut origin + les events)
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: { top: 40, right: 420, bottom: 40, left: 40 }, duration: 650 });
       }
     }
 
@@ -1847,6 +1921,14 @@
       const key = String(label).normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
       return ENTITY_NAME_TO_ID.get(key) || null;
     }
+
+    // — Métadonnées minimales pour les pays (centre + code ISO3 pour filtrer les polygones)
+    const COUNTRY_META = {
+      'ent-country-usa':     { iso3: 'USA', center: [-98.58, 39.83] },
+      'ent-country-egypte':  { iso3: 'EGY', center: [ 30.80, 26.80] },
+      'ent-country-israel':  { iso3: 'ISR', center: [ 35.00, 31.50] },
+      // Ajoute ici au besoin...
+    };
     
     async function openNoteInPanel(noteId){
       try{
