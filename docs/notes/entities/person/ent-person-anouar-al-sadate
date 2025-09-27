@@ -2,6 +2,7 @@
 id: ent-person-anouar-al-sadate
 title: Anouar al Sadate
 type: entity
+entityClass: person
 aliases: [Sadate, Anouar el-Sadate, Anouar-el-Sadate, Anouar-al-Sadate, al Sadate, el Sadate]
 summary:
 ---
