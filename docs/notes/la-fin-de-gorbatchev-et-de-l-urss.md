@@ -1,6 +1,8 @@
 ---
 title: "La fin de Gorbatchev et de l'URSS"
 date: 13/01/1991
+entities: [URSS, Mikhaïl Gorbatchev]
+sources:
 
 ---
 
