@@ -256,8 +256,15 @@
     ['egypte','ent-country-egypte'],['israël','ent-country-israel'],['israel','ent-country-israel'],['usa','ent-country-usa'],['urss','ent-country-urss'],
     ['cia','ent-org-cia'],['kgb','ent-org-kgb']
   ]);
-  const COUNTRY_META={ 'ent-country-usa':{iso3:'USA',center:[-98.58,39.83]}, 'ent-country-egypte':{iso3:'EGY',center:[30.8,26.8]}, 'ent-country-israel':{iso3:'ISR',center:[35,31.5]} };
-
+  const COUNTRY_META = {
+    'ent-country-usa':     { iso3: 'USA', center: [-98.58, 39.83] },
+    'ent-country-egypte':  { iso3: 'EGY', center: [ 30.80, 26.80] },
+    'ent-country-israel':  { iso3: 'ISR', center: [ 35.00, 31.50] },
+    // EXEMPLES à ajouter :
+    // 'ent-country-france': { iso3: 'FRA', center: [2.55, 46.60] },
+    // 'ent-country-russie': { iso3: 'RUS', center: [96.7, 61.9] }
+  };
+    
   // === Overlay pays (déclaration GLOBALE + lazy) ===
   let COUNTRY_OVERLAY_READY=false;
   function ensureCountryOverlay(){
@@ -319,21 +326,25 @@
   // ✅ FIX : fonction correctement fermée + pas d’écouteur à l’intérieur
   function clearEntityFocus(){
     setEntityFocusVisibility(false);
-    try{ map.getSource('entity-focus')?.setData({type:'FeatureCollection',features:[]}); }catch{}
-    try{ allData.forEach(it=>{ if(it&&it.id!=null) map.setFeatureState({source:'notes',id:it.id},{dim:false});}); }catch{}
-    try{ map.getSource('entity-focus-links')?.setData({type:'FeatureCollection',features:[]}); }catch{}
-    try{ undimAll(); }catch{}
-    try{
-      if(map.getLayer('entity-country-fill')){
-        map.setLayoutProperty('entity-country-fill','visibility','none');
-        map.setLayoutProperty('entity-country-outline','visibility','none');
-        map.setFilter('entity-country-fill',['==',['get','iso_3166_1_alpha_3'],'__NONE__']);
-        map.setFilter('entity-country-outline',['==',['get','iso_3166_1_alpha_3'],'__NONE__']);
+    try { map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
+    try {
+      allData.forEach(it => {
+        if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false });
+      });
+    } catch {}
+    try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
+    try { undimAll(); } catch {}
+    try {
+      if (map.getLayer('entity-country-fill')) {
+        map.setLayoutProperty('entity-country-fill', 'visibility', 'none');
+        map.setLayoutProperty('entity-country-outline', 'visibility', 'none');
+        map.setFilter('entity-country-fill',    ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
+        map.setFilter('entity-country-outline', ['==', ['get','iso_3166_1_alpha_3'], '__NONE__']);
       }
-    }catch{}
+    } catch {}
   }
-
-  // Bouton "Afficher tout" → branché UNE SEULE FOIS
+  
+  // IMPORTANT : l’écouteur du bouton DOIT être à l’extérieur de la fonction :
   document.getElementById('btnClearEntityFocus')?.addEventListener('click', clearEntityFocus);
 
   async function showEntityConstellation(entId){
