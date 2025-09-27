@@ -1652,15 +1652,20 @@
       box.innerHTML = '';
       (list || []).forEach(id => {
         const a = document.createElement('a');
-        a.href = `note.html?id=${encodeURIComponent(id)}`;
-        a.className = 'internal-link';
+    
+        // ⬇️ NE PAS utiliser "internal-link" ni un href note.html...
+        a.href = '#';
+        a.dataset.entityChip = id; // pour pouvoir l’ignorer dans le handler global
         a.textContent = id.replace(/^ent-(country|org|person)-/, '');
-        a.style.cssText = 'padding:2px 6px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;font-size:12px;';
-        // ↓↓↓ ICI on branchera la "constellation" (section D)
+        a.style.cssText = 'padding:2px 6px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;font-size:12px;cursor:pointer;';
+    
         a.addEventListener('click', async (e) => {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation(); // évite tout autre handler
           await showEntityConstellation(id);
         });
+    
         box.appendChild(a);
       });
     }
@@ -1865,7 +1870,7 @@
         document.getElementById('notePanel').style.display = 'block';
 
         // Interception des liens internes du panneau
-        $npBody.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+        $panel.querySelectorAll('a[href^="note.html?id="]:not([data-entity-chip])').forEach(a => {
           a.classList.add('internal-link');
           a.addEventListener('click', (e) => {
             e.preventDefault();
@@ -2034,7 +2039,7 @@
     } catch {}
   
     // ---- Navigation interne dans le panneau
-    $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
+    $panel.querySelectorAll('a[href^="note.html?id="]:not([data-entity-chip])').forEach(a => {
       a.classList.add('internal-link');
       a.addEventListener('click', (e) => {
         e.preventDefault();
