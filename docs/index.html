@@ -265,47 +265,7 @@
     // 'ent-country-russie': { iso3: 'RUS', center: [96.7, 61.9] }
   };
     
-  // === Overlay pays (déclaration GLOBALE + lazy) ===
-  let COUNTRY_OVERLAY_READY=false;
-  function ensureCountryOverlay(){
-    if (!USE_COUNTRY_OVERLAY) return false;   // <— AJOUT : pas d’overlay, pas d’appels réseau
-    if (COUNTRY_OVERLAY_READY) return true;
-    try{
-      if(!map.getSource('country-tiles')){
-        map.addSource('country-tiles',{
-          type:'vector',
-          url:`https://api.maptiler.com/tiles/administrative-boundaries-v2/tiles.json?key=${MAPTILER_KEY}`
-        });
-      }
-      if(!map.getLayer('entity-country-fill')){
-        map.addLayer({
-          id:'entity-country-fill',
-          type:'fill',
-          source:'country-tiles',
-          'source-layer':'admin_0',
-          filter:['==',['get','iso_3166_1_alpha_3'],'__NONE__'],
-          paint:{'fill-color':'#60a5fa','fill-opacity':0.25},
-          layout:{visibility:'none'}
-        });
-      }
-      if(!map.getLayer('entity-country-outline')){
-        map.addLayer({
-          id:'entity-country-outline',
-          type:'line',
-          source:'country-tiles',
-          'source-layer':'admin_0',
-          filter:['==',['get','iso_3166_1_alpha_3'],'__NONE__'],
-          paint:{'line-color':'#3b82f6','line-width':1.5},
-          layout:{visibility:'none'}
-        }, 'cluster-count');
-      }
-      COUNTRY_OVERLAY_READY = true;
-      return true;
-    }catch(e){
-      console.warn('[country overlay] indisponible:', e);
-      return false;
-    }
-  }
+    
 
   async function ensureEntityIndexFilled(entityId){
     for(const it of allData){
