@@ -1,7 +1,7 @@
 ---
 title: La CIA et le putsch de septembre 1973 au Chili
 date: 11/09/1973
-entities: [USA, Chili, CIA, Richard Richard Nixon, Henry Kissinger, Augusto Pinochet, Salvador Allende]
+entities: [USA, Chili, CIA, Richard Nixon, Henry Kissinger, Augusto Pinochet, Salvador Allende]
 sources:
 links:
 Voir aussi : [[la-mort-du-che|La mort du Che]]
