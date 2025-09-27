@@ -245,6 +245,9 @@
         <span id="npDateIcon" style="font-size:14px;line-height:1">🕓</span>
         <span id="npDateText"></span>
       </div>
+
+      <!-- Ruban d’entités (badges cliquables) -->
+      <div id="npEntities" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;"></div>
     
        <!-- Phrase récap (optionnelle) -->
       <div id="npRecap" style="margin-top:6px; font-weight:600; font-style:italic;"></div>
@@ -267,6 +270,10 @@
         <div id="npLinks" style="font-size:14px;"></div>
         <div style="margin-top:8px;display:flex;gap:8px;">
           <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
+          <button id="btnClearEntityFocus" type="button"
+            style="margin-left:8px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; cursor:pointer;">
+            Afficher tout
+          </button>
         </div>
       </div>
     </div>
@@ -800,6 +807,21 @@
     
     // === Liens façon Obsidian entre notes (globals) ===
     const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
+    // --- chemins réels des .md dans le repo ---
+    const EVENTS_BASE   = `${NOTE_RAW_BASE}/events`;
+    const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
+    
+    // Résout l'URL du .md en fonction de l'id
+    function resolveNoteURL(noteId){
+      if (!String(noteId).startsWith('ent-')) {
+        return `${EVENTS_BASE}/${encodeURIComponent(noteId)}.md`;
+      }
+      let sub = '';
+      if (noteId.startsWith('ent-country-')) sub = 'countries';
+      else if (noteId.startsWith('ent-org-')) sub = 'orgs';
+      else if (noteId.startsWith('ent-person-')) sub = 'person';
+      return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(noteId)}.md`;
+    }
     const idToItem = new Map();     // id -> item (depuis data.json)
     const linksCache = new Map();   // id -> [linkedId, ...]
     let linksSourceReady = false;   // source/layer pour les traits
@@ -1137,6 +1159,11 @@
           10,           // ← un peu plus grand quand sélectionné
           6
         ],
+        'circle-opacity': [
+          'case',
+          ['boolean', ['feature-state', 'dim'], false], 0.25,
+          1
+        ],
         'circle-stroke-width': 2,
         'circle-stroke-color': '#7a0000'
       }
@@ -1153,21 +1180,60 @@
     map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
 
-      // Assure l'ordre des couches : clusters au-dessus des traits
-      ensureLinksLayer();
-      bringClustersToFront();
-            
-      // 3D + Monde par défaut
-      CURRENT_PROJECTION = 'globe';
-      applyProjection();
-      ensureTerrain?.();
-      // Arrivée normalisée sur la vue "Recentrer monde", sans animation
-      recenterWorld({ animate: false });
-      map.setZoom(ARRIVAL_ZOOM);
+    // Assure l'ordre des couches : clusters au-dessus des traits
+    ensureLinksLayer();
+    bringClustersToFront();
 
-      if (window.__lastLinksState) {
-        drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
-      }
+    // === Focus "constellation d'entité" : source + couches (initialement invisibles) ===
+    if (!map.getSource('entity-focus')) {
+      map.addSource('entity-focus', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+    }
+    if (!map.getLayer('entity-focus-links')) {
+      map.addLayer({
+        id: 'entity-focus-links',
+        type: 'line',
+        source: 'entity-focus',
+        filter: ['==', ['get','kind'], 'edge'],
+        layout: { visibility: 'none' },
+        paint: {
+          'line-width': 2.0,
+          'line-color': '#0ea5e9',
+          'line-opacity': 0.8,
+          'line-dasharray': [1.5, 1.5]
+        }
+      }, 'clusters');
+    }
+    if (!map.getLayer('entity-focus-point')) {
+      map.addLayer({
+        id: 'entity-focus-point',
+        type: 'circle',
+        source: 'entity-focus',
+        filter: ['==', ['get','kind'], 'center'],
+        layout: { visibility: 'none' },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 6, 6, 8, 10, 10],
+          'circle-color': '#ffffff',
+          'circle-stroke-color': '#0ea5e9',
+          'circle-stroke-width': 3,
+          'circle-opacity': 1
+        }
+      }, 'clusters');
+    }
+            
+    // 3D + Monde par défaut
+    CURRENT_PROJECTION = 'globe';
+    applyProjection();
+    ensureTerrain?.();
+    // Arrivée normalisée sur la vue "Recentrer monde", sans animation
+    recenterWorld({ animate: false });
+    map.setZoom(ARRIVAL_ZOOM);
+
+    if (window.__lastLinksState) {
+      drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
+    }
     
       updateRotateButtonVisibility(); // ← initialise la visibilité du bouton
     });
@@ -1566,6 +1632,25 @@
       });
     }
 
+    function renderEntityChips(list){
+      const box = document.getElementById('npEntities');
+      if (!box) return;
+      box.innerHTML = '';
+      (list || []).forEach(id => {
+        const a = document.createElement('a');
+        a.href = `note.html?id=${encodeURIComponent(id)}`;
+        a.className = 'internal-link';
+        a.textContent = id.replace(/^ent-(country|org|person)-/, '');
+        a.style.cssText = 'padding:2px 6px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;font-size:12px;';
+        // ↓↓↓ ICI on branchera la "constellation" (section D)
+        a.addEventListener('click', async (e) => {
+          e.preventDefault();
+          await showEntityConstellation(id);
+        });
+        box.appendChild(a);
+      });
+    }
+
     // === Récap: gestion via CSS (clamp) + toggle ===================================
     function updateRecapToggleLabel(collapsed) {
       const t = document.getElementById('npRecapToggle');
@@ -1602,13 +1687,132 @@
       setupRecapToggle();
     }
 
+    // === Constellation d'entité : helpers ===
+    const EVENTS_BY_ENTITY = new Map();          // entité -> Set<eventId>
+    const __scannedEventsForEntities = new Set();// events dont on a lu meta.entities
+    
+    function computeCentroidFromIds(ids){
+      let sx=0, sy=0, n=0;
+      ids.forEach(id => {
+        const it = idToItem.get(id);
+        if (it && typeof it.lon==='number' && typeof it.lat==='number') {
+          sx += it.lon; sy += it.lat; n++;
+        }
+      });
+      return n ? [sx/n, sy/n] : null;
+    }
+    
+    async function ensureEntityIndexFilled(entityId){
+      for (const it of allData) {
+        if (__scannedEventsForEntities.has(it.id)) continue;
+        try {
+          const url = resolveNoteURL(it.id);
+          const res = await fetch(url, { cache:'no-store' });
+          if (res.ok) {
+            const md = await res.text();
+            const { meta } = parseAndStripFrontMatter(md);
+            const ents = Array.isArray(meta.entities) ? meta.entities : [];
+            ents.forEach(eid => {
+              if (!EVENTS_BY_ENTITY.has(eid)) EVENTS_BY_ENTITY.set(eid, new Set());
+              EVENTS_BY_ENTITY.get(eid).add(it.id);
+            });
+          }
+        } catch {}
+        __scannedEventsForEntities.add(it.id);
+      }
+      return new Set(EVENTS_BY_ENTITY.get(entityId) || []);
+    }
+    
+    function setEntityFocusVisibility(visible){
+      const vis = visible ? 'visible' : 'none';
+      try { map.setLayoutProperty('entity-focus-links', 'visibility', vis); } catch {}
+      try { map.setLayoutProperty('entity-focus-point', 'visibility', vis); } catch {}
+    }
+    
+    function clearEntityFocus(){
+      setEntityFocusVisibility(false);
+      try { map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
+      try {
+        allData.forEach(it => {
+          if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false });
+        });
+      } catch {}
+    }
+
+    // — bouton "Afficher tout" : sort du focus entité
+    document.getElementById('btnClearEntityFocus')?.addEventListener('click', () => {
+      clearEntityFocus();
+    });
+
+    async function showEntityConstellation(entityId){
+      const ids = await ensureEntityIndexFilled(entityId);
+      if (!ids.size) { clearEntityFocus(); return; }
+    
+      const center = computeCentroidFromIds(ids);
+      const features = [];
+    
+      if (center) {
+        features.push({
+          type:'Feature',
+          geometry: { type:'Point', coordinates: center },
+          properties: { kind:'center', entityId }
+        });
+        ids.forEach(id => {
+          const it = idToItem.get(id);
+          if (!it) return;
+          features.push({
+            type:'Feature',
+            geometry: { type:'LineString', coordinates: [center, [it.lon, it.lat]] },
+            properties: { kind:'edge', entityId, to:id }
+          });
+        });
+      }
+    
+      try {
+        map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features });
+        setEntityFocusVisibility(true);
+      } catch {}
+    
+      // Atténuer le reste
+      try {
+        allData.forEach(it => {
+          if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: true });
+        });
+        ids.forEach(id => {
+          map.setFeatureState({ source:'notes', id }, { dim: false });
+        });
+      } catch {}
+    
+      // Fit bounds (avec padding droit pour le panneau)
+      const b = new maplibregl.LngLatBounds();
+      if (center) b.extend(center);
+      ids.forEach(id => {
+        const it = idToItem.get(id);
+        if (it) b.extend([it.lon, it.lat]);
+      });
+    
+      const pw = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+      const pr = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
+      const rightPad = Math.round(pw * 1.25) + pr + 10; // panneau agrandi
+    
+      if (!b.isEmpty()) {
+        map.fitBounds(b, { padding: { top:20, left:20, bottom:20, right:rightPad }, duration: 600 });
+      }
+    }
+
     async function openNoteInPanel(noteId){
       try{
-        const url = `${NOTE_RAW_BASE}/${encodeURIComponent(noteId)}.md`;
+        const url = resolveNoteURL(noteId);
         const res = await fetch(url, { cache:'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const md = await res.text();
         const { meta, body } = parseAndStripFrontMatter(md);
+        if (Array.isArray(meta.entities) && meta.entities.length) {
+          renderEntityChips(meta.entities);
+        } else {
+          const box = document.getElementById('npEntities');
+          if (box) box.innerHTML = '';
+        }
         const html = marked.parse(transformWikiLinks(body));
 
         document.getElementById('npTitle').textContent =
