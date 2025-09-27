@@ -2,7 +2,7 @@
 id: ent-richard-nixon
 title: Richard Nixon
 type: entity
-aliases: [Richard, Nixon, Tricky Dick
+aliases: [Richard, Nixon, Tricky Dick]
 summary:
 ---
 
