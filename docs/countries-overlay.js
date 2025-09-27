@@ -41,7 +41,17 @@
     nameToIso3.set("etats-unis", "USA");
     nameToIso3.set("egypte", "EGY");
     nameToIso3.set("israel", "ISR");
-  }
+    // alias URSS -> Russie
+    [
+      "urss",
+      "u.r.s.s.",
+      "ussr",
+      "union-sovietique",
+      "union-des-republiques-socialistes-sovietiques",
+      "soviet-union",
+      "union-of-soviet-socialist-republics"
+    ].forEach(k => nameToIso3.set(k, "RUS"));
+      }
 
   async function ensureLoaded(map) {
     if (ready && mapRef === map) return true;
