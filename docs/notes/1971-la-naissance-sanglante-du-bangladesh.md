@@ -1,7 +1,7 @@
 ---
 title: "1971: La naissance sanglante du Bangladesh"
 date: 25/03/1971
-entities: [USA, Pakistan, Inde]
+entities: [USA, Inde, Pakistan, Archer Blood]
 sources:
   - "Archer Blood Telegram, 1971"
 
