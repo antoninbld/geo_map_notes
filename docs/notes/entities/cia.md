@@ -5,5 +5,7 @@ type: entity
 aliases: [Central Intelligence Agency]
 summary: "Service de renseignement américain (créé en 1947)."
 ---
-Résumé: 
+
+## Résumé
+Contenu à venir…
 
