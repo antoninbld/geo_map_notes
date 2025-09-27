@@ -1,5 +1,5 @@
 ---
-id: ent-cia
+id: ent-org-cia
 title: CIA
 type: entity
 aliases: [Central Intelligence Agency]
