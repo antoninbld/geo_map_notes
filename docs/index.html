@@ -286,22 +286,51 @@
       return new THREE.Vector3(mc.x, mc.y, mc.z || 0);
     }
   
-    function makeArc3D(aLngLat, bLngLat, { heightFactor = 0.15, segments = 96, radius = 2500, color = 0xdb6402 } = {}){
+    function makeArc3D(
+      aLngLat, 
+      bLngLat, 
+      { heightFactor = 0.18, lateralFactor = 0.22, segments = 120, radius = 2200, color = 0xdb6402 } = {}
+    ){
+      // Points monde aux extrémités (alt ≈ 0 m)
       const A = lngLatAltToWorld([aLngLat[0], aLngLat[1], 0]);
       const B = lngLatAltToWorld([bLngLat[0], bLngLat[1], 0]);
-  
-      const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
-      const dir = new THREE.Vector3().subVectors(B, A);
-      const len = dir.length() || 1;
-      const up  = new THREE.Vector3(0,0,1);
-  
-      const apex = mid.clone().addScaledVector(up, len * heightFactor); // élévation “balistique”
-  
-      const curve = new THREE.CatmullRomCurve3([A, apex, B]);
+    
+      // Géométrie utile
+      const dir   = new THREE.Vector3().subVectors(B, A);        // direction AB en 3D
+      const len   = dir.length() || 1;
+      const mid   = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+      const up    = new THREE.Vector3(0, 0, 1);                  // axe vertical
+    
+      // Perpendiculaire **dans le plan XY** (pour la courbure visible vue de dessus)
+      const dirXY = new THREE.Vector3(dir.x, dir.y, 0);
+      const perpXY = (dirXY.length() > 0)
+        ? new THREE.Vector3(-dirXY.y, dirXY.x, 0).normalize()
+        : new THREE.Vector3(1, 0, 0); // fallback
+    
+      // Amplitudes
+      const h = len * heightFactor;    // élévation (z)
+      const s = len * lateralFactor;   // déport latéral (xy)
+    
+      // 4 points de contrôle pour une courbe bien "balistique"
+      // P1 et P2 décalés latéralement + partiellement en hauteur
+      const P1 = new THREE.Vector3().addVectors(
+        new THREE.Vector3().addVectors(A, mid).multiplyScalar(0.5),
+        new THREE.Vector3().addScaledVector(perpXY, 0.5 * s).addScaledVector(up, 0.5 * h)
+      );
+      const APEX = new THREE.Vector3().addVectors(
+        mid,
+        new THREE.Vector3().addScaledVector(perpXY, s).addScaledVector(up, h)
+      );
+      const P2 = new THREE.Vector3().addVectors(
+        new THREE.Vector3().addVectors(mid, B).multiplyScalar(0.5),
+        new THREE.Vector3().addScaledVector(perpXY, 0.5 * s).addScaledVector(up, 0.5 * h)
+      );
+    
+      // Courbe CatmullRom (A -> P1 -> APEX -> P2 -> B)
+      const curve = new THREE.CatmullRomCurve3([A, P1, APEX, P2, B]);
       const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
       const mat   = new THREE.MeshBasicMaterial({ color, opacity: 0.95, transparent: true });
-      const mesh  = new THREE.Mesh(geom, mat);
-      return mesh;
+      return new THREE.Mesh(geom, mat);
     }
   
     return {
