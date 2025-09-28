@@ -5,13 +5,15 @@
   <title>Carte interactive</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- MapLibre -->
+    <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
 
   <!-- Turf (optionnel mais utilisé si dispo pour bbox/centroid) -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  
   <!-- Marked (pour Markdown des notes) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -273,6 +275,77 @@
     return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(noteId)}.md`;
   }
 
+  <script>
+  /* ---- Custom layer Three.js pour arcs 3D (missiles) ---- */
+  const MissileArcsLayer = (function(){
+    let camera, scene, renderer, mapRef;
+    const group = new THREE.Group();
+    const meshes = [];
+  
+    function lngLatAltToWorld([lng, lat, altM = 0]){
+      const mc = maplibregl.MercatorCoordinate.fromLngLat({lng, lat}, altM);
+      return new THREE.Vector3(mc.x, mc.y, mc.z || 0);
+    }
+  
+    function makeArc3D(aLngLat, bLngLat, { heightFactor = 0.15, segments = 96, radius = 2500, color = 0xdb6402 } = {}){
+      const A = lngLatAltToWorld([aLngLat[0], aLngLat[1], 0]);
+      const B = lngLatAltToWorld([bLngLat[0], bLngLat[1], 0]);
+  
+      const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+      const dir = new THREE.Vector3().subVectors(B, A);
+      const len = dir.length() || 1;
+      const up  = new THREE.Vector3(0,0,1);
+  
+      const apex = mid.clone().addScaledVector(up, len * heightFactor); // élévation “balistique”
+  
+      const curve = new THREE.CatmullRomCurve3([A, apex, B]);
+      const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
+      const mat   = new THREE.MeshBasicMaterial({ color, opacity: 0.95, transparent: true });
+      const mesh  = new THREE.Mesh(geom, mat);
+      return mesh;
+    }
+  
+    return {
+      id: 'entity-focus-arcs-3d',
+      type: 'custom',
+      renderingMode: '3d',
+      onAdd(map, gl){
+        mapRef = map;
+        camera = new THREE.Camera();
+        scene  = new THREE.Scene();
+        scene.add(group);
+        renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+        renderer.autoClear = false;
+      },
+      render(gl, matrix){
+        camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
+        renderer.state.reset();
+        renderer.render(scene, camera);
+        mapRef.triggerRepaint();
+      },
+      clear(){
+        for (const m of group.children.slice()) {
+          group.remove(m);
+          m.geometry?.dispose?.();
+          m.material?.dispose?.();
+        }
+      },
+      setArcs(pairs){
+        this.clear();
+        for(const p of pairs){
+          const mesh = makeArc3D(p.from, p.to, {
+            heightFactor: p.heightFactor ?? 0.18,
+            segments: 96,
+            radius: 2200,
+            color: (typeof p.color === 'string') ? new THREE.Color(p.color) : (p.color ?? 0xdb6402)
+          });
+          group.add(mesh);
+        }
+      }
+    };
+  })();
+  </script>
+
   // ========= ENTITÉS =========
   const EVENTS_BY_ENTITY=new Map(); const __scannedEventsForEntities=new Set();
   const ENTITY_NAME_TO_ID=new Map([
@@ -324,6 +397,12 @@
     try { allData.forEach(it => { if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false }); }); } catch {}
     try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
     try { undimAll(); } catch {}
+
+    try {
+      if (map.getLayer('entity-focus-arcs-3d') && typeof MissileArcsLayer.clear === 'function') {
+        MissileArcsLayer.clear();
+      }
+    } catch {}
   
     // masque l’overlay pays si présent
     try { window.CountryOverlay?.hide(map); } catch {}
@@ -412,6 +491,23 @@
       if(src && src.setData) src.setData({ type:'FeatureCollection', features });
       setEntityFocusVisibility(true); // doit rendre visibles 'entity-focus-links' et 'entity-focus-point'
     }catch{}
+
+    // --- Arcs 3D au-dessus des traits 2D ---
+    try {
+      if (map.getLayer('entity-focus-arcs-3d') && typeof MissileArcsLayer.setArcs === 'function') {
+        const pairs = [];
+        for (const eid of linked) {
+          const it = idToItem.get(eid); if(!it) continue;
+          pairs.push({
+            from: origin,
+            to: [it.lon, it.lat],
+            color: '#db6402',   // même teinte que l’overlay pays
+            heightFactor: 0.18  // bosse de l’arc (augmente pour + “missile”)
+          });
+        }
+        MissileArcsLayer.setArcs(pairs);
+      }
+    } catch {}
   
     // 6) Dim toutes les notes sauf celles liées
     try{
@@ -581,6 +677,11 @@
         paint:{ 'circle-radius':6, 'circle-color':'#db6402', 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' }
       }, 'clusters');
     }
+
+    // Arcs 3D (missiles)
+    if (!map.getLayer('entity-focus-arcs-3d')) {
+      map.addLayer(MissileArcsLayer);
+    }
     
     // Projection/terrain
     CURRENT_PROJECTION='globe'; applyProjection(); ensureTerrain?.();
@@ -625,6 +726,11 @@
           'circle-stroke-color':'#ffffff'
         }
       }, 'clusters');
+    }
+
+    // Arcs 3D (missiles)
+    if (!map.getLayer('entity-focus-arcs-3d')) {
+      map.addLayer(MissileArcsLayer);
     }
     
     // Si un pays est déjà en focus, on ré-applique l’overlay
