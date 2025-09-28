@@ -291,46 +291,54 @@
      * - Courbure latérale sur la sphère (perpendiculaire géodésique)
      * - Altitude réelle (bosse visible en 3D)
      */
+    // --- remplace TOUTE la fonction makeArc3D par ceci ---
     function makeArc3D(
       aLngLat,
       bLngLat,
       {
-        heightFactor = 0.18,   // intensité de la bosse verticale (0.10–0.30)
-        lateralFactor = 0.22,  // déport latéral en plan (0.12–0.30)
-        segments = 120,        // finesse de la courbe
-        radius = 2200,         // épaisseur du tube
-        color = 0xdb6402       // couleur
+        heightFactor = 0.28,   // intensité de la bosse
+        lateralFactor = 0.30,  // déport latéral (vue de dessus)
+        segments = 160,
+        radius = 2200,
+        color = 0xdb6402
       } = {}
     ) {
-      // A & B : points géodésiques
       const a = { lng: aLngLat[0], lat: aLngLat[1] };
       const b = { lng: bLngLat[0], lat: bLngLat[1] };
-  
-      // Mesures géodésiques (Turf)
-      const distKm  = Math.max(0.01, turf.distance(a, b)); // km
+    
+      // Géodésique AB
+      const distKm  = Math.max(0.01, turf.distance(a, b));          // km
       const bearing = turf.bearing(a, b);
       const mid     = turf.midpoint(a, b);
-  
-      // Déport latéral (perpendiculaire à AB sur la sphère)
+    
+      // Normale géodésique (pour le déport latéral)
       const perpBearing = bearing + 90;
       const lateralKm   = distKm * lateralFactor;
-      const lateralMid  = turf.destination(mid, lateralKm, perpBearing);
-  
-      // Altitude de l’apex (en mètres), proportionnelle à la distance
-      const altApex = Math.min(1_200_000, Math.max(120_000, distKm * 8000 * heightFactor));
-  
-      // Points de contrôle (P1/P2 moitié du déport et de l’altitude)
-      const p1ll   = turf.destination(mid, lateralKm * 0.5, perpBearing);
-      const p2ll   = turf.destination(mid, lateralKm * 0.5, perpBearing);
-  
-      // Conversion en monde (x,y,z)
-      const A     = toWorld(a.lng, a.lat, 0);
-      const B     = toWorld(b.lng, b.lat, 0);
-      const APEX  = toWorld(lateralMid.geometry.coordinates[0], lateralMid.geometry.coordinates[1], altApex);
-      const P1    = toWorld(p1ll.geometry.coordinates[0],       p1ll.geometry.coordinates[1],       altApex * 0.5);
-      const P2    = toWorld(p2ll.geometry.coordinates[0],       p2ll.geometry.coordinates[1],       altApex * 0.5);
-  
-      // Courbe CatmullRom + tube
+    
+      // Positions "progressives" le long d'AB (1/3 et 2/3)
+      const line = turf.lineString([[a.lng, a.lat], [b.lng, b.lat]]);
+      const p1g  = turf.along(line, distKm / 3,      { units: 'kilometers' });
+      const p2g  = turf.along(line, (2 * distKm) / 3,{ units: 'kilometers' });
+    
+      // On décale ces positions latéralement (demi-amplitude)
+      const p1ll = turf.destination(p1g, lateralKm * 0.6, perpBearing);
+      const p2ll = turf.destination(p2g, lateralKm * 0.6, perpBearing);
+    
+      // Apex : milieu d’AB décalé latéralement (amplitude complète)
+      const apexLL = turf.destination(mid, lateralKm, perpBearing);
+    
+      // Altitude de l’apex (m) proportionnelle à la distance (clampée)
+      const altApex =
+        Math.min(1_000_000, Math.max(120_000, distKm * 8000 * heightFactor));
+    
+      // Conversion en coordonnées monde (x,y,z)
+      const A    = toWorld(a.lng, a.lat, 0);
+      const B    = toWorld(b.lng, b.lat, 0);
+      const P1   = toWorld(p1ll.geometry.coordinates[0],  p1ll.geometry.coordinates[1],  altApex * 0.5);
+      const APEX = toWorld(apexLL.geometry.coordinates[0],apexLL.geometry.coordinates[1], altApex);
+      const P2   = toWorld(p2ll.geometry.coordinates[0],  p2ll.geometry.coordinates[1],  altApex * 0.5);
+    
+      // Courbe + tube 3D
       const curve = new THREE.CatmullRomCurve3([A, P1, APEX, P2, B]);
       const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
       const mat   = new THREE.MeshBasicMaterial({
