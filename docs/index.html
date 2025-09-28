@@ -453,6 +453,11 @@
 
   // ——— Affiche la constellation & overlay pays via CountryOverlay.show ———
   async function showEntityConstellation(entId){
+    function ensureMissilePitch(minPitch = 55) {
+      if (map.getPitch() < minPitch) {
+        map.easeTo({ pitch: minPitch, duration: 0 });
+      }
+    }
     // 1) Construire l’ensemble des éléments liés
     const linked = await ensureEntityIndexFilled(entId);
     if(!linked || !linked.size){
@@ -486,6 +491,7 @@
           marginRight: parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10)
         });
         overlayDidFrame = true;
+        ensureMissilePitch(55);
       }catch{}
   
       // s’assurer que l’overlay passe au-dessus
@@ -560,9 +566,10 @@
     if(!overlayDidFrame && !bounds.isEmpty()){
       try{
         map.fitBounds(bounds, { padding:{ top:40, left:40, bottom:40, right: computeRightPad() }, duration:650 });
+        ensureMissilePitch(55);
       }catch{
-        // fallback: centre simple
         map.easeTo({ center: origin, zoom: Math.max(map.getZoom(), 4.2), duration: 600 });
+        ensureMissilePitch(55);
       }
     }
   }
@@ -653,7 +660,7 @@
       const pr=parseInt((UI_CONFIG.panel&&UI_CONFIG.panel.marginRight)||'10',10);
       const rightPad=pw+pr+10;
       if(coords&&Array.isArray(coords)){
-        map.easeTo({center:coords, zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600});
+        map.easeTo({center:coords, zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), 55)});
       }
     }catch{}
   }
@@ -728,7 +735,7 @@
     CURRENT_PROJECTION='globe'; applyProjection(); ensureTerrain?.();
 
     // Vue initiale
-    map.jumpTo({center:WORLD_CENTER, zoom:ARRIVAL_ZOOM});
+    map.jumpTo({ center: WORLD_CENTER, zoom: ARRIVAL_ZOOM, pitch: 55, bearing: 0 });
 
     updateRotateButtonVisibility();
   });
@@ -908,7 +915,7 @@
         getOutgoingLinks(id).then(lnk=>{ drawLinksFrom(id,lnk); window.__lastLinksState={id,links:lnk};
           const from=idToItem.get(id);
           if(from){ const pw=parseInt((UI_CONFIG?.panel?.width??400),10), pr=parseInt((UI_CONFIG?.panel?.marginRight??10),10); const rightPad=Math.round(pw*1.25)+pr+10;
-            map.easeTo({center:[from.lon,from.lat], zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600}); }
+            map.easeTo({center:[from.lon,from.lat], zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), 55)}); }
         });
       });
     });
