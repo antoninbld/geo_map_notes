@@ -283,65 +283,52 @@
   
     // MapLibre -> espace monde (x,y,z) avec altitude en mètres
     function toWorld(lng, lat, altitudeM = 0) {
-      const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], altitudeM);
-      return new THREE.Vector3(mc.x, mc.y, mc.z || 0);
+      const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat]); // <-- sans altitude ici
+      const z  = altitudeM * mc.meterInMercatorCoordinateUnits();      // <-- conversion manuelle
+      return new THREE.Vector3(mc.x, mc.y, z);
     }
   
-    // Arc 3D "balistique" qui s'élève franchement au-dessus du globe
+    // REMPLACE toute ta fonction makeArc3D par celle-ci
     function makeArc3D(
-      aLngLat,
-      bLngLat,
-      {
-        heightFactor  = 0.35, // bosse verticale (0.25–0.60)
-        lateralFactor = 0.25, // déport latéral (vue de dessus)
-        segments      = 160,
-        radius        = 2200,
-        color         = 0xdb6402
-      } = {}
-    ) {
+      aLngLat, bLngLat,
+      { heightFactor = 0.40, lateralFactor = 0.25, segments = 160, radius = 2200, color = 0xdb6402 } = {}
+    ){
       const a = { lng: aLngLat[0], lat: aLngLat[1] };
       const b = { lng: bLngLat[0], lat: bLngLat[1] };
-  
-      // géodésique et repères
+    
       const distKm  = Math.max(0.01, turf.distance(a, b));
       const bearing = turf.bearing(a, b);
       const mid     = turf.midpoint(a, b);
-  
+    
       const perpBearing = bearing + 90;
       const lateralKm   = distKm * lateralFactor;
-  
-      // points à 1/3 et 2/3 d'AB
-      const line = turf.lineString([[a.lng, a.lat], [b.lng, b.lat]]);
-      const p1g  = turf.along(line,  distKm / 3,      { units: 'kilometers' });
-      const p2g  = turf.along(line, (2*distKm) / 3,   { units: 'kilometers' });
-  
-      // déport latéral
-      const p1ll   = turf.destination(p1g,  lateralKm * 0.6, perpBearing);
-      const p2ll   = turf.destination(p2g,  lateralKm * 0.6, perpBearing);
-      const apexLL = turf.destination(mid,  lateralKm,       perpBearing);
-  
-      // ALTITUDES — clés pour "quitter" la surface
-      const altApex = Math.min(1_200_000, Math.max(250_000, distKm * 7000 * heightFactor)); // 250–1200 km
-      const altBase = Math.min( 80_000,   Math.max( 20_000, altApex * 0.12 ));              // 20–80  km
-      const altP    = Math.min(220_000,   Math.max( 60_000, altApex * 0.45 ));              // 60–220 km
-  
-      // conversion en coords monde
-      const A    = toWorld(a.lng, a.lat, altBase); // <-- ≠ 0 m
-      const B    = toWorld(b.lng, b.lat, altBase); // <-- ≠ 0 m
+    
+      const line = turf.lineString([[a.lng, a.lat],[b.lng, b.lat]]);
+      const p1g  = turf.along(line, distKm/3,       { units:'kilometers' });
+      const p2g  = turf.along(line, 2*distKm/3,     { units:'kilometers' });
+    
+      const p1ll = turf.destination(p1g,  lateralKm*0.6, perpBearing);
+      const p2ll = turf.destination(p2g,  lateralKm*0.6, perpBearing);
+      const apex = turf.destination(mid,   lateralKm,     perpBearing);
+    
+      // altitudes (mètres) – A et B ≠ 0 pour "quitter" la surface
+      const altApex = Math.min(1_400_000, Math.max(300_000, distKm * 8000 * heightFactor)); // 300–1400 km
+      const altBase = Math.min(120_000,   Math.max( 30_000, altApex * 0.12));               // 30–120 km
+      const altP    = Math.min(300_000,   Math.max( 80_000, altApex * 0.45));               // 80–300 km
+    
+      const A    = toWorld(a.lng, a.lat, altBase);
+      const B    = toWorld(b.lng, b.lat, altBase);
       const P1   = toWorld(p1ll.geometry.coordinates[0],  p1ll.geometry.coordinates[1],  altP);
-      const APEX = toWorld(apexLL.geometry.coordinates[0], apexLL.geometry.coordinates[1], altApex);
+      const APEX = toWorld(apex.geometry.coordinates[0],   apex.geometry.coordinates[1],  altApex);
       const P2   = toWorld(p2ll.geometry.coordinates[0],  p2ll.geometry.coordinates[1],  altP);
-  
+    
       const curve = new THREE.CatmullRomCurve3([A, P1, APEX, P2, B]);
       const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
       const mat   = new THREE.MeshBasicMaterial({
         color: (typeof color === 'string') ? new THREE.Color(color) : color,
-        transparent: true,
-        opacity: 0.95,
-        depthTest: false,  // <-- pour rester visible à l'horizon
-        depthWrite: false
+        transparent: true, opacity: 0.95,
+        depthTest: false, depthWrite: false   // toujours visible à l’horizon
       });
-  
       const mesh = new THREE.Mesh(geom, mat);
       mesh.renderOrder = 9999;
       return mesh;
@@ -367,12 +354,14 @@
         renderer.autoClear = false;
       },
   
+      // DANS l'objet custom layer, remplace ta méthode render par :
       render(gl, matrix) {
         camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
         renderer.state.reset();
+        renderer.clearDepth();                // <-- important pour voir la hausse
         renderer.render(scene, camera);
         mapRef.triggerRepaint();
-      },
+      }
   
       clear() {
         for (const m of group.children.slice()) {
