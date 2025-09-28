@@ -281,53 +281,71 @@
     const group = new THREE.Group();
     group.renderOrder = 9999; // dessiner après le globe
   
-    // MapLibre -> espace monde (x,y,z) avec altitude en mètres
+    // --- A. toWorld (remplacer votre version) ---
     function toWorld(lng, lat, altitudeM = 0) {
-      const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat]); // <-- sans altitude ici
-      const z  = altitudeM * mc.meterInMercatorCoordinateUnits();      // <-- conversion manuelle
+      // On calcule d'abord x/y sans altitude…
+      const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat]);
+      // …puis on convertit nous-même les mètres en unités Mercator.
+      const meterToUnit =
+        (typeof mc.meterInMercatorCoordinateUnits === 'function')
+          ? mc.meterInMercatorCoordinateUnits()
+          : (typeof mc.metersInMercatorCoordinateUnits === 'function')
+              ? mc.metersInMercatorCoordinateUnits()
+              : 1.0; // fallback improbable, mais évite NaN
+    
+      const z = altitudeM * meterToUnit;
       return new THREE.Vector3(mc.x, mc.y, z);
     }
   
-    // REMPLACE toute ta fonction makeArc3D par celle-ci
+    // --- B. makeArc3D (remplacer votre version) ---
     function makeArc3D(
       aLngLat, bLngLat,
-      { heightFactor = 0.40, lateralFactor = 0.25, segments = 160, radius = 2200, color = 0xdb6402 } = {}
+      { heightFactor = 0.45, lateralFactor = 0.28, segments = 160, radius = 3500, color = 0xdb6402 } = {}
     ){
       const a = { lng: aLngLat[0], lat: aLngLat[1] };
       const b = { lng: bLngLat[0], lat: bLngLat[1] };
     
+      // Mesures géodésiques
       const distKm  = Math.max(0.01, turf.distance(a, b));
       const bearing = turf.bearing(a, b);
       const mid     = turf.midpoint(a, b);
     
+      // Déport latéral
       const perpBearing = bearing + 90;
       const lateralKm   = distKm * lateralFactor;
     
-      const line = turf.lineString([[a.lng, a.lat],[b.lng, b.lat]]);
-      const p1g  = turf.along(line, distKm/3,       { units:'kilometers' });
-      const p2g  = turf.along(line, 2*distKm/3,     { units:'kilometers' });
+      // Points 1/3 et 2/3
+      const line = turf.lineString([[a.lng, a.lat], [b.lng, b.lat]]);
+      const p1g  = turf.along(line,  distKm / 3,     { units: 'kilometers' });
+      const p2g  = turf.along(line, (2*distKm) / 3,  { units: 'kilometers' });
     
-      const p1ll = turf.destination(p1g,  lateralKm*0.6, perpBearing);
-      const p2ll = turf.destination(p2g,  lateralKm*0.6, perpBearing);
-      const apex = turf.destination(mid,   lateralKm,     perpBearing);
+      // Décalage latéral de ces points + apex
+      const p1ll   = turf.destination(p1g,  lateralKm * 0.6, perpBearing);
+      const p2ll   = turf.destination(p2g,  lateralKm * 0.6, perpBearing);
+      const apexLL = turf.destination(mid,  lateralKm,       perpBearing);
     
-      // altitudes (mètres) – A et B ≠ 0 pour "quitter" la surface
-      const altApex = Math.min(1_400_000, Math.max(300_000, distKm * 8000 * heightFactor)); // 300–1400 km
-      const altBase = Math.min(120_000,   Math.max( 30_000, altApex * 0.12));               // 30–120 km
-      const altP    = Math.min(300_000,   Math.max( 80_000, altApex * 0.45));               // 80–300 km
+      // Altitudes (m) — volontairement hautes pour un effet évident
+      // (Si vous voyez bien le "décollage", vous pourrez redescendre ces valeurs.)
+      const altApex = Math.max(800_000, distKm * 10_000 * heightFactor); // >= 800 km
+      const altBase = Math.max(150_000, altApex * 0.18);                  // >= 150 km (extrémités)
+      const altP    = Math.max(300_000, altApex * 0.50);                  // >= 300 km (points de contrôle)
     
+      // Conversion monde
       const A    = toWorld(a.lng, a.lat, altBase);
       const B    = toWorld(b.lng, b.lat, altBase);
       const P1   = toWorld(p1ll.geometry.coordinates[0],  p1ll.geometry.coordinates[1],  altP);
-      const APEX = toWorld(apex.geometry.coordinates[0],   apex.geometry.coordinates[1],  altApex);
+      const APEX = toWorld(apexLL.geometry.coordinates[0], apexLL.geometry.coordinates[1], altApex);
       const P2   = toWorld(p2ll.geometry.coordinates[0],  p2ll.geometry.coordinates[1],  altP);
     
+      // Courbe + tube
       const curve = new THREE.CatmullRomCurve3([A, P1, APEX, P2, B]);
-      const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
+      const geom  = new THREE.TubeGeometry(curve, segments, radius, 10, false);
       const mat   = new THREE.MeshBasicMaterial({
         color: (typeof color === 'string') ? new THREE.Color(color) : color,
-        transparent: true, opacity: 0.95,
-        depthTest: false, depthWrite: false   // toujours visible à l’horizon
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,     // toujours visible à l’horizon
+        depthWrite: false
       });
       const mesh = new THREE.Mesh(geom, mat);
       mesh.renderOrder = 9999;
@@ -354,15 +372,14 @@
         renderer.autoClear = false;
       },
   
-      // DANS l'objet custom layer, remplace ta méthode render par :
       render(gl, matrix) {
         camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
         renderer.state.reset();
-        renderer.clearDepth();                // <-- important pour voir la hausse
+        renderer.clearDepth();        // <-- indispensable pour que les arcs passent devant
         renderer.render(scene, camera);
         mapRef.triggerRepaint();
       },
-  
+
       clear() {
         for (const m of group.children.slice()) {
           group.remove(m);
@@ -434,19 +451,37 @@
   // ——— clear focus ENTITÉ (utilise CountryOverlay.hide) ———
   function clearEntityFocus(){
     setEntityFocusVisibility(false);
-    try { map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
-    try { allData.forEach(it => { if (it && it.id != null) map.setFeatureState({ source:'notes', id: it.id }, { dim: false }); }); } catch {}
-    try { map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] }); } catch {}
+  
+    try {
+      map.getSource('entity-focus')?.setData({ type:'FeatureCollection', features: [] });
+    } catch {}
+  
+    try {
+      allData.forEach(it => {
+        if (it && it.id != null)
+          map.setFeatureState({ source:'notes', id: it.id }, { dim: false });
+      });
+    } catch {}
+  
+    try {
+      map.getSource('entity-focus-links')?.setData({ type:'FeatureCollection', features: [] });
+    } catch {}
+  
     try { undimAll(); } catch {}
-
+  
+    // -- on nettoie les arcs 3D
     try {
       if (map.getLayer('entity-focus-arcs-3d') && typeof MissileArcsLayer.clear === 'function') {
         MissileArcsLayer.clear();
       }
     } catch {}
   
+    // (D) ⇒ ré-affiche la couche 2D des liens quand on sort du focus
+    try { map.setLayoutProperty('entity-focus-links', 'visibility', 'visible'); } catch {}  // ← (D) ré-affiche les traits 2D
+  
     // masque l’overlay pays si présent
     try { window.CountryOverlay?.hide(map); } catch {}
+  
     CURRENT_FOCUSED_COUNTRY = null;
   }
   document.getElementById('btnClearEntityFocus')?.addEventListener('click', clearEntityFocus);
@@ -553,6 +588,7 @@
           });
         }
         MissileArcsLayer.setArcs(pairs);
+        try { map.setLayoutProperty('entity-focus-links', 'visibility', 'none'); } catch {}
       }
     } catch {}
   
