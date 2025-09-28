@@ -275,61 +275,69 @@
     return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(noteId)}.md`;
   }
 
-  /* ---- Custom layer Three.js pour arcs 3D (missiles) ---- */
-  const MissileArcsLayer = (function(){
+  /* ==== Custom layer Three.js : arcs 3D “missiles” ==== */
+  const MissileArcsLayer = (function () {
     let camera, scene, renderer, mapRef;
     const group = new THREE.Group();
-    const meshes = [];
   
-    function lngLatAltToWorld([lng, lat, altM = 0]){
-      const mc = maplibregl.MercatorCoordinate.fromLngLat({lng, lat}, altM);
+    // MapLibre → espace monde (x,y,z) avec altitude (mètres)
+    function toWorld(lng, lat, altitudeM = 0) {
+      const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], altitudeM);
       return new THREE.Vector3(mc.x, mc.y, mc.z || 0);
     }
   
+    /**
+     * Construit un arc 3D “balistique” entre deux [lng,lat].
+     * - Courbure latérale sur la sphère (perpendiculaire géodésique)
+     * - Altitude réelle (bosse visible en 3D)
+     */
     function makeArc3D(
-      aLngLat, 
-      bLngLat, 
-      { heightFactor = 0.18, lateralFactor = 0.22, segments = 120, radius = 2200, color = 0xdb6402 } = {}
-    ){
-      // Points monde aux extrémités (alt ≈ 0 m)
-      const A = lngLatAltToWorld([aLngLat[0], aLngLat[1], 0]);
-      const B = lngLatAltToWorld([bLngLat[0], bLngLat[1], 0]);
-    
-      // Géométrie utile
-      const dir   = new THREE.Vector3().subVectors(B, A);        // direction AB en 3D
-      const len   = dir.length() || 1;
-      const mid   = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
-      const up    = new THREE.Vector3(0, 0, 1);                  // axe vertical
-    
-      // Perpendiculaire **dans le plan XY** (pour la courbure visible vue de dessus)
-      const dirXY = new THREE.Vector3(dir.x, dir.y, 0);
-      const perpXY = (dirXY.length() > 0)
-        ? new THREE.Vector3(-dirXY.y, dirXY.x, 0).normalize()
-        : new THREE.Vector3(1, 0, 0); // fallback
-    
-      // Amplitudes
-      const h = len * heightFactor;    // élévation (z)
-      const s = len * lateralFactor;   // déport latéral (xy)
-    
-      // 4 points de contrôle pour une courbe bien "balistique"
-      // P1 et P2 décalés latéralement + partiellement en hauteur
-      const P1 = new THREE.Vector3().addVectors(
-        new THREE.Vector3().addVectors(A, mid).multiplyScalar(0.5),
-        new THREE.Vector3().addScaledVector(perpXY, 0.5 * s).addScaledVector(up, 0.5 * h)
-      );
-      const APEX = new THREE.Vector3().addVectors(
-        mid,
-        new THREE.Vector3().addScaledVector(perpXY, s).addScaledVector(up, h)
-      );
-      const P2 = new THREE.Vector3().addVectors(
-        new THREE.Vector3().addVectors(mid, B).multiplyScalar(0.5),
-        new THREE.Vector3().addScaledVector(perpXY, 0.5 * s).addScaledVector(up, 0.5 * h)
-      );
-    
-      // Courbe CatmullRom (A -> P1 -> APEX -> P2 -> B)
+      aLngLat,
+      bLngLat,
+      {
+        heightFactor = 0.18,   // intensité de la bosse verticale (0.10–0.30)
+        lateralFactor = 0.22,  // déport latéral en plan (0.12–0.30)
+        segments = 120,        // finesse de la courbe
+        radius = 2200,         // épaisseur du tube
+        color = 0xdb6402       // couleur
+      } = {}
+    ) {
+      // A & B : points géodésiques
+      const a = { lng: aLngLat[0], lat: aLngLat[1] };
+      const b = { lng: bLngLat[0], lat: bLngLat[1] };
+  
+      // Mesures géodésiques (Turf)
+      const distKm  = Math.max(0.01, turf.distance(a, b)); // km
+      const bearing = turf.bearing(a, b);
+      const mid     = turf.midpoint(a, b);
+  
+      // Déport latéral (perpendiculaire à AB sur la sphère)
+      const perpBearing = bearing + 90;
+      const lateralKm   = distKm * lateralFactor;
+      const lateralMid  = turf.destination(mid, lateralKm, perpBearing);
+  
+      // Altitude de l’apex (en mètres), proportionnelle à la distance
+      const altApex = Math.min(1_200_000, Math.max(120_000, distKm * 8000 * heightFactor));
+  
+      // Points de contrôle (P1/P2 moitié du déport et de l’altitude)
+      const p1ll   = turf.destination(mid, lateralKm * 0.5, perpBearing);
+      const p2ll   = turf.destination(mid, lateralKm * 0.5, perpBearing);
+  
+      // Conversion en monde (x,y,z)
+      const A     = toWorld(a.lng, a.lat, 0);
+      const B     = toWorld(b.lng, b.lat, 0);
+      const APEX  = toWorld(lateralMid.geometry.coordinates[0], lateralMid.geometry.coordinates[1], altApex);
+      const P1    = toWorld(p1ll.geometry.coordinates[0],       p1ll.geometry.coordinates[1],       altApex * 0.5);
+      const P2    = toWorld(p2ll.geometry.coordinates[0],       p2ll.geometry.coordinates[1],       altApex * 0.5);
+  
+      // Courbe CatmullRom + tube
       const curve = new THREE.CatmullRomCurve3([A, P1, APEX, P2, B]);
       const geom  = new THREE.TubeGeometry(curve, segments, radius, 8, false);
-      const mat   = new THREE.MeshBasicMaterial({ color, opacity: 0.95, transparent: true });
+      const mat   = new THREE.MeshBasicMaterial({
+        color: (typeof color === 'string') ? new THREE.Color(color) : color,
+        opacity: 0.95,
+        transparent: true
+      });
       return new THREE.Mesh(geom, mat);
     }
   
@@ -337,35 +345,47 @@
       id: 'entity-focus-arcs-3d',
       type: 'custom',
       renderingMode: '3d',
-      onAdd(map, gl){
+  
+      onAdd(map, gl) {
         mapRef = map;
         camera = new THREE.Camera();
         scene  = new THREE.Scene();
+        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
         scene.add(group);
+  
+        // Réutilise le contexte WebGL de MapLibre
         renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false;
       },
-      render(gl, matrix){
+  
+      render(gl, matrix) {
         camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
         renderer.state.reset();
         renderer.render(scene, camera);
         mapRef.triggerRepaint();
       },
-      clear(){
+  
+      // Nettoyage des arcs courants
+      clear() {
         for (const m of group.children.slice()) {
           group.remove(m);
           m.geometry?.dispose?.();
           m.material?.dispose?.();
         }
       },
-      setArcs(pairs){
+  
+      /**
+       * pairs: Array<{from:[lng,lat], to:[lng,lat], color?:string|number, heightFactor?:number, lateralFactor?:number}>
+       */
+      setArcs(pairs) {
         this.clear();
-        for(const p of pairs){
+        for (const p of pairs) {
           const mesh = makeArc3D(p.from, p.to, {
             heightFactor: p.heightFactor ?? 0.18,
-            segments: 96,
+            lateralFactor: p.lateralFactor ?? 0.22,
+            segments: 120,
             radius: 2200,
-            color: (typeof p.color === 'string') ? new THREE.Color(p.color) : (p.color ?? 0xdb6402)
+            color: p.color ?? 0xdb6402
           });
           group.add(mesh);
         }
