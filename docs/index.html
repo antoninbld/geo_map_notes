@@ -943,16 +943,40 @@
 
     $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a=>{
       a.classList.add('internal-link');
-      a.addEventListener('click',(e)=>{ e.preventDefault(); const href=a.getAttribute('href'); const id=decodeURIComponent(href.split('id=')[1]||''); if(!id) return;
+      a.addEventListener('click',(e)=>{
+        e.preventDefault();
+        const href=a.getAttribute('href');
+        const id=decodeURIComponent(href.split('id=')[1]||'');
+        if(!id) return;
+    
         openSummaryInPanel(id);
+    
         try{
-          if(__selectedId!=null && __selectedId!==id){ map.setFeatureState({source:'notes',id:__selectedId},{selected:false}); }
-          map.setFeatureState({source:'notes',id},{selected:true}); __selectedId=id;
+          if(__selectedId!=null && __selectedId!==id){
+            map.setFeatureState({source:'notes',id:__selectedId},{selected:false});
+          }
+          map.setFeatureState({source:'notes',id},{selected:true});
+          __selectedId=id;
         }catch{}
-        getOutgoingLinks(id).then(lnk=>{ drawLinksFrom(id,lnk); window.__lastLinksState={id,links:lnk};
+    
+        getOutgoingLinks(id).then(lnk=>{
+          drawLinksFrom(id,lnk);
+          window.__lastLinksState={id,links:lnk};
+    
           const from=idToItem.get(id);
-          if(from){ const pw=parseInt((UI_CONFIG?.panel?.width??400),10), pr=parseInt((UI_CONFIG?.panel?.marginRight??10),10); const rightPad=Math.round(pw*1.25)+pr+10;
-            map.easeTo({center:[from.lon,from.lat], zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), BASE_PITCH)});
+          if(from){
+            const pw=parseInt((UI_CONFIG?.panel?.width??400),10),
+                  pr=parseInt((UI_CONFIG?.panel?.marginRight??10),10);
+            const rightPad=Math.round(pw*1.25)+pr+10;
+    
+            map.easeTo({
+              center:[from.lon,from.lat],
+              zoom:ARRIVAL_ZOOM,
+              padding:{top:20,left:20,bottom:20,right:rightPad},
+              duration:600,
+              pitch: Math.max(map.getPitch(), BASE_PITCH)
+            });
+          }
         });
       });
     });
