@@ -241,6 +241,7 @@
 
   const DEFAULT_ZOOM=3.8, EUROPE_CENTER=[10,50], WORLD_CENTER=[0,20], WORLD_ZOOM=2.2;
   const ARRIVAL_ZOOM=WORLD_ZOOM+0.45;
+  const BASE_PITCH = 25; // angle de vue
 
   const map=new maplibregl.Map({ container:'map', style:getStyleURL(CURRENT_BASEMAP), center:WORLD_CENTER, zoom:WORLD_ZOOM, projection:'globe', renderWorldCopies:false });
 
@@ -488,7 +489,7 @@
 
   // ——— Affiche la constellation & overlay pays via CountryOverlay.show ———
   async function showEntityConstellation(entId){
-    function ensureMissilePitch(minPitch = 55) {
+    function ensureMissilePitch(minPitch = BASE_PITCH) {
       if (map.getPitch() < minPitch) {
         map.easeTo({ pitch: minPitch, duration: 0 });
       }
@@ -696,7 +697,7 @@
       const pr=parseInt((UI_CONFIG.panel&&UI_CONFIG.panel.marginRight)||'10',10);
       const rightPad=pw+pr+10;
       if(coords&&Array.isArray(coords)){
-        map.easeTo({center:coords, zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), 55)});
+        map.easeTo({center:coords, zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), BASE_PITCH)});
       }
     }catch{}
   }
@@ -771,7 +772,7 @@
     CURRENT_PROJECTION='globe'; applyProjection(); ensureTerrain?.();
 
     // Vue initiale
-    map.jumpTo({ center: WORLD_CENTER, zoom: ARRIVAL_ZOOM, pitch: 55, bearing: 0 });
+    map.jumpTo({ center: WORLD_CENTER, zoom: ARRIVAL_ZOOM, pitch: BASE_PITCH, bearing: 0 });
 
     updateRotateButtonVisibility();
   });
@@ -951,7 +952,7 @@
         getOutgoingLinks(id).then(lnk=>{ drawLinksFrom(id,lnk); window.__lastLinksState={id,links:lnk};
           const from=idToItem.get(id);
           if(from){ const pw=parseInt((UI_CONFIG?.panel?.width??400),10), pr=parseInt((UI_CONFIG?.panel?.marginRight??10),10); const rightPad=Math.round(pw*1.25)+pr+10;
-            map.easeTo({center:[from.lon,from.lat], zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), 55)}); }
+            map.easeTo({center:[from.lon,from.lat], zoom:ARRIVAL_ZOOM, padding:{top:20,left:20,bottom:20,right:rightPad}, duration:600, pitch: Math.max(map.getPitch(), BASE_PITCH)});
         });
       });
     });
