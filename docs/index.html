@@ -255,11 +255,34 @@
   ['dragend','rotateend','pitchend','zoomend'].forEach(ev=>map.on(ev,()=>{__npUserInteracting=false; if(__npRotateOn && CURRENT_PROJECTION==='globe'){const c=map.getCenter(); map.easeTo({center:[c.lng,0],duration:300});}}));
   function updateRotateButtonVisibility(){const b=getRotateBtn(); if(!b) return; if(CURRENT_PROJECTION==='globe'){b.style.display='flex';}else{b.style.display='none'; __npRotateOn=false; if(__npRotateRAF) cancelAnimationFrame(__npRotateRAF); __npRotateRAF=null; __npUpdateRotateBtn();}}
 
-  // ========= PROJECTION / TERRAIN / SOLEIL =========
-  let __sunTimer=null;
-  function updateSun(){const now=new Date(); const t=(now.getHours()+now.getMinutes()/60)/24; const az=t*360; const alt=Math.sin(t*2*Math.PI)*35+25; try{ if(map.getLayer('sky')) map.setPaintProperty('sky','sky-atmosphere-sun',[az,alt]); }catch{} }
-  function startSun(){updateSun(); clearInterval(__sunTimer); __sunTimer=setInterval(updateSun,30000);}
-  function applyProjection(){const type=(CURRENT_PROJECTION==='globe')?'globe':'mercator'; try{map.setProjection({type});}catch(e){console.warn('Projection non supportée',e);} if(type==='globe'){ if(typeof map.setFog==='function'){try{map.setFog({range:[0.5,10],color:'rgba(160,190,220,0.9)','horizon-blend':0.25});}catch(e){}} startSun?.(); } else { if(typeof map.setFog==='function'){try{map.setFog(null);}catch{}} if(__sunTimer){clearInterval(__sunTimer); __sunTimer=null;} }}
+  function applyProjection() {
+    const type = (CURRENT_PROJECTION === 'globe') ? 'globe' : 'mercator';
+  
+    try {
+      map.setProjection({ type });
+    } catch (e) {
+      console.warn('Projection non supportée', e);
+    }
+  
+    if (type === 'globe') {
+      if (typeof map.setFog === 'function') {
+        try {
+          map.setFog({
+            range: [0.5, 10],
+            color: 'rgba(160,190,220,0.9)',
+            'horizon-blend': 0.25
+          });
+        } catch (e) {}
+      }
+    } else {
+      if (typeof map.setFog === 'function') {
+        try {
+          map.setFog(null);
+        } catch {}
+      }
+    }
+  }
+  
   function ensureTerrain(){ if(CURRENT_PROJECTION==='globe'){try{map.setTerrain(null);}catch{} try{if(map.getLayer('terrain-hillshade')) map.removeLayer('terrain-hillshade');}catch{} try{if(map.getSource('terrain-dem-hs')) map.removeSource('terrain-dem-hs');}catch{} try{if(map.getSource('terrain-dem')) map.removeSource('terrain-dem');}catch{} return;}
     if(!map.getSource('terrain-dem')) map.addSource('terrain-dem',{type:'raster-dem',url:`https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${MAPTILER_KEY}`,tileSize:512,maxzoom:14});
     try{ map.setTerrain({source:'terrain-dem',exaggeration:1.4});
