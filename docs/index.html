@@ -335,6 +335,119 @@
     });
   }
 
+    // ========= SOURCE + COUCHES DES NOTES (FACTO) =========
+    async function ensureNotesSourceAndLayers() {
+      // 1. on s’assure que les données sont chargées
+      await loadDataFromJSON();
+  
+      const features = allData.map(item => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+        properties: { id: item.id, title: item.title }
+      }));
+  
+      // 2. source "notes"
+      if (!map.getSource('notes')) {
+        map.addSource('notes', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features
+          },
+          promoteId: 'id',
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
+        });
+      } else {
+        map.getSource('notes').setData({
+          type: 'FeatureCollection',
+          features
+        });
+      }
+  
+      // 3. couche "clusters"
+      if (!map.getLayer('clusters')) {
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: 'notes',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': '#ba274f',
+            'circle-radius': 20
+          }
+        });
+      }
+  
+      // 4. couche "cluster-count"
+      if (!map.getLayer('cluster-count')) {
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: 'notes',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': [
+              'Open Sans Regular',
+              'Noto Sans Regular',
+              'Arial Unicode MS Regular'
+            ],
+            'text-size': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              0, 12,
+              6, 14,
+              10, 16
+            ],
+            'text-anchor': 'center',
+            'text-offset': [0, 0],
+            'text-allow-overlap': true,
+            'text-ignore-placement': true
+          },
+          paint: {
+            'text-color': '#050404',
+            'text-halo-color': '#050404',
+            'text-halo-width': 0.2
+          }
+        });
+      }
+  
+      // 5. couche "unclustered-point"
+      if (!map.getLayer('unclustered-point')) {
+        map.addLayer({
+          id: 'unclustered-point',
+          type: 'circle',
+          source: 'notes',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              '#37cc12',
+              '#ff2d2d'
+            ],
+            'circle-radius': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              10,
+              6
+            ],
+            'circle-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'dim'], false],
+              0.25,
+              1
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#7a0000'
+          }
+        });
+      }
+    }
+  
   // ========= STYLE & CARTE =========
   const STYLES={
     streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
@@ -999,62 +1112,7 @@
   // ========= CHARGEMENT CARTE =========
   map.on('load', async ()=>{
     await CountryOverlay.init(map); 
-    await loadDataFromJSON();
-
-    const features=allData.map(item=>({
-      type:'Feature',
-      geometry:{type:'Point',coordinates:[item.lon,item.lat]},
-      properties:{id:item.id,title:item.title}
-    }));
-    map.addSource('notes',{
-      type:'geojson',
-      data:{type:'FeatureCollection',features},
-      promoteId:'id',
-      cluster:true,
-      clusterMaxZoom:14,
-      clusterRadius:50
-    });
-    map.addLayer({
-      id:'clusters',
-      type:'circle',
-      source:'notes',
-      filter:['has','point_count'],
-      paint:{'circle-color':'#ba274f','circle-radius':20}
-    });
-    map.addLayer({
-      id:'cluster-count',
-      type:'symbol',
-      source:'notes',
-      filter:['has','point_count'],
-      layout:{
-        'text-field':'{point_count_abbreviated}',
-        'text-font':['Open Sans Regular','Noto Sans Regular','Arial Unicode MS Regular'],
-        'text-size':['interpolate',['linear'],['zoom'],0,12,6,14,10,16],
-        'text-anchor':'center',
-        'text-offset':[0,0],
-        'text-allow-overlap':true,
-        'text-ignore-placement':true
-      },
-      paint:{
-        'text-color':'#050404',
-        'text-halo-color':'#050404',
-        'text-halo-width':0.2
-      }
-    });
-    try{map.moveLayer('cluster-count');}catch{}
-    map.addLayer({
-      id:'unclustered-point',
-      type:'circle',
-      source:'notes',
-      filter:['!', ['has','point_count']],
-      paint:{
-        'circle-color':['case',['boolean',['feature-state','selected'],false],'#37cc12','#ff2d2d'],
-        'circle-radius':['case',['boolean',['feature-state','selected'],false],10,6],
-        'circle-opacity':['case',['boolean',['feature-state','dim'],false],0.25,1],
-        'circle-stroke-width':2,
-        'circle-stroke-color':'#7a0000'
-      }
-    });
+    await ensureNotesSourceAndLayers();
 
     ensureLinksLayer();
 
@@ -1097,115 +1155,8 @@
     await CountryOverlay.init(map);
     setupGlobe();
     ensureTerrain();
-        // === (RE)CRÉER LA SOURCE + LES COUCHES DES MARQUEURS APRÈS UN CHANGEMENT DE STYLE ===
-        await loadDataFromJSON(); // garantit que allData est bien rempli
     
-        const notesFeatures = allData.map(item => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
-          properties: { id: item.id, title: item.title }
-        }));
-    
-        // Source "notes"
-        if (!map.getSource('notes')) {
-          map.addSource('notes', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: notesFeatures
-            },
-            promoteId: 'id',
-            cluster: true,
-            clusterMaxZoom: 14,
-            clusterRadius: 50
-          });
-        } else {
-          map.getSource('notes').setData({
-            type: 'FeatureCollection',
-            features: notesFeatures
-          });
-        }
-    
-        // Couches "clusters"
-        if (!map.getLayer('clusters')) {
-          map.addLayer({
-            id: 'clusters',
-            type: 'circle',
-            source: 'notes',
-            filter: ['has', 'point_count'],
-            paint: {
-              'circle-color': '#ba274f',
-              'circle-radius': 20
-            }
-          });
-        }
-    
-        // Couches "cluster-count"
-        if (!map.getLayer('cluster-count')) {
-          map.addLayer({
-            id: 'cluster-count',
-            type: 'symbol',
-            source: 'notes',
-            filter: ['has', 'point_count'],
-            layout: {
-              'text-field': '{point_count_abbreviated}',
-              'text-font': [
-                'Open Sans Regular',
-                'Noto Sans Regular',
-                'Arial Unicode MS Regular'
-              ],
-              'text-size': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                0, 12,
-                6, 14,
-                10, 16
-              ],
-              'text-anchor': 'center',
-              'text-offset': [0, 0],
-              'text-allow-overlap': true,
-              'text-ignore-placement': true
-            },
-            paint: {
-              'text-color': '#050404',
-              'text-halo-color': '#050404',
-              'text-halo-width': 0.2
-            }
-          });
-        }
-    
-        // Couche "unclustered-point"
-        if (!map.getLayer('unclustered-point')) {
-          map.addLayer({
-            id: 'unclustered-point',
-            type: 'circle',
-            source: 'notes',
-            filter: ['!', ['has', 'point_count']],
-            paint: {
-              'circle-color': [
-                'case',
-                ['boolean', ['feature-state', 'selected'], false],
-                '#37cc12',
-                '#ff2d2d'
-              ],
-              'circle-radius': [
-                'case',
-                ['boolean', ['feature-state', 'selected'], false],
-                10,
-                6
-              ],
-              'circle-opacity': [
-                'case',
-                ['boolean', ['feature-state', 'dim'], false],
-                0.25,
-                1
-              ],
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#7a0000'
-            }
-          });
-        }
+    await ensureNotesSourceAndLayers();
     ensureLinksLayer();
 
     if(!map.getSource('entity-focus')){
