@@ -1,3 +1,13 @@
+// ======================================================
+// MODULE 1 — CONFIG GLOBALE & HELPERS GÉNÉRIQUES
+// (futur fichier : interactive-map/config/config-and-helpers.js)
+// Contient :
+//   - MAPTILER_KEY, UI_CONFIG
+//   - fonctions d’habillage UI : setUIStyle, applyUIConfig
+//   - helpers génériques : renderWikiLinksInline, transformWikiLinks,
+//     parseAndStripFrontMatter, parseDateSmart, formatDateByConfig, etc.
+// ======================================================
+
 // ========= CONFIG =========
   const MAPTILER_KEY = "MLrpRZ0Wo2Dsvsj13UYN";
 
@@ -82,6 +92,20 @@
     }
     return {meta,body:text};
   }
+
+
+
+
+
+
+  // ======================================================
+  // MODULE 2 — DONNÉES & INDEX DES NOTES
+  // (futur fichier : interactive-map/data/data-loading-and-index.js)
+  // Contient :
+  //   - Structures : allData, allTags, idToItem, linksCache
+  //   - Fonctions : loadDataFromJSON(), buildTagCheckboxes()
+  //   - Récupération des données depuis data.json et remplissage des tags
+  // ======================================================
 
   // ========= DONNÉES =========
   let allData=[];
@@ -238,7 +262,22 @@
         });
       }
     }
-  
+
+
+
+
+
+  // ======================================================
+  // MODULE 3 — CARTE, STYLES & CLUSTERS
+  // (futur fichier : interactive-map/map/markers-and-clusters.js)
+  // Contient :
+  //   - Création de la map MapLibre, styles MapTiler
+  //   - Vue globe, fog, terrain
+  //   - Rotation automatique du globe
+  //   - Sources & couches : 'notes', clusters, points
+  //   - Gestion des clics sur clusters/points, navigation de base
+  // ======================================================
+
   // ========= STYLE & CARTE =========
   const STYLES={
     streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
@@ -467,6 +506,21 @@
     };
   })();
 
+
+
+
+
+
+  // ======================================================
+  // MODULE 4 — ENTITÉS, CONSTELLATIONS & ARCS 3D
+  // (futur fichier : interactive-map/entities/constellations-and-arcs.js)
+  // Contient :
+  //   - Mapping noms d’entités -> IDs (ENTITY_NAME_TO_ID)
+  //   - Indexation des entités dans les notes : ensureEntityIndexFilled()
+  //   - Focus entité : showEntityConstellation(), clearEntityFocus()
+  //   - Layer custom Three.js : MissileArcsLayer (arcs 3D)
+  // ======================================================
+
   // ========= ENTITÉS =========
   const EVENTS_BY_ENTITY=new Map();
   const __scannedEventsForEntities=new Set();
@@ -657,6 +711,21 @@
       }
     }
   }
+
+
+
+
+
+
+  // ======================================================
+  // MODULE 5 — PANNEAU DE NOTE & RÉCAP
+  // (futur fichier : interactive-map/panel/note-panel.js)
+  // Contient :
+  //   - Gestion du résumé (recap) : setRecapText(), toggle "voir plus"
+  //   - Affichage du panneau de note : openSummaryInPanel()
+  //   - Rendu Markdown, liens internes, chips d’entités
+  //   - Fermeture du panneau, recentrage de la carte
+  // ======================================================
 
   // ========= RÉCAP + NOTE PANEL =========
   function updateRecapToggleLabel(collapsed){
