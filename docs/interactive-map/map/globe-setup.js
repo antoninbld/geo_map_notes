@@ -1,111 +1,187 @@
 // ======================================================
-  // MODULE 3 — CARTE, STYLES & CLUSTERS
-  // (futur fichier : interactive-map/map/markers-and-clusters.js)
-  // Contient :
-  //   - Création de la map MapLibre, styles MapTiler
-  //   - Vue globe, fog, terrain
-  //   - Rotation automatique du globe
-  //   - Sources & couches : 'notes', clusters, points
-  //   - Gestion des clics sur clusters/points, navigation de base
-  // ======================================================
+// MODULE — CARTE / STYLES / GLOBE / TERRAIN / ROTATION
+//
+// Rôle :
+//   - Créer la carte MapLibre (variable globale `map`)
+//   - Gérer les styles MapTiler (streets / light / dark)
+//   - Configurer le globe (projection, fog)
+//   - Réinitialiser le terrain
+//   - Gérer la rotation automatique du globe + bouton 🔄
+//
+// Utilisé par :
+//   - interactive-map.js (recentrage, filtres, contrôles, panneaux)
+//   - map/markers-and-clusters.js (zoom, padding, constantes zoom/centre)
+// ======================================================
 
-  // ========= STYLE & CARTE =========
-  const STYLES={
-    streets:`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-    light:  `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
-    dark:   `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
-  };
-  let CURRENT_BASEMAP='streets';
-  function getStyleURL(b){ return STYLES[b]||STYLES.streets; }
+// ========= STYLES & CARTE =========
 
-  const DEFAULT_ZOOM=3.8, EUROPE_CENTER=[10,50], WORLD_CENTER=[0,20], WORLD_ZOOM=2.2;
-  const ARRIVAL_ZOOM=WORLD_ZOOM+0.45;
-  const BASE_PITCH = 25; // angle de vue
+const STYLES = {
+  streets: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+  light:   `https://api.maptiler.com/maps/basic/style.json?key=${MAPTILER_KEY}`,
+  dark:    `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
+};
 
-  const map=new maplibregl.Map({
-    container:'map',
-    style:getStyleURL(CURRENT_BASEMAP),
-    center:WORLD_CENTER,
-    zoom:WORLD_ZOOM,
-    projection:'globe',
-    renderWorldCopies:false
-  });
+let CURRENT_BASEMAP = 'streets';
 
-  // ========= ROTATION GLOBE =========
-  let __npRotateOn=false, __npRotateRAF=null, __npUserInteracting=false;
-  const __npTEST_SPEED_DEG_PER_SEC=7;
+function getStyleURL(base) {
+  return STYLES[base] || STYLES.streets;
+}
 
-  function getRotateBtn(){return document.getElementById('npRotateBtn');}
-  function __npUpdateRotateBtn(){
-    const b=getRotateBtn(); if(!b) return;
-    if(__npRotateOn){
-      b.classList.add('is-on');
-      b.title='Arrêter la rotation';
-      b.setAttribute('aria-label','Arrêter la rotation du globe');
-    }else{
-      b.classList.remove('is-on');
-      b.title='Rotation automatique';
-      b.setAttribute('aria-label','Activer la rotation du globe');
+// Constantes de navigation "globales"
+const DEFAULT_ZOOM   = 3.8;
+const EUROPE_CENTER  = [10, 50];
+const WORLD_CENTER   = [0, 20];
+const WORLD_ZOOM     = 2.2;
+const ARRIVAL_ZOOM   = WORLD_ZOOM + 0.45;
+const BASE_PITCH     = 25; // angle de vue en degrés
+
+// Création de la carte MapLibre
+const map = new maplibregl.Map({
+  container: 'map',
+  style: getStyleURL(CURRENT_BASEMAP),
+  center: WORLD_CENTER,
+  zoom: WORLD_ZOOM,
+  projection: 'globe',
+  renderWorldCopies: false
+});
+
+// ========= ROTATION GLOBE =========
+
+// État interne de la rotation
+let __npRotateOn  = false;
+let __npRotateRAF = null;
+let __npUserInteracting = false;
+
+// Vitesse de rotation en degrés par seconde
+const __npTEST_SPEED_DEG_PER_SEC = 7;
+
+// Récupère le bouton de rotation dans le DOM
+function getRotateBtn() {
+  return document.getElementById('npRotateBtn');
+}
+
+// Met à jour l'apparence / l'ARIA du bouton selon l'état
+function __npUpdateRotateBtn() {
+  const btn = getRotateBtn();
+  if (!btn) return;
+
+  if (__npRotateOn) {
+    btn.classList.add('is-on');
+    btn.title = 'Arrêter la rotation';
+    btn.setAttribute('aria-label', 'Arrêter la rotation du globe');
+  } else {
+    btn.classList.remove('is-on');
+    btn.title = 'Rotation automatique';
+    btn.setAttribute('aria-label', 'Activer la rotation du globe');
+  }
+}
+
+// Une "frame" de rotation
+function __npRotateStep(ts) {
+  if (!__npRotateOn) {
+    __npRotateRAF = null;
+    return;
+  }
+
+  if (!__npUserInteracting) {
+    const now = ts || performance.now();
+    const dt  = (now - (__npRotateStep._lastTs || now));
+    __npRotateStep._lastTs = now;
+
+    const center = map.getCenter();
+    let lon = center.lng;
+
+    lon += __npTEST_SPEED_DEG_PER_SEC * (dt / 1000);
+    if (lon > 180) lon -= 360;
+    if (lon < -180) lon += 360;
+
+    map.setCenter([lon, 0]);
+  }
+
+  __npRotateRAF = requestAnimationFrame(__npRotateStep);
+}
+
+// Toggle public appelé par le bouton 🔄
+function npToggleRotation() {
+  __npRotateOn = !__npRotateOn;
+
+  if (__npRotateOn) {
+    __npRotateStep._lastTs = undefined;
+    if (!__npRotateRAF) {
+      __npRotateRAF = requestAnimationFrame(__npRotateStep);
+    }
+  } else {
+    if (__npRotateRAF) cancelAnimationFrame(__npRotateRAF);
+    __npRotateRAF = null;
+  }
+
+  __npUpdateRotateBtn();
+}
+
+// On "freeze" la rotation pendant les interactions utilisateur
+['dragstart', 'rotatestart', 'pitchstart', 'zoomstart'].forEach(ev =>
+  map.on(ev, () => { __npUserInteracting = true; })
+);
+
+['dragend', 'rotateend', 'pitchend', 'zoomend'].forEach(ev =>
+  map.on(ev, () => {
+    __npUserInteracting = false;
+    if (__npRotateOn) {
+      const c = map.getCenter();
+      map.easeTo({ center: [c.lng, 0], duration: 300 });
+    }
+  })
+);
+
+// Appelé après que le bouton a été créé
+function updateRotateButtonVisibility() {
+  const btn = getRotateBtn();
+  if (!btn) return;
+  btn.style.display = 'flex';
+}
+
+// ========= GLOBE & TERRAIN =========
+
+// Projection "globe" + fog agréable
+function setupGlobe() {
+  try {
+    map.setProjection({ type: 'globe' });
+  } catch (e) {
+    // certaines versions de MapLibre peuvent ne pas supporter la projection
+  }
+
+  if (typeof map.setFog === 'function') {
+    try {
+      map.setFog({
+        range: [0.5, 10],
+        color: 'rgba(160,190,220,0.9)',
+        'horizon-blend': 0.25
+      });
+    } catch (e) {
+      // fog non critique
     }
   }
-  function __npRotateStep(ts){
-    if(!__npRotateOn){__npRotateRAF=null;return;}
-    if(!__npUserInteracting){
-      const now=ts||performance.now();
-      const dt=(now-(__npRotateStep._lastTs||now));
-      __npRotateStep._lastTs=now;
-      const c=map.getCenter();
-      let lon=c.lng;
-      lon+=__npTEST_SPEED_DEG_PER_SEC*(dt/1000);
-      if(lon>180) lon-=360;
-      if(lon<-180) lon+=360;
-      map.setCenter([lon,0]);
-    }
-    __npRotateRAF=requestAnimationFrame(__npRotateStep);
-  }
-  function npToggleRotation(){
-    __npRotateOn=!__npRotateOn;
-    if(__npRotateOn){
-      __npRotateStep._lastTs=undefined;
-      if(!__npRotateRAF) __npRotateRAF=requestAnimationFrame(__npRotateStep);
-    } else {
-      if(__npRotateRAF) cancelAnimationFrame(__npRotateRAF);
-      __npRotateRAF=null;
-    }
-    __npUpdateRotateBtn();
-  }
-  ['dragstart','rotatestart','pitchstart','zoomstart'].forEach(ev=>map.on(ev,()=>{__npUserInteracting=true;}));
-  ['dragend','rotateend','pitchend','zoomend'].forEach(ev=>map.on(ev,()=>{
-    __npUserInteracting=false;
-    if(__npRotateOn){
-      const c=map.getCenter();
-      map.easeTo({center:[c.lng,0],duration:300});
-    }
-  }));
-  function updateRotateButtonVisibility(){
-    const b=getRotateBtn(); if(!b) return;
-    b.style.display='flex';
-  }
+}
 
-  // Fog + projection globe (simple)
-  function setupGlobe(){
-    try { map.setProjection({ type:'globe' }); } catch(e){}
-    if(typeof map.setFog === 'function'){
-      try{
-        map.setFog({
-          range:[0.5,10],
-          color:'rgba(160,190,220,0.9)',
-          'horizon-blend':0.25
-        });
-      }catch(e){}
+// Terrain : on nettoie toujours (globe-only, pas de DEM ici)
+function ensureTerrain() {
+  try { map.setTerrain(null); } catch {}
+
+  try {
+    if (map.getLayer('terrain-hillshade')) {
+      map.removeLayer('terrain-hillshade');
     }
-  }
+  } catch {}
 
-  // Terrain : on nettoie toujours (globe-only)
-  function ensureTerrain(){
-    try{map.setTerrain(null);}catch{}
-    try{if(map.getLayer('terrain-hillshade')) map.removeLayer('terrain-hillshade');}catch{}
-    try{if(map.getSource('terrain-dem-hs')) map.removeSource('terrain-dem-hs');}catch{}
-    try{if(map.getSource('terrain-dem')) map.removeSource('terrain-dem');}catch{}
-  }
+  try {
+    if (map.getSource('terrain-dem-hs')) {
+      map.removeSource('terrain-dem-hs');
+    }
+  } catch {}
 
+  try {
+    if (map.getSource('terrain-dem')) {
+      map.removeSource('terrain-dem');
+    }
+  } catch {}
+}
