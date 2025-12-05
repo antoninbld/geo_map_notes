@@ -465,7 +465,10 @@
     $place.textContent=item.locationName||'';
     if($dateText) $dateText.textContent='';
     setRecapText(item.recap||'');
-    $sum.innerHTML=item.summary ? renderWikiLinksInline(item.summary) : '';
+    // On utilise summary si un jour tu l'ajoutes, sinon on retombe sur recap
+    const short = item.summary || item.recap || '';
+    $sum.innerHTML = short ? renderWikiLinksInline(short) : '';
+
 
     let links=[];
     try{
