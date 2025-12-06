@@ -32,7 +32,7 @@ const DEFAULT_ZOOM   = 3.8;
 const EUROPE_CENTER  = [10, 50];
 const WORLD_CENTER   = [0, 20];
 const WORLD_ZOOM     = 2.2;
-const ARRIVAL_ZOOM   = WORLD_ZOOM + 0.45;
+const ARRIVAL_ZOOM   = WORLD_ZOOM;
 const BASE_PITCH     = 0; // angle de vue en degrés
 
 // Création de la carte MapLibre
