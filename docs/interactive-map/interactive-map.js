@@ -84,9 +84,9 @@ map.on('load', async () => {
   ensureTerrain();
 
   map.jumpTo({
-    center: WORLD_CENTER,
-    zoom: ARRIVAL_ZOOM,
-    pitch: BASE_PITCH,
+    center: GLOBE_CENTER,
+    zoom: GLOBE_ZOOM,
+    pitch: GLOBE_PITCH,
     bearing: 0
   });
 
@@ -243,17 +243,17 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
 function recenterEurope() {
   map.easeTo({
     center: EUROPE_CENTER,
-    zoom: DEFAULT_ZOOM,
+    zoom: EUROPE_ZOOM,
     duration: 600
   });
 }
 
 function recenterWorld(opts = { animate: true }) {
   const target = {
-    center: WORLD_CENTER,
-    zoom: ARRIVAL_ZOOM,
+    center: GLOBE_CENTER,
+    zoom: GLOBE_ZOOM,
     bearing: 0,
-    pitch: 0
+    pitch: GLOBE_PITCH
   };
   if (opts && opts.animate === false) {
     map.jumpTo(target);
@@ -493,7 +493,7 @@ async function openSummaryInPanel(noteId) {
 
           map.easeTo({
             center: [from.lon, from.lat],
-            zoom: ARRIVAL_ZOOM,
+            zoom: GLOBE_ZOOM,
             padding: { top: 20, left: 20, bottom: 20, right: rightPad },
             duration: 600,
             pitch: Math.max(map.getPitch(), BASE_PITCH)
@@ -547,8 +547,8 @@ async function openSummaryInPanel(noteId) {
 
     try {
       map.easeTo({
-        center: WORLD_CENTER,
-        zoom: ARRIVAL_ZOOM,
+        center: GLOBE_CENTER,
+        zoom: GLOBE_ZOOM,
         padding: { top: 0, left: 0, bottom: 0, right: 0 },
         duration: 500
       });
