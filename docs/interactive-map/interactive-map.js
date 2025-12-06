@@ -1,11 +1,17 @@
-
 // ========= CHARGEMENT CARTE =========
-map.on('load', async () => {
-  await CountryOverlay.init(map);
-  await ensureNotesSourceAndLayers();
 
+// On garde un petit flag au cas où MapLibre déclenche load/style.load plusieurs fois
+let __mapBaseInitialized = false;
+
+map.on('load', async () => {
+  if (__mapBaseInitialized) return;
+  __mapBaseInitialized = true;
+
+  // 1) On met en place les points le plus vite possible
+  await ensureNotesSourceAndLayers();
   ensureLinksLayer();
 
+  // 2) On prépare la source/focus entités
   if (!map.getSource('entity-focus')) {
     map.addSource('entity-focus', {
       type: 'geojson',
@@ -48,6 +54,7 @@ map.on('load', async () => {
     map.addLayer(MissileArcsLayer);
   }
 
+  // 3) Globe + terrain + vue initiale
   setupGlobe();
   ensureTerrain();
 
@@ -59,13 +66,20 @@ map.on('load', async () => {
   });
 
   updateRotateButtonVisibility();
+
+  // 4) On lance l’overlay pays en "arrière-plan" (sans bloquer l’affichage)
+  CountryOverlay.init(map).catch(console.error);
 });
 
+
 map.on('style.load', async () => {
-  await CountryOverlay.init(map);
+  // Ici, c’est surtout pour les changements de style (streets/light/dark)
+
+  // Reprojeter en globe + nettoyer terrain
   setupGlobe();
   ensureTerrain();
 
+  // Recréer les points si besoin (nouvelle style => nouvelles couches)
   await ensureNotesSourceAndLayers();
   ensureLinksLayer();
 
@@ -111,11 +125,13 @@ map.on('style.load', async () => {
     map.addLayer(MissileArcsLayer);
   }
 
+  // Si un pays était déjà focus : on le remet
   if (CURRENT_FOCUSED_COUNTRY && window.CountryOverlay) {
     await CountryOverlay.show(map, CURRENT_FOCUSED_COUNTRY);
     bringCountryOverlayToFront();
   }
 
+  // Si des liens étaient affichés : on les redessine
   if (window.__lastLinksState) {
     drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
   }
