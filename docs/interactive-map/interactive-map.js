@@ -10,6 +10,13 @@
 //   - Gérer le panneau de note (openSummaryInPanel)
 // ======================================================
 
+import {
+  GLOBE_CENTER,
+  GLOBE_ZOOM,
+  GLOBE_PITCH,
+  EUROPE_CENTER,
+  EUROPE_ZOOM
+} from './map/globe-setup.js';
 
 // ========= FACTO : LAYERS ENTITY-FOCUS =========
 // (utilisé à la fois dans map.on('load') et map.on('style.load'))
