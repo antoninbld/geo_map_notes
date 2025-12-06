@@ -1,17 +1,21 @@
-// ========= CHARGEMENT CARTE =========
+// ======================================================
+// MODULE — INTERACTIVE MAP (ORCHESTRATEUR)
+//
+// Rôle :
+//   - Réagir aux événements de la map (load / style.load / error)
+//   - Initialiser les couches "entity-focus" + arcs 3D
+//   - Brancher les modules : CountryOverlay, links, markers, filters
+//   - Gérer les contrôles UI (Filtres, Rotation, basemap)
+//   - Gérer la navigation (recenter Europe / Monde)
+//   - Gérer le panneau de note (openSummaryInPanel)
+// ======================================================
 
-// On garde un petit flag au cas où MapLibre déclenche load/style.load plusieurs fois
-let __mapBaseInitialized = false;
 
-map.on('load', async () => {
-  if (__mapBaseInitialized) return;
-  __mapBaseInitialized = true;
+// ========= FACTO : LAYERS ENTITY-FOCUS =========
+// (utilisé à la fois dans map.on('load') et map.on('style.load'))
 
-  // 1) On met en place les points le plus vite possible
-  await ensureNotesSourceAndLayers();
-  ensureLinksLayer();
-
-  // 2) On prépare la source/focus entités
+function ensureEntityFocusLayers() {
+  // Source
   if (!map.getSource('entity-focus')) {
     map.addSource('entity-focus', {
       type: 'geojson',
@@ -19,6 +23,7 @@ map.on('load', async () => {
     });
   }
 
+  // Liens
   if (!map.getLayer('entity-focus-links')) {
     map.addLayer({
       id: 'entity-focus-links',
@@ -35,6 +40,7 @@ map.on('load', async () => {
     }, 'clusters');
   }
 
+  // Point focus
   if (!map.getLayer('entity-focus-point')) {
     map.addLayer({
       id: 'entity-focus-point',
@@ -50,9 +56,28 @@ map.on('load', async () => {
     }, 'clusters');
   }
 
+  // Arcs 3D
   if (!map.getLayer('entity-focus-arcs-3d')) {
     map.addLayer(MissileArcsLayer);
   }
+}
+
+
+// ========= CHARGEMENT CARTE =========
+
+// Flag pour éviter de rerun la grosse init si MapLibre relance "load"
+let __mapBaseInitialized = false;
+
+map.on('load', async () => {
+  if (__mapBaseInitialized) return;
+  __mapBaseInitialized = true;
+
+  // 1) Points/clusters le plus vite possible
+  await ensureNotesSourceAndLayers();
+  ensureLinksLayer();
+
+  // 2) Couches "entity-focus" (facto dans une fonction)
+  ensureEntityFocusLayers();
 
   // 3) Globe + terrain + vue initiale
   setupGlobe();
@@ -67,63 +92,23 @@ map.on('load', async () => {
 
   updateRotateButtonVisibility();
 
-  // 4) On lance l’overlay pays en "arrière-plan" (sans bloquer l’affichage)
+  // 4) Overlay pays en "arrière-plan" (on ne bloque pas l'affichage)
   CountryOverlay.init(map).catch(console.error);
 });
 
-
 map.on('style.load', async () => {
-  // Ici, c’est surtout pour les changements de style (streets/light/dark)
+  // Changement de fond de carte (streets/light/dark)
 
   // Reprojeter en globe + nettoyer terrain
   setupGlobe();
   ensureTerrain();
 
-  // Recréer les points si besoin (nouvelle style => nouvelles couches)
+  // Recréer les points/couches liés au style
   await ensureNotesSourceAndLayers();
   ensureLinksLayer();
 
-  if (!map.getSource('entity-focus')) {
-    map.addSource('entity-focus', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] }
-    });
-  }
-
-  if (!map.getLayer('entity-focus-links')) {
-    map.addLayer({
-      id: 'entity-focus-links',
-      type: 'line',
-      source: 'entity-focus',
-      filter: ['==', ['get', 'kind'], 'edge'],
-      layout: { visibility: 'none' },
-      paint: {
-        'line-width': 2,
-        'line-color': '#db6402',
-        'line-opacity': 0.8,
-        'line-dasharray': [1.5, 1.5]
-      }
-    }, 'clusters');
-  }
-
-  if (!map.getLayer('entity-focus-point')) {
-    map.addLayer({
-      id: 'entity-focus-point',
-      type: 'circle',
-      source: 'entity-focus',
-      layout: { visibility: 'none' },
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#db6402',
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#ffffff'
-      }
-    }, 'clusters');
-  }
-
-  if (!map.getLayer('entity-focus-arcs-3d')) {
-    map.addLayer(MissileArcsLayer);
-  }
+  // Recréer/garantir les couches "entity-focus"
+  ensureEntityFocusLayers();
 
   // Si un pays était déjà focus : on le remet
   if (CURRENT_FOCUSED_COUNTRY && window.CountryOverlay) {
@@ -145,7 +130,9 @@ map.on('error', e => {
 
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
-// ========= CONTRÔLES =========
+
+// ========= CONTRÔLES (Filtres / Rotation) =========
+
 class FilterControl {
   onAdd(mapInstance) {
     this._map = mapInstance;
@@ -162,9 +149,12 @@ class FilterControl {
     btn.addEventListener('click', () => {
       const panel = document.getElementById('filtersPanel');
       if (!panel) return;
-      panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+      panel.style.display = (panel.style.display === 'none' || !panel.style.display)
+        ? 'block'
+        : 'none';
     });
 
+    // Fermeture auto du panneau si clic à l'extérieur
     document.addEventListener('click', (e) => {
       const panel = document.getElementById('filtersPanel');
       const button = document.querySelector('.filters-btn');
@@ -190,6 +180,7 @@ class FilterControl {
 }
 map.addControl(new FilterControl(), 'top-right');
 
+
 class RotateControl {
   onAdd(mapInstance) {
     this._map = mapInstance;
@@ -207,6 +198,7 @@ class RotateControl {
     container.appendChild(btn);
     this._container = container;
 
+    // Laisser le temps au DOM d'insérer le bouton, puis le mettre à jour
     setTimeout(() => {
       __npUpdateRotateBtn();
       updateRotateButtonVisibility();
@@ -221,6 +213,9 @@ class RotateControl {
   }
 }
 map.addControl(new RotateControl(), 'top-right');
+
+
+// ========= BASCULE FOND DE CARTE =========
 
 function updateMapBackgroundClass() {
   const mapDiv = document.getElementById('map');
@@ -243,7 +238,8 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
 });
 
 
-// ========= NAVIG / PANEL =========
+// ========= NAVIGATION (Monde / Europe) =========
+
 function recenterEurope() {
   map.easeTo({
     center: EUROPE_CENTER,
@@ -269,19 +265,81 @@ function recenterWorld(opts = { animate: true }) {
 document.getElementById('recenterEurope')?.addEventListener('click', recenterEurope);
 document.getElementById('recenterWorld')?.addEventListener('click', recenterWorld);
 
+
+// ========= OPTIMISATION : CACHE DES NOTES =========
+
+// On évite de refetch la même note Markdown à chaque clic
+const NOTE_CACHE = new Map();
+
+// Extraction de la section "## Résumé" (déplacée hors de openSummaryInPanel
+// pour éviter de recréer la fonction à chaque appel)
+function splitSummarySection(mdText) {
+  const lines = mdText.split('\n');
+  let start = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##\s+Résumé\b/i.test(lines[i].trim())) {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) {
+    return { summaryMd: '', bodyMd: mdText };
+  }
+
+  let end = lines.length;
+  for (let j = start + 1; j < lines.length; j++) {
+    if (/^#{1,6}\s+/.test(lines[j].trim())) {
+      end = j;
+      break;
+    }
+  }
+
+  const summaryMd = lines.slice(start + 1, end).join('\n').trim();
+  const bodyMd = lines.slice(0, start).concat(lines.slice(end)).join('\n').trim();
+
+  return { summaryMd, bodyMd };
+}
+
+// Charge + parse une note, avec cache
+async function fetchAndParseNote(noteId) {
+  if (NOTE_CACHE.has(noteId)) {
+    return NOTE_CACHE.get(noteId);
+  }
+
+  const url = resolveNoteURL(noteId);
+  const res = await fetch(url, { cache: 'no-store' });
+
+  if (!res.ok) {
+    // On ne met pas en cache les erreurs, pour permettre un retry
+    return { error: res.status };
+  }
+
+  const mdRaw = await res.text();
+  const { meta, body } = parseAndStripFrontMatter(mdRaw);
+  const { summaryMd, bodyMd } = splitSummarySection(body);
+  const links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
+
+  const parsed = { meta, body, summaryMd, bodyMd, links };
+  NOTE_CACHE.set(noteId, parsed);
+  return parsed;
+}
+
+
 // ========= PANEL : chargement note + recap + résumé =========
+
 async function openSummaryInPanel(noteId) {
   const item = idToItem.get(noteId);
 
-  const $panel = document.getElementById('notePanel');
-  const $title = document.getElementById('npTitle');
-  const $place = document.getElementById('npPlace');
+  const $panel  = document.getElementById('notePanel');
+  const $title  = document.getElementById('npTitle');
+  const $place  = document.getElementById('npPlace');
   const $dateText = document.getElementById('npDateText');
-  const $sum = document.getElementById('npSummary');
-  const $md = document.getElementById('npMd');
-  const $links = document.getElementById('npLinks');
-  const $fit = document.getElementById('npFit');
-  const $recap = document.getElementById('npRecap');
+  const $sum    = document.getElementById('npSummary');
+  const $md     = document.getElementById('npMd');
+  const $links  = document.getElementById('npLinks');
+  const $fit    = document.getElementById('npFit');
+  const $recap  = document.getElementById('npRecap');
 
   if (!$panel || !$title || !$place || !$sum || !$md || !$links || !$recap) {
     console.error('Note panel elements missing');
@@ -321,47 +379,16 @@ async function openSummaryInPanel(noteId) {
   let links = [];
 
   try {
-    const url = resolveNoteURL(noteId);
-    const res = await fetch(url, { cache: 'no-store' });
+    const parsed = await fetchAndParseNote(noteId);
 
-    if (res.ok) {
-      const mdRaw = await res.text();
-      const { meta, body } = parseAndStripFrontMatter(mdRaw);
-
-      // ---------- Extraction éventuelle de la section "## Résumé" ----------
-      function splitSummarySection(mdText) {
-        const lines = mdText.split('\n');
-        let start = -1;
-
-        for (let i = 0; i < lines.length; i++) {
-          if (/^##\s+Résumé\b/i.test(lines[i].trim())) {
-            start = i;
-            break;
-          }
-        }
-        if (start === -1) {
-          return { summaryMd: '', bodyMd: mdText };
-        }
-
-        let end = lines.length;
-        for (let j = start + 1; j < lines.length; j++) {
-          if (/^#{1,6}\s+/.test(lines[j].trim())) {
-            end = j;
-            break;
-          }
-        }
-
-        const summaryMd = lines.slice(start + 1, end).join('\n').trim();
-        const bodyMd = lines.slice(0, start).concat(lines.slice(end)).join('\n').trim();
-
-        return { summaryMd, bodyMd };
-      }
-
-      const { summaryMd, bodyMd } = splitSummarySection(body);
+    if (parsed?.error) {
+      $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${parsed.error})</em>`;
+    } else if (parsed) {
+      const { meta, summaryMd, bodyMd, body, links: noteLinks } = parsed;
+      links = noteLinks || [];
 
       // Si data.json n'avait pas de summary et que le .md a une section "## Résumé"
       if (!$sum.innerHTML && summaryMd) {
-        // On rend le résumé dans npSummary
         $sum.innerHTML = marked.parse(transformWikiLinks(summaryMd));
       }
 
@@ -386,14 +413,11 @@ async function openSummaryInPanel(noteId) {
         setRecapText(meta.recap);
       }
 
-      // Liens sortants
-      links = extractWikiLinks(mdRaw).filter(id => idToItem.has(id));
-
       // On affiche le corps de la note sans la section "## Résumé"
       const finalBody = bodyMd || body;
       $md.innerHTML = marked.parse(transformWikiLinks(finalBody));
     } else {
-      $md.innerHTML = `<em style="color:#888;">Note complète indisponible (HTTP ${res.status})</em>`;
+      $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
     }
   } catch (err) {
     console.error('Error loading note', err);
@@ -405,7 +429,7 @@ async function openSummaryInPanel(noteId) {
     $links.innerHTML = '<div style="color:#888;">Aucun lien sortant</div>';
   } else {
     const itemsHtml = links.map(lid => {
-      const it = idToItem.get(lid);
+      const it  = idToItem.get(lid);
       const lbl = it?.title || lid;
       return `<li><a href="note.html?id=${encodeURIComponent(lid)}" class="internal-link">${lbl}</a></li>`;
     }).join('');
@@ -442,7 +466,7 @@ async function openSummaryInPanel(noteId) {
       e.preventDefault();
 
       const href = a.getAttribute('href');
-      const id = decodeURIComponent(href.split('id=')[1] || '');
+      const id   = decodeURIComponent(href.split('id=')[1] || '');
       if (!id) return;
 
       openSummaryInPanel(id);
@@ -463,7 +487,7 @@ async function openSummaryInPanel(noteId) {
 
         const from = idToItem.get(id);
         if (from) {
-          const panelW = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
+          const panelW   = parseInt((UI_CONFIG?.panel?.width ?? 400), 10);
           const panelRight = parseInt((UI_CONFIG?.panel?.marginRight ?? 10), 10);
           const rightPad = Math.round(panelW * 1.25) + panelRight + 10;
 
@@ -502,6 +526,7 @@ async function openSummaryInPanel(noteId) {
 
 
 // ========= FERMETURE PANNEAU NOTE =========
+
 (function setupNotePanelClose() {
   const btn = document.getElementById('npClose');
   if (!btn) return;
@@ -538,11 +563,13 @@ async function openSummaryInPanel(noteId) {
   });
 })();
 
+
 // ========= TOGGLE PANNEAU LATÉRAL (mapPanel) =========
+
 (function setupMapPanelToggle() {
-  const panel = document.getElementById('mapPanel');
+  const panel  = document.getElementById('mapPanel');
   const toggle = document.getElementById('mapPanelToggle');
-  const close = document.getElementById('mapPanelClose');
+  const close  = document.getElementById('mapPanelClose');
 
   if (!panel || !toggle || !close) return;
 
@@ -571,7 +598,9 @@ async function openSummaryInPanel(noteId) {
   hide();
 })();
 
+
 // ========= INIT =========
+
 initFilters();
 applyUIConfig();
 
