@@ -27,20 +27,41 @@ function getStyleURL(base) {
   return STYLES[base] || STYLES.streets;
 }
 
-// Constantes de navigation "globales"
-const DEFAULT_ZOOM   = 3.8;
-const EUROPE_CENTER  = [10, 50];
-const WORLD_CENTER   = [0, 20];
-const WORLD_ZOOM     = 3;
-const ARRIVAL_ZOOM   = WORLD_ZOOM;
-const BASE_PITCH     = 0; // angle de vue en degrés
+/**
+* GLOBE SETUP — paramètres centraux pour l’apparence du globe. C’est ici que tu modifies le zoom, le centre, l’inclinaison, etc.*/
 
-// Création de la carte MapLibre
-const map = new maplibregl.Map({
+// ======== Vue initiale du globe =========
+
+// Centre du globe (longitude, latitude)
+export const GLOBE_CENTER = [0, 20];
+
+// Zoom d’arrivée au chargement
+// 👉 Augmente pour zoomer davantage sur le globe
+// 👉 Diminue pour l'éloigner
+export const GLOBE_ZOOM = 2.65;
+
+// Inclinaison de la caméra (tilt)
+export const GLOBE_PITCH = 25;
+
+
+// ======== Vue Europe =========
+
+// Centre du preset “Recentrer Europe”
+export const EUROPE_CENTER = [10, 50];
+
+// Zoom utilisé pour la vue Europe
+export const EUROPE_ZOOM = 3.8;
+
+
+// ======== Création de la carte =========
+
+export const map = new maplibregl.Map({
   container: 'map',
   style: getStyleURL(CURRENT_BASEMAP),
-  center: WORLD_CENTER,
-  zoom: WORLD_ZOOM,
+  center: GLOBE_CENTER,
+  zoom: GLOBE_ZOOM,
+  pitch: GLOBE_PITCH,
+  bearing: 0,
   projection: 'globe',
   renderWorldCopies: false
 });
