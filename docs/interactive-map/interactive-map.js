@@ -226,117 +226,6 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
   });
 });
 
-// ========= FILTRES (pays bbox) =========
-let countriesBbox = {};
-
-async function loadCountries() {
-  try {
-    const res = await fetch('countries-bbox.json', { cache: 'no-store' });
-    countriesBbox = await res.json();
-    buildCountrySelect();
-  } catch (e) {
-    console.error('countries-bbox error:', e);
-  }
-}
-
-function buildCountrySelect() {
-  const sel = document.getElementById('filterCountry');
-  if (!sel) return;
-
-  sel.innerHTML = '';
-
-  Object.keys(countriesBbox)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      sel.appendChild(opt);
-    });
-}
-
-const countrySel = document.getElementById('filterCountry');
-if (countrySel) {
-  countrySel.addEventListener('mousedown', (e) => {
-    const opt = e.target;
-    if (opt.tagName === 'OPTION') {
-      e.preventDefault();
-      opt.selected = !opt.selected;
-      countrySel.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  });
-}
-
-function pointInBbox(lon, lat, bbox) {
-  const [minX, minY, maxX, maxY] = bbox;
-  return lon >= minX && lon <= maxX && lat >= minY && lat <= maxY;
-}
-
-function applyFilters() {
-  const query = (document.getElementById('filterQuery')?.value || '')
-    .toLowerCase()
-    .trim();
-
-  const selectedTags = Array
-    .from(document.querySelectorAll('input[name="tag"]:checked'))
-    .map(i => i.value);
-
-  const sel = document.getElementById('filterCountry');
-  const selectedCountries = sel
-    ? Array.from(sel.selectedOptions).map(o => o.value)
-    : [];
-
-  console.log('TODO filters:', {
-    query,
-    selectedTags,
-    selectedCountries
-  });
-
-  // TODO: filtrer allData / source "notes" en fonction de ces critères
-}
-
-function resetFilters() {
-  const q = document.getElementById('filterQuery');
-  if (q) q.value = '';
-
-  document
-    .querySelectorAll('input[name="tag"]:checked')
-    .forEach(cb => { cb.checked = false; });
-
-  const sel = document.getElementById('filterCountry');
-  if (sel) {
-    Array.from(sel.options).forEach(o => { o.selected = false; });
-  }
-
-  const panel = document.getElementById('filtersPanel');
-  if (panel) panel.style.display = 'none';
-
-  map.easeTo({
-    center: EUROPE_CENTER,
-    zoom: DEFAULT_ZOOM,
-    duration: 600
-  });
-}
-
-document.getElementById('applyFilters')?.addEventListener('click', () => {
-  applyFilters();
-  const panel = document.getElementById('filtersPanel');
-  if (panel) panel.style.display = 'none';
-});
-
-document.getElementById('resetFilters')?.addEventListener('click', resetFilters);
-
-document.getElementById('selectAllCountries')?.addEventListener('click', () => {
-  const sel = document.getElementById('filterCountry');
-  if (!sel) return;
-  Array.from(sel.options).forEach(o => { o.selected = true; });
-});
-
-document.getElementById('clearAllCountries')?.addEventListener('click', () => {
-  const sel = document.getElementById('filterCountry');
-  if (!sel) return;
-  Array.from(sel.options).forEach(o => { o.selected = false; });
-});
 
 // ========= NAVIG / PANEL =========
 function recenterEurope() {
@@ -667,7 +556,7 @@ async function openSummaryInPanel(noteId) {
 })();
 
 // ========= INIT =========
-loadCountries();
+initFilters();
 applyUIConfig();
 
 map.on('load', () => console.log('[OK] map load'));
