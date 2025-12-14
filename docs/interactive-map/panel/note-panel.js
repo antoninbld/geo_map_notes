@@ -1,31 +1,27 @@
 // ======================================================
-// NOTE PANEL (script global, compatible ES-modules autour)
-// Dépendances attendues (globales) :
-// - window.map (MapLibre Map)  <-- IMPORTANT (à exposer depuis globe-setup.js)
+// NOTE PANEL (script global)
+// Dépendances attendues :
+// - window.map (MapLibre Map)  <-- exposée dans globe-setup.js : window.map = map
 // - marked (CDN)
 // - idToItem, allData (data-loading-and-index.js)
 // - UI_CONFIG (config-and-helpers.js)
-// Optionnel : drawLinksFrom, clearLinks (links-layer.js)
 // ======================================================
 
 (() => {
-  // ---------- Config ----------
   const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
   const EVENTS_BASE   = NOTE_RAW_BASE;
   const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
 
   const NOTES_SOURCE_ID = 'notes';
 
-  // Fallbacks si pas définis ailleurs
   const DEFAULT_PANEL_WIDTH = 400;
   const DEFAULT_PANEL_MARGIN_RIGHT = 10;
 
-  // Cache notes + cache liens
   const NOTE_CACHE  = new Map(); // noteId -> parsed
   const LINKS_CACHE = new Map(); // noteId -> [ids]
 
-  // ---------- Helpers UI ----------
-  function $id(id) { return document.getElementById(id); }
+  // ---------- DOM helpers ----------
+  const $id = (id) => document.getElementById(id);
 
   function getPanelDims() {
     const w = parseInt((window.UI_CONFIG?.panel?.width ?? DEFAULT_PANEL_WIDTH), 10);
@@ -33,8 +29,42 @@
     return { w, m };
   }
 
-  // ---------- Wiki links (affichage inline simple) ----------
-  // [[some-id]] ou [[some-id|Label]]
+  // ---------- DATA access (robuste) ----------
+  function getItemById(noteId) {
+    const id = String(noteId);
+
+    const idx = window.idToItem;
+
+    // Cas 1 : Map
+    if (idx && typeof idx.get === 'function') {
+      const v = idx.get(id);
+      if (v) return v;
+    }
+
+    // Cas 2 : objet { [id]: item }
+    if (idx && typeof idx === 'object' && Object.prototype.hasOwnProperty.call(idx, id)) {
+      return idx[id];
+    }
+
+    // Cas 3 : fallback dans allData (array)
+    const arr = window.allData;
+    if (Array.isArray(arr)) {
+      return arr.find(x => String(x?.id) === id) || null;
+    }
+
+    return null;
+  }
+
+  function hasId(id) {
+    const idx = window.idToItem;
+    const key = String(id);
+
+    if (idx && typeof idx.has === 'function') return idx.has(key);       // Map
+    if (idx && typeof idx === 'object') return key in idx;              // objet
+    return !!getItemById(key);                                          // fallback
+  }
+
+  // ---------- Wiki links ----------
   function transformWikiLinks(md) {
     if (!md) return '';
     return String(md).replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_m, id, label) => {
@@ -44,9 +74,8 @@
     });
   }
 
-  function renderWikiLinksInline(text) {
+  function renderInline(text) {
     if (!text) return '';
-    // rendu inline “léger” : on transforme les wiki-links puis on laisse marked faire
     return window.marked ? window.marked.parseInline(transformWikiLinks(text)) : String(text);
   }
 
@@ -68,7 +97,6 @@
       const key = m[1];
       let val = m[2];
 
-      // listes YAML simples : [a,b,c]
       if (/^\[.*\]$/.test(val)) {
         val = val.slice(1, -1).split(',').map(x => x.trim()).filter(Boolean);
       }
@@ -115,7 +143,7 @@
     return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(idStr)}.md`;
   }
 
-  // ---------- Liens sortants ----------
+  // ---------- Outgoing links ----------
   function extractWikiLinks(mdText) {
     const found = new Set();
     const re = /\[\[([^\]\|]+)(?:\|[^\]]+)?\]\]/g;
@@ -138,12 +166,12 @@
       mdRaw = await res.text();
     }
 
-    const ids = extractWikiLinks(mdRaw).filter(id => window.idToItem?.has?.(id));
+    const ids = extractWikiLinks(mdRaw).filter(hasId);
     LINKS_CACHE.set(noteId, ids);
     return ids;
   }
 
-  // ---------- Date (format simple) ----------
+  // ---------- Dates ----------
   function parseDateSmart(s) {
     if (!s) return null;
     const str = String(s).trim();
@@ -163,7 +191,7 @@
     return new Intl.DateTimeFormat('fr-FR', opt).format(d);
   }
 
-  // ---------- Recap toggle ----------
+  // ---------- Recap UI ----------
   function updateRecapToggleLabel(collapsed) {
     const t = $id('npRecapToggle');
     if (!t) return;
@@ -193,11 +221,11 @@
   function setRecapText(text) {
     const wrap = $id('npRecap');
     if (!wrap) return;
-    wrap.innerHTML = text ? renderWikiLinksInline(text) : '';
+    wrap.innerHTML = text ? renderInline(text) : '';
     setupRecapToggle();
   }
 
-  // ---------- Entités (chips) ----------
+  // ---------- Entities chips ----------
   function renderEntityChips(list) {
     const box = $id('npEntities');
     if (!box) return;
@@ -214,7 +242,6 @@
       a.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-
         if (typeof window.showEntityConstellation === 'function') {
           await window.showEntityConstellation(id);
         }
@@ -224,13 +251,12 @@
     });
   }
 
-  // ---------- Core : fetch + parse note ----------
+  // ---------- Note parsing ----------
   async function fetchAndParseNote(noteId) {
     if (NOTE_CACHE.has(noteId)) return NOTE_CACHE.get(noteId);
 
     const url = resolveNoteURL(noteId);
     const res = await fetch(url, { cache: 'no-store' });
-
     if (!res.ok) return { error: res.status };
 
     const mdRaw = await res.text();
@@ -243,7 +269,7 @@
     return parsed;
   }
 
-  // ---------- Panel open ----------
+  // ---------- OPEN PANEL (PUBLIC) ----------
   async function openSummaryInPanel(noteId) {
     const map = window.map;
     if (!map) {
@@ -251,7 +277,7 @@
       return;
     }
 
-    const item = window.idToItem?.get?.(noteId);
+    const item = getItemById(noteId); // ✅ FIX recap data.json
 
     const $panel   = $id('notePanel');
     const $title   = $id('npTitle');
@@ -267,21 +293,20 @@
       return;
     }
 
-    // reset UI
+    // reset
     $sum.innerHTML = '';
     $md.innerHTML = '';
     $links.innerHTML = '';
     renderEntityChips([]);
 
-    // Header from data.json
+    // Header + recap depuis data.json
     $title.textContent = item?.title || String(noteId);
     $place.textContent = item?.locationName || '';
     if ($dateTxt) $dateTxt.textContent = '';
 
-    // Recap (data.json)
-    setRecapText(item?.recap || '');
+    setRecapText(item?.recap || ''); // ✅ recap
 
-    // fetch note
+    // fetch md
     let parsed;
     try {
       parsed = await fetchAndParseNote(noteId);
@@ -300,55 +325,50 @@
       const { meta, summaryMd, bodyMd, body, links } = parsed;
       outgoing = links || [];
 
-      // Résumé
       if (summaryMd) {
         $sum.innerHTML = window.marked
           ? window.marked.parse(transformWikiLinks(summaryMd))
           : transformWikiLinks(summaryMd);
       }
 
-      // Date (front-matter)
       if ($dateTxt && meta?.date) $dateTxt.textContent = formatDateByConfig(meta.date);
 
-      // Recap fallback (front-matter)
-      if ((!$id('npRecap')?.textContent?.trim()) && meta?.recap) {
-        setRecapText(meta.recap);
-      }
+      // fallback recap front-matter si data.json vide
+      const recapWrap = $id('npRecap');
+      if ((!recapWrap?.textContent?.trim()) && meta?.recap) setRecapText(meta.recap);
 
-      // Entities chips (front-matter)
       const entsRaw = Array.isArray(meta?.entities) ? meta.entities : [];
       const ents = entsRaw
         .map(e => (typeof window.normalizeEntityLabelToId === 'function' ? window.normalizeEntityLabelToId(e) : e))
         .filter(Boolean);
       renderEntityChips(ents);
 
-      // Corps (sans section "Résumé")
       const finalBody = bodyMd || body || '';
       $md.innerHTML = window.marked
         ? window.marked.parse(transformWikiLinks(finalBody))
         : transformWikiLinks(finalBody);
     }
 
-    // Liens sortants list
+    // liens sortants list
     if (!outgoing.length) {
       $links.innerHTML = '<div style="color:#888;">Aucun lien sortant</div>';
     } else {
       const html = outgoing.map(id => {
-        const it = window.idToItem?.get?.(id);
+        const it = getItemById(id);
         const label = it?.title || id;
         return `<li><a href="note.html?id=${encodeURIComponent(id)}" class="internal-link">${label}</a></li>`;
       }).join('');
       $links.innerHTML = `<ul style="margin:0; padding-left:18px;">${html}</ul>`;
     }
 
-    // show panel + widen
+    // afficher panel
     $panel.style.display = 'block';
     try {
       const { w } = getPanelDims();
       $panel.style.width = Math.round(w * 1.25) + 'px';
     } catch {}
 
-    // Highlight selection (feature-state)
+    // highlight
     try {
       const prev = window.__selectedId;
       if (prev != null && prev !== noteId) {
@@ -358,7 +378,7 @@
       window.__selectedId = noteId;
     } catch {}
 
-    // Internal links in panel
+    // internal links in panel
     $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
       a.classList.add('internal-link');
       a.onclick = (e) => {
@@ -369,40 +389,28 @@
       };
     });
 
-    // Fit bounds (note + outgoing)
+    // fit bounds (note + outgoing)
     if ($fit) {
       $fit.onclick = () => {
         const bounds = new maplibregl.LngLatBounds();
-        const from = window.idToItem?.get?.(noteId);
+
+        const from = getItemById(noteId);
         if (from) bounds.extend([from.lon, from.lat]);
 
         outgoing.forEach(lid => {
-          const t = window.idToItem?.get?.(lid);
+          const t = getItemById(lid);
           if (t) bounds.extend([t.lon, t.lat]);
         });
 
         if (!bounds.isEmpty()) {
           map.fitBounds(bounds, { padding: 80, duration: 650 });
         }
-
-        // Si tu as le layer de liens
-        if (typeof window.drawLinksFrom === 'function') {
-          window.drawLinksFrom(noteId, outgoing);
-          window.__lastLinksState = { id: noteId, links: outgoing };
-        }
       };
-    }
-
-    // Dessiner liens sortants si dispo
-    if (typeof window.drawLinksFrom === 'function') {
-      window.drawLinksFrom(noteId, outgoing);
-      window.__lastLinksState = { id: noteId, links: outgoing };
     }
   }
 
-  // ---------- Close panel ----------
+  // ---------- CLOSE ----------
   function closePanel() {
-    const map = window.map;
     const panel = $id('notePanel');
     if (panel) {
       panel.style.display = 'none';
@@ -411,20 +419,18 @@
         panel.style.width = w + 'px';
       } catch {}
     }
-    if (typeof window.clearLinks === 'function') window.clearLinks();
   }
 
-  // Bind close button + ESC
   function bindCloseHandlers() {
-    const btn = $id('npClose');
-    if (btn) btn.addEventListener('click', closePanel);
+    $id('npClose')?.addEventListener('click', closePanel);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closePanel();
     });
   }
 
-  // ---------- Expose globals (IMPORTANT) ----------
+  // ---------- EXPOSE ----------
   window.openSummaryInPanel = openSummaryInPanel;
-  window.__closeNotePanel = closePanel; // debug utile
+  window.__closeNotePanel = closePanel;
+
   bindCloseHandlers();
 })();
