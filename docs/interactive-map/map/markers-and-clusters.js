@@ -1,38 +1,35 @@
 // ======================================================
 // MODULE — MARKERS & CLUSTERS (ES MODULE)
 // ======================================================
-// Rôle :
 // - Source "notes" + clusters
 // - Interactions (clic / hover)
-// - Ouverture du panel
+// - Ouverture du panel (avec layout panelWrap)
 // - Centrage strict sur le point + zoom fixe
-// - Décalage de la MAP (conteneur) pour ne pas passer sous le panel
+// - Ne ferme JAMAIS le panel au clic dans le vide
 // ======================================================
 
 import { map } from './globe-setup.js';
 
-// ========= CONSTANTES =========
 const NOTES_SOURCE_ID = 'notes';
 
 const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
-const EVENTS_BASE   = NOTE_RAW_BASE;
+const EVENTS_BASE = NOTE_RAW_BASE;
 const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
 
 const INTERACTIVE_LAYERS = ['clusters', 'cluster-count', 'unclustered-point'];
 
-// Zoom/pitch “au clic” (très dézoomé comme demandé)
+// Vue au clic (dézoomée)
 const CLICK_VIEW = {
-  zoom: 1.9,    // ✅ beaucoup plus dézoomé (baisse encore si besoin: 1.6)
-  pitch: 10,    // doux
+  zoom: 1.9,
+  pitch: 10,
   duration: 900
 };
 
-// ========= ÉTAT =========
 let selectedId = null;
 let interactionsBound = false;
 
 
-// ========= SOURCE + COUCHES =========
+// ========= SOURCE + LAYERS =========
 export async function ensureNotesSourceAndLayers() {
   await loadDataFromJSON();
 
@@ -62,8 +59,6 @@ export async function ensureNotesSourceAndLayers() {
   bindInteractionsOnce();
 }
 
-
-// ========= COUCHES =========
 function ensureLayers() {
   if (!map.getLayer('clusters')) {
     map.addLayer({
@@ -71,10 +66,7 @@ function ensureLayers() {
       type: 'circle',
       source: NOTES_SOURCE_ID,
       filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': '#ba274f',
-        'circle-radius': 20
-      }
+      paint: { 'circle-color': '#ba274f', 'circle-radius': 20 }
     });
   }
 
@@ -145,30 +137,15 @@ export function resolveNoteURL(noteId) {
 }
 
 
-// ========= LAYOUT : “décaler la map” sans déplacer le point =========
-// On ne touche PAS au contenu (pas d'offset/padding). On réduit la largeur du conteneur.
-// => le point reste centré, et le panel ne recouvre plus la map.
-function applyMapLayoutForPanel(isOpen) {
-  const mapEl = document.getElementById('map');
-  const panelEl = document.getElementById('notePanel');
-  if (!mapEl || !panelEl) return;
+// ========= PANEL WRAP HELPERS (layout côte à côte) =========
+function openPanelWrap() {
+  const wrap = document.getElementById('panelWrap');
+  if (!wrap) return;
 
-  if (!mapEl.dataset.fullWidth) {
-    // mémorise la largeur initiale (au cas où)
-    mapEl.dataset.fullWidth = mapEl.style.width || '';
-  }
+  // Le wrapper contrôle l’affichage (flex layout)
+  wrap.classList.add('is-open');
 
-  if (isOpen) {
-    const panelW = panelEl.getBoundingClientRect().width || 0;
-    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
-    const extra = 10;
-
-    const cut = Math.max(0, Math.round(panelW + panelM + extra));
-    mapEl.style.width = `calc(100% - ${cut}px)`;
-  } else {
-    mapEl.style.width = mapEl.dataset.fullWidth || '';
-  }
-
+  // après changement de layout, MapLibre doit recalculer
   try { map.resize(); } catch {}
 }
 
@@ -186,7 +163,7 @@ function onMapClick(e) {
   const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
   const hits = layers.length ? map.queryRenderedFeatures(e.point, { layers }) : [];
 
-  // ✅ Clic dans le vide : on ne fait rien (on ne ferme pas le panel, pas d'auto zoom)
+  // ✅ Clic dans le vide : ne fait rien (ne ferme pas le panel, pas de zoom)
   if (!hits.length) return;
 
   const cluster = hits.find(f => f.properties?.cluster || f.properties?.point_count != null);
@@ -214,24 +191,24 @@ function selectPoint(feature) {
   const id = feature.properties.id;
   const coords = feature.geometry.coordinates;
 
-  // 1) Visuel sélection
+  // Visuel sélection
   if (selectedId !== null) {
     try { map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false }); } catch {}
   }
   try { map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true }); } catch {}
   selectedId = id;
 
-  // 2) Ouvrir le panel
+  // ✅ Ouvrir le wrapper du panel (sinon invisible)
+  openPanelWrap();
+
+  // Ouvrir/rafraîchir le contenu du panel
   window.openSummaryInPanel?.(id);
 
-  // 3) Décaler la MAP (conteneur) pour ne pas passer sous le panel
-  applyMapLayoutForPanel(true);
-
-  // 4) Centrage STRICT sur le point + zoom fixe (très dézoomé)
+  // Recentrage strict + zoom fixe
   try {
     map.easeTo({
-      center: coords,                 // ✅ centre = coords strict
-      zoom: CLICK_VIEW.zoom,          // ✅ zoom fixé
+      center: coords,
+      zoom: CLICK_VIEW.zoom,
       pitch: CLICK_VIEW.pitch,
       bearing: map.getBearing(),
       duration: CLICK_VIEW.duration,
