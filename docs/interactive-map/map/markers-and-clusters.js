@@ -207,52 +207,43 @@ function selectPoint(feature) {
   } catch {}
   selectedId = id;
 
-  // 2) Ouvre le panel (script global)
+  // 2) Ouvre le panel
   window.openSummaryInPanel?.(id);
 
-  // 3) Recentre + décale (précis) + zoom maîtrisé
+  // 3) Centrage EXACT sur le point + gros dézoom + décalage à gauche (offset)
   try {
-    // --- largeur réelle du panel (plus précis que UI_CONFIG) ---
+    // largeur réelle du panel (plus fiable)
     const panelEl = document.getElementById('notePanel');
-    const panelW = panelEl ? panelEl.getBoundingClientRect().width : Number(window.UI_CONFIG?.panel?.width ?? 400) * 1.25;
-
+    const panelW = panelEl ? panelEl.getBoundingClientRect().width : 520; // fallback
     const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
-    const extra = 24;
+    const extra = 30;
 
-    // décalage : la moitié du panel suffit généralement
+    // Le point doit apparaître à gauche => on décale le "centre écran" vers la gauche
     const offsetX = Math.round((panelW + panelM + extra) / 2);
 
-    // --- zoom/pitch maîtrisés ---
-    const currentZoom = map.getZoom();
+    // Gros dézoom (ajuste si tu veux encore plus loin)
+    const desiredZoom = 2.1;   // <<< beaucoup plus dézoomé
+    const minZoom = 1.7;
+    const maxZoom = 2.6;
+    const targetZoom = Math.min(maxZoom, Math.max(minZoom, desiredZoom));
 
-    // cible douce pour le globe (ajuste à ton goût)
-    const desiredZoom = Number(window.ARRIVAL_ZOOM ?? 3.2);
-
-    // clamp : évite zoom trop fort ou trop faible
-    const minZoom = 2.6;
-    const maxZoom = 4.0;
-    const targetZoom = Math.min(maxZoom, Math.max(minZoom, Math.max(currentZoom, desiredZoom)));
-
-    const currentPitch = map.getPitch();
-    const desiredPitch = Number(window.BASE_PITCH ?? 18);
-    const maxPitch = 35;
-    const targetPitch = Math.min(maxPitch, Math.max(currentPitch, desiredPitch));
-
-    // --- offset robuste en pixels ---
-    const p = map.project(coords);
-    const newCenter = map.unproject([p.x + offsetX, p.y]).toArray();
+    // Pitch doux (sinon impression de zoom/agressif)
+    const targetPitch = 12;
 
     map.easeTo({
-      center: newCenter,
+      center: coords,                 // ✅ centre EXACT = coords du point
       zoom: targetZoom,
       pitch: targetPitch,
       bearing: map.getBearing(),
-      duration: 850,
+      offset: [-offsetX, 0],          // ✅ place le point à gauche (sans changer "center")
+      duration: 900,
       essential: true
     });
   } catch {
-    // fallback simple
-    try { map.easeTo({ center: coords, zoom: 3.2, duration: 650, essential: true }); } catch {}
+    // fallback simple (sans offset)
+    try {
+      map.easeTo({ center: coords, zoom: 2.1, pitch: 12, duration: 900, essential: true });
+    } catch {}
   }
 }
 
