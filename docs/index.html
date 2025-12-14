@@ -22,15 +22,26 @@
   <script src="countries-overlay.js"></script>
 
   <style>
-    html, body { margin:0; padding:0; height:100%; }
-    body { overflow:hidden; }
+    html, body { 
+      margin:0; 
+      padding:0; 
+      height:100%; 
+    }
+    
+    body { 
+      overflow:hidden; 
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
 
     /* Layout principal : MAP à gauche + PANEL à droite */
     #app {
       height: 100vh;
-      width: 100vw;
+      width: 100%;          /* ✅ pas 100vw */
       display: flex;
-      background: #fff;
+      overflow: hidden;     /* ✅ sécurité anti débordement */
     }
 
     /* Conteneur map : prend toute la place disponible */
