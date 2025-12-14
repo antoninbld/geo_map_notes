@@ -186,13 +186,8 @@ function onMapClick(e) {
   const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
   const hits = layers.length ? map.queryRenderedFeatures(e.point, { layers }) : [];
 
-  if (!hits.length) {
-    // clic dans le vide -> optionnel : fermer le panel
-    window.__closeNotePanel?.();
-    // et on remet la map pleine largeur
-    applyMapLayoutForPanel(false);
-    return;
-  }
+  // ✅ Clic dans le vide : on ne fait rien (on ne ferme pas le panel, pas d'auto zoom)
+  if (!hits.length) return;
 
   const cluster = hits.find(f => f.properties?.cluster || f.properties?.point_count != null);
   if (cluster) {
