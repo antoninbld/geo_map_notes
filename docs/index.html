@@ -63,34 +63,35 @@
     /* =========================
        PANEL WRAP (collé au bord droit)
        ========================= */
-    #panelWrap {
-      flex: 0 0 min(560px, 46vw); /* +33% */
-      height: 100%;
-      background: transparent;
-      display: none;
+    /* Panel wrapper : collé au bord droit, aucune marge/padding, couvre tout */
+#panelWrap {
+  flex: 0 0 min(560px, 46vw); /* garde ta largeur actuelle */
+  height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
 
-      padding: 0;          /* ✅ pas de “vide” à droite */
-      margin-left: auto;   /* ✅ colle le panel au bord droit */
-      overflow: hidden;
-    }
-    #panelWrap.is-open {
-      display: block;
-    }
+  margin-left: auto;         /* colle à droite */
+  background: #fff;          /* ✅ IMPORTANT : plus de bande “rouge” */
+  overflow: hidden;
 
-    /* Panel note */
-    #notePanel {
-      height: 100%;
-      width: 100%;
-      overflow: auto;
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  display: none;
+}
+#panelWrap.is-open { display: block; }
 
-      padding: 8px;        /* ✅ padding interne (au lieu du wrapper) */
-      display: block;      /* le wrapper gère l’affichage */
-      font-family: system-ui;
-      overflow-x: hidden;  /* sécurité */
-    }
+/* Panel : padding interne uniquement */
+#notePanel {
+  width: 100%;
+  height: 100%;
+  margin: 0 !important;
+  padding: 8px;              /* confort visuel */
+  background: #fff;
+  overflow: auto;
+  overflow-x: hidden;
+
+  border-radius: 12px 0 0 12px;
+  box-shadow: none;          /* optionnel : enlève l’ombre qui peut “flotter” */
+  font-family: system-ui, sans-serif;
+}
 
     /* Empêche les longues chaînes (markdown, tags, etc.) de dépasser */
     #notePanel,
