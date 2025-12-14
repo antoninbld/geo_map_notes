@@ -18,6 +18,12 @@ import {
 
 import { ensureNotesSourceAndLayers } from './map/markers-and-clusters.js';
 
+// ✅ liens (module propre)
+import {
+  ensureLinksLayer,
+  drawLinksFrom
+} from './links/links-layer.js';
+
 
 // ========= ENTITY FOCUS LAYERS =========
 
@@ -60,9 +66,9 @@ function ensureEntityFocusLayers() {
     }, 'clusters');
   }
 
-  // MissileArcsLayer est défini dans interactive-map/entities/constellations-and-arcs.js
-  if (typeof MissileArcsLayer !== 'undefined' && !map.getLayer('entity-focus-arcs-3d')) {
-    map.addLayer(MissileArcsLayer);
+  // MissileArcsLayer est défini dans interactive-map/entities/constellations-and-arcs.js (script global)
+  if (typeof window.MissileArcsLayer !== 'undefined' && !map.getLayer('entity-focus-arcs-3d')) {
+    map.addLayer(window.MissileArcsLayer);
   }
 }
 
@@ -75,17 +81,20 @@ map.on('load', async () => {
   if (baseInitialized) return;
   baseInitialized = true;
 
-  await ensureNotesSourceAndLayers();
-
-  // links-layer.js expose ensureLinksLayer()/drawLinksFrom()/clearLinks() en global (actuel)
-  if (typeof ensureLinksLayer === 'function') ensureLinksLayer();
-
-  ensureEntityFocusLayers();
-
-  // globe + nettoyage terrain + vue initiale
+  // Globe + état initial (avant d'ajouter des layers, c'est ok)
   setupGlobe();
   ensureNoTerrain();
 
+  // Notes (source + clusters)
+  await ensureNotesSourceAndLayers();
+
+  // Liens (source + layer)
+  ensureLinksLayer();
+
+  // Entity focus
+  ensureEntityFocusLayers();
+
+  // Vue initiale
   map.jumpTo({
     center: GLOBE_CENTER,
     zoom: GLOBE_ZOOM,
@@ -93,26 +102,31 @@ map.on('load', async () => {
     bearing: 0
   });
 
-  // Overlay pays (countries-overlay.js est chargé en script global)
+  // Overlay pays (script global)
   if (window.CountryOverlay?.init) {
     window.CountryOverlay.init(map).catch(console.error);
   }
 });
 
 map.on('style.load', async () => {
+  // À chaque changement de style, les sources/layers sautent -> on remet tout
   setupGlobe();
   ensureNoTerrain();
 
   await ensureNotesSourceAndLayers();
-  if (typeof ensureLinksLayer === 'function') ensureLinksLayer();
+  ensureLinksLayer();
   ensureEntityFocusLayers();
 
+  // Pays focus (si présent)
   if (window.CURRENT_FOCUSED_COUNTRY && window.CountryOverlay?.show) {
     await window.CountryOverlay.show(map, window.CURRENT_FOCUSED_COUNTRY);
-    if (typeof bringCountryOverlayToFront === 'function') bringCountryOverlayToFront();
+    if (typeof window.bringCountryOverlayToFront === 'function') {
+      window.bringCountryOverlayToFront();
+    }
   }
 
-  if (window.__lastLinksState && typeof drawLinksFrom === 'function') {
+  // Redessiner liens si on avait un état
+  if (window.__lastLinksState) {
     drawLinksFrom(window.__lastLinksState.id, window.__lastLinksState.links);
   }
 });
@@ -184,7 +198,6 @@ class RotateControl {
 
     container.appendChild(btn);
     this._container = container;
-
     return container;
   }
 
@@ -207,7 +220,6 @@ function updateMapBackgroundClass(basemap) {
 }
 
 window.addEventListener('load', () => {
-  // état initial
   const checked = document.querySelector('input[name="basemap"]:checked');
   const base = checked?.value || 'streets';
   updateMapBackgroundClass(base);
@@ -218,9 +230,6 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
     const base = e.target.value;
     updateMapBackgroundClass(base);
 
-    // 2 possibilités :
-    // - soit tu utilises setBasemap() (recommandé)
-    // - soit tu fais map.setStyle(getStyleURL(base))
     try {
       setBasemap(base);
     } catch {
@@ -255,12 +264,12 @@ document.getElementById('recenterEurope')?.addEventListener('click', recenterEur
 document.getElementById('recenterWorld')?.addEventListener('click', recenterWorld);
 
 
-// ========= INIT (modules "globals") =========
+// ========= INIT (scripts globaux restants) =========
 
-// filters.js expose initFilters() en global
-if (typeof initFilters === 'function') initFilters();
+// filters.js est encore en <script> (global)
+if (typeof window.initFilters === 'function') window.initFilters();
 
-// config-and-helpers.js expose applyUIConfig() en global
-if (typeof applyUIConfig === 'function') applyUIConfig();
+// config-and-helpers.js (global)
+if (typeof window.applyUIConfig === 'function') window.applyUIConfig();
 
-console.log('[OK] interactive-map.js loaded');
+console.log('[OK] interactive-map.js loaded (clean)');
