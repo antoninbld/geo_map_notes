@@ -306,31 +306,31 @@
 
   <!-- Glue panelWrap -->
   <script>
-    (function () {
-      const wrap = document.getElementById('panelWrap');
-      const panel = document.getElementById('notePanel');
-      const closeBtn = document.getElementById('npClose');
+  (function () {
+    const toggleBtn = document.getElementById('mapPanelToggle');
+    const panel     = document.getElementById('mapPanel');
+    const closeBtn  = document.getElementById('mapPanelClose');
 
-      function openWrap() {
-        wrap.classList.add('is-open');
-        try { window.map?.resize?.(); } catch {}
-      }
-      function closeWrap() {
-        wrap.classList.remove('is-open');
-        try { window.map?.resize?.(); } catch {}
-      }
+    if (!toggleBtn || !panel) return;
 
-      const obs = new MutationObserver(() => {
-        if (panel && panel.offsetParent !== null) openWrap();
-      });
-      if (panel) obs.observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
+    function openPanel() {
+      panel.classList.remove('panel-hidden');
+      toggleBtn.setAttribute('aria-expanded', 'true');
+    }
 
-      if (closeBtn) closeBtn.addEventListener('click', closeWrap);
+    function closePanel() {
+      panel.classList.add('panel-hidden');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+    }
 
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeWrap();
-      });
-    })();
-  </script>
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = toggleBtn.getAttribute('aria-expanded') === 'true';
+      isOpen ? closePanel() : openPanel();
+    });
+
+    closeBtn?.addEventListener('click', closePanel);
+  })();
+</script>
+
 </body>
 </html>
