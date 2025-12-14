@@ -38,17 +38,17 @@
 
     /* Layout principal : MAP à gauche + PANEL à droite */
     #app {
-      height: 100vh;
-      width: 100%;
       display: flex;
+      height: 100vh;
+      width: 100vw;
       overflow: hidden;
     }
 
     /* Conteneur map : prend toute la place disponible */
     #mapWrap {
-      position: relative;
-      flex: 1 1 auto;
-      min-width: 0; /* important en flex */
+      flex: 1 1 auto;   /* 🔑 la map prend TOUT l’espace restant */
+      min-width: 0;     /* 🔑 empêche le débordement flex */
+      height: 100%;
     }
 
     #map {
@@ -65,18 +65,16 @@
        ========================= */
     /* Panel wrapper : collé au bord droit, aucune marge/padding, couvre tout */
 #panelWrap {
-  flex: 0 0 min(560px, 46vw); /* garde ta largeur actuelle */
+  flex: 0 0 560px;  /* 🔑 largeur FIXE, pas min(), pas vw */
   height: 100%;
-  margin: 0 !important;
-  padding: 0 !important;
-
-  margin-left: auto;         /* colle à droite */
-  background: #fff;          /* ✅ IMPORTANT : plus de bande “rouge” */
-  overflow: hidden;
-
   display: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
 }
-#panelWrap.is-open { display: block; }
+#panelWrap.is-open {
+  display: block;
+}
 
 /* Panel : padding interne uniquement */
 #notePanel {
