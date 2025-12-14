@@ -9,46 +9,46 @@
   <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
 
-  <!-- Libs -->
+  <!-- Turf -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <!-- Three.js (si utilisé par tes arcs) -->
   <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+
+  <!-- Marked (Markdown) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-  <!-- Overlay pays -->
+  <!-- Overlay pays (⚠️ garde le bon chemin selon ton projet) -->
   <script src="countries-overlay.js"></script>
 
   <style>
-    /* =========================
-       RESET & BASE
-    ========================== */
     html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
+      margin:0;
+      padding:0;
+      height:100%;
+    }
+
+    body {
+      overflow:hidden;
     }
 
     *, *::before, *::after {
       box-sizing: border-box;
     }
 
-    /* =========================
-       LAYOUT GLOBAL
-    ========================== */
+    /* Layout principal : MAP à gauche + PANEL à droite */
     #app {
-      display: flex;
       height: 100vh;
       width: 100%;
+      display: flex;
       overflow: hidden;
     }
 
-    /* =========================
-       MAP
-    ========================== */
+    /* Conteneur map : prend toute la place disponible */
     #mapWrap {
-      flex: 1 1 auto;
-      min-width: 0;
       position: relative;
+      flex: 1 1 auto;
+      min-width: 0; /* important en flex */
     }
 
     #map {
@@ -56,179 +56,257 @@
       height: 100%;
       background: radial-gradient(circle at 50% 45%, #cfe4ff 0%, #e9f3ff 60%, #fff 100%);
     }
+    #map.dark {
+      background: radial-gradient(circle at 50% 45%, #0a0f1f 0%, #0d1b2a 60%, #000 100%);
+    }
 
     /* =========================
-       PANEL WRAPPER (DROITE)
-    ========================== */
+       PANEL WRAP (collé au bord droit)
+       ========================= */
     #panelWrap {
       flex: 0 0 min(560px, 46vw); /* +33% */
       height: 100%;
-      margin-left: auto;         /* 🔑 collé au bord droit */
-      display: none;
-      padding: 0;                /* ⚠️ aucun padding ici */
-      overflow: hidden;
       background: transparent;
-    }
+      display: none;
 
+      padding: 0;          /* ✅ pas de “vide” à droite */
+      margin-left: auto;   /* ✅ colle le panel au bord droit */
+      overflow: hidden;
+    }
     #panelWrap.is-open {
       display: block;
     }
 
-    /* =========================
-       NOTE PANEL
-    ========================== */
+    /* Panel note */
     #notePanel {
-      width: 100%;
       height: 100%;
-      padding: 8px;              /* padding interne */
-      overflow-y: auto;
-      overflow-x: hidden;
+      width: 100%;
+      overflow: auto;
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 8px 24px rgba(0,0,0,.18);
-      font-family: system-ui, sans-serif;
-      font-size: 13px;           /* 🔽 base réduite */
+
+      padding: 8px;        /* ✅ padding interne (au lieu du wrapper) */
+      display: block;      /* le wrapper gère l’affichage */
+      font-family: system-ui;
+      overflow-x: hidden;  /* sécurité */
     }
 
-    /* Empêche tout débordement texte */
-    #notePanel, #notePanel * {
+    /* Empêche les longues chaînes (markdown, tags, etc.) de dépasser */
+    #notePanel,
+    #notePanel * {
       max-width: 100%;
       overflow-wrap: anywhere;
       word-break: break-word;
       white-space: normal;
     }
 
-    /* =========================
-       HEADER NOTE
-    ========================== */
-    #npHeader {
-      background: #facc15;
-      padding: 10px 12px;
-      border-radius: 10px 10px 0 0;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      box-shadow: 0 4px 8px rgba(0,0,0,.35);
-    }
-
-    #npTitle {
-      font-size: 15px;           /* 🔽 */
-      font-weight: 700;
-    }
-
-    #npMeta, #npDate {
-      font-size: 11.5px;
-      opacity: .85;
-    }
-
-    /* 🔽 RÉCAP PLUS PETIT */
+    /* ✅ Réduire la police du récap + texte note (override des styles inline) */
     #npRecap {
-      margin-top: 6px;
-      font-size: 12px;           /* 🔽 demandé */
-      line-height: 1.35;
-      font-style: italic;
-      font-weight: 600;
+      font-size: 12px !important;
+      line-height: 1.35 !important;
     }
-
-    #npRecapToggle {
-      font-size: 11px;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-
-    /* =========================
-       CONTENU NOTE
-    ========================== */
-    #npWrapper {
-      padding: 6px;
-    }
-
-    #npCard {
-      background: #fef9c3;
-      border: 1px solid #0f172a22;
-      border-radius: 10px;
-      padding: 10px;
-    }
-
-    /* 🔽 TEXTE PRINCIPAL RÉDUIT */
     #npSummary,
     #npMd {
-      font-size: 12.8px;         /* 🔽 */
-      line-height: 1.45;
+      font-size: 12.8px !important;
+      line-height: 1.45 !important;
     }
 
-    /* =========================
-       LIENS
-    ========================== */
-    #npLinks {
-      font-size: 12.5px;
+    /* Boutons + UI existante */
+    .btn{
+      display:inline-block;margin-top:6px;padding:8px 10px;
+      background:#1e90ff;color:#fff;border:none;border-radius:8px;
+      font-size:13px;cursor:pointer;width:100%;text-align:left;
+      box-shadow:0 2px 8px rgba(30,144,255,.35);
+    }
+    .btn:hover{filter:brightness(.95);}
+
+    .maplibregl-popup{max-width:300px;font-family:system-ui,sans-serif;}
+
+    .maplibregl-ctrl.filters-ctrl .filters-btn{
+      min-width:60px;height:30px;display:flex;align-items:center;justify-content:center;
+      font-size:14px;background:#fff;border:none;cursor:pointer;
+    }
+    .filters-panel{
+      position:absolute;top:115px;right:10px;z-index:10;width:360px;max-height:60vh;overflow:auto;
+      background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+      font-family:system-ui,sans-serif;font-size:14px;display:none;
     }
 
-    /* =========================
-       BOUTONS
-    ========================== */
-    .btn {
-      font-size: 12.5px;
-      padding: 6px 8px;
-      border-radius: 8px;
-      cursor: pointer;
+    .panel-toggle{
+      position:absolute;top:10px;left:10px;z-index:11;width:36px;height:36px;
+      border:none;border-radius:10px;background:#fff;
+      box-shadow:0 6px 18px rgba(0,0,0,.18);
+      font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    }
+    .panel-toggle[aria-expanded="true"]{display:none;}
+
+    .map-panel{
+      position:absolute;top:10px;left:10px;z-index:10;width:260px;
+      background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+      border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.2);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      font-size:14px;overflow:hidden;
+      transition:transform .22s ease,opacity .22s ease;
+    }
+    .panel-hidden{transform:translateX(-8px);opacity:0;pointer-events:none;}
+    .panel-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;border-bottom:1px solid #e5e7eb;
+    }
+    .panel-title{font-weight:700;font-size:15px;}
+    .panel-close{
+      border:none;background:#dc2626;color:#fff;border-radius:8px;
+      padding:4px 8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);
+    }
+    .panel-close:hover{filter:brightness(.95);}
+
+    #mapPanelToggle,
+    .maplibregl-ctrl.filters-ctrl .filters-btn,
+    .maplibregl-ctrl-zoom-in,
+    .maplibregl-ctrl-zoom-out{border:1px solid #000;}
+
+    .panel-group{padding:10px 12px 0;}
+    .panel-subtitle{
+      font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+      color:#6b7280;margin-bottom:6px;font-weight:600;
+    }
+    .radio-row{display:flex;gap:8px;flex-wrap:wrap;}
+    .radio-pill{
+      display:inline-flex;align-items:center;gap:8px;
+      border:1px solid #e5e7eb;border-radius:999px;background:#fff;
+      padding:6px 10px;cursor:pointer;user-select:none;transition:all .15s ease;
+    }
+    .radio-pill:hover{border-color:#cbd5e1;}
+    .radio-pill input{appearance:none;width:0;height:0;position:absolute;}
+    .radio-pill input:checked + span{color:#fff;}
+    .radio-pill:has(input:checked){
+      background:#1e90ff;border-color:#1e90ff;
+      box-shadow:0 2px 10px rgba(30,144,255,.35) inset,0 0 0 1px rgba(255,255,255,.2);
+    }
+    .panel-actions{padding:12px;display:grid;gap:8px;}
+
+    .internal-link{ text-decoration:none; border-bottom:1px dashed #1e90ff;}
+    .internal-link:hover{text-decoration:underline;}
+
+    :root{--recap-lines:2;}
+    #npRecap.clamped{
+      -webkit-box-orient:vertical;
+      -webkit-line-clamp:var(--recap-lines);
+      display:-webkit-box;overflow:hidden;
+    }
+    #npRecapToggle{
+      cursor:pointer;display:inline-block;margin-top:4px;
+      text-decoration:underline;font-style:italic;user-select:none;font-size:.85em;
     }
 
+    .maplibregl-marker,
+    .internal-link,
+    #npFit,
+    .maplibregl-ctrl button,
+    .filters-ctrl .filters-btn{cursor:pointer;}
+    .maplibregl-ctrl-group>button,
+    .filters-ctrl .filters-btn{border:1px solid #000!important;}
+    .maplibregl-ctrl-group>button:hover,
+    .filters-ctrl .filters-btn:hover{filter:brightness(.95);}
+
+    #npRotateBtn{display:none;font-size:18px;}
+    #npRotateBtn:hover{transform:scale(1.06);}
+    #npRotateBtn.is-on{background:#facc15;color:#000;}
   </style>
 </head>
 
 <body>
   <div id="app">
-
-    <!-- MAP -->
     <div id="mapWrap">
       <div id="map"></div>
+
+      <!-- Panneau "Map views" (reste sur la map) -->
+      <button id="mapPanelToggle" class="panel-toggle" aria-expanded="false" aria-controls="mapPanel" title="Afficher/masquer les options carte">🗺️</button>
+      <aside id="mapPanel" class="map-panel panel-hidden" aria-label="Options de carte">
+        <header class="panel-header">
+          <span class="panel-title">Map views</span>
+          <button id="mapPanelClose" class="panel-close" aria-label="Masquer le panneau">✕</button>
+        </header>
+        <section class="panel-group">
+          <div class="panel-subtitle">Style</div>
+          <div class="radio-row">
+            <label class="radio-pill"><input type="radio" name="basemap" value="streets" checked><span>Streets</span></label>
+            <label class="radio-pill"><input type="radio" name="basemap" value="light"><span>Light</span></label>
+            <label class="radio-pill"><input type="radio" name="basemap" value="dark"><span>Dark</span></label>
+          </div>
+        </section>
+        <section class="panel-actions">
+          <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
+          <button id="recenterWorld"  class="btn" type="button">Recentrer Monde</button>
+        </section>
+      </aside>
+
+      <!-- Panneau Filtres -->
+      <div id="filtersPanel" class="filters-panel s-panel">
+        <h3>Filtres</h3>
+        <div class="row"><label>Recherche</label><input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" /></div>
+        <div class="row"><label>Tags</label><div id="tagsBox" class="tags"></div></div>
+        <div class="row">
+          <label>Pays</label>
+          <select id="filterCountry" multiple size="6" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:6px;"></select>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button id="selectAllCountries" class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
+            <button id="clearAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="filters-actions">
+            <button class="filters-apply" id="applyFilters"   type="button">Appliquer</button>
+            <button class="filters-reset" id="resetFilters"   type="button">Réinitialiser</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- PANEL -->
+    <!-- Wrapper panel à droite -->
     <div id="panelWrap">
       <div id="notePanel">
-
-        <div id="npHeader">
-          <button id="npClose"
-            style="position:absolute;top:8px;right:10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;">
-            ✖
-          </button>
-
-          <div id="npTitle"></div>
-          <div id="npMeta"><span id="npPlace"></span></div>
-          <div id="npDate"><span id="npDateText"></span></div>
-          <div id="npEntities"></div>
-          <div id="npRecap"></div>
-          <a id="npRecapToggle"></a>
+        <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22; position:sticky; top:0; z-index:20;box-shadow:0 4px 8px rgba(0,0,0,.35);">
+          <button id="npClose" type="button" aria-label="Fermer" style="position:absolute;top:8px;right:10px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);">✖</button>
+          <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
+          <div id="npMeta"  style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;"><span id="npIcon" style="font-size:14px;line-height:1">📍</span><span id="npPlace">Pays, ville</span></div>
+          <div id="npDate"  style="font-size:12px;opacity:.8;display:flex;align-items:center;gap:6px;margin-top:2px;"><span id="npDateIcon" style="font-size:14px;line-height:1">🕓</span><span id="npDateText"></span></div>
+          <div id="npEntities" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+          <div id="npRecap" style="margin-top:6px;font-weight:600;font-style:italic;"></div>
+          <a id="npRecapToggle" href="#" style="display:none;"></a>
         </div>
 
-        <div id="npWrapper">
-          <div id="npCard">
-            <div id="npSummary"></div>
-            <div id="npMd"></div>
+        <div id="npWrapper" style="padding:6px 6px;">
+          <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
+            <div id="npSummary" style="font-size:14px;line-height:1.55;margin-bottom:8px;"></div>
+            <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
           </div>
-
-          <div id="npLinksWrap">
-            <strong>Liens sortants</strong>
-            <div id="npLinks"></div>
+          <div id="npLinksWrap" style="margin-top:10px;">
+            <div style="font-weight:700;margin:8px 0 6px;">Liens sortants</div>
+            <div id="npLinks" style="font-size:14px;"></div>
             <div style="margin-top:8px;display:flex;gap:8px;">
-              <button id="npFit">🔎 Voir les liés</button>
-              <button id="btnClearEntityFocus">Afficher tout</button>
+              <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
+              <button id="btnClearEntityFocus" type="button" style="margin-left:8px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">Afficher tout</button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Config / data -->
   <script src="interactive-map/config/config-and-helpers.js"></script>
   <script src="interactive-map/data/data-loading-and-index.js"></script>
+
+  <!-- Entités / arcs -->
   <script src="interactive-map/entities/constellations-and-arcs.js"></script>
+
+  <!-- UI -->
   <script src="interactive-map/panel/note-panel.js"></script>
   <script src="interactive-map/filters/filters.js"></script>
+
+  <!-- POINT D’ENTRÉE UNIQUE -->
   <script type="module" src="interactive-map/interactive-map.js"></script>
 
   <!-- Glue panelWrap -->
@@ -240,20 +318,24 @@
 
       function openWrap() {
         wrap.classList.add('is-open');
-        window.map?.resize?.();
+        try { window.map?.resize?.(); } catch {}
       }
       function closeWrap() {
         wrap.classList.remove('is-open');
-        window.map?.resize?.();
+        try { window.map?.resize?.(); } catch {}
       }
 
-      new MutationObserver(() => {
-        if (panel.offsetParent !== null) openWrap();
-      }).observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
+      const obs = new MutationObserver(() => {
+        if (panel && panel.offsetParent !== null) openWrap();
+      });
+      if (panel) obs.observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
 
-      closeBtn?.addEventListener('click', closeWrap);
+      if (closeBtn) closeBtn.addEventListener('click', closeWrap);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeWrap();
+      });
     })();
   </script>
-
 </body>
 </html>
