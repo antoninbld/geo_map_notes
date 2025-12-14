@@ -212,29 +212,37 @@ function selectPoint(feature) {
   // 2) Ouvre le panel (script global)
   window.openSummaryInPanel?.(id);
 
-  // 3) Recentre + décale pour laisser le panel à droite
-  //    => padding.right pousse le point vers la gauche à l'écran.
+  // 3) Recentre + décale (robuste) pour laisser le panel à droite
+  //    On décale le "centre" en pixels pour que le marqueur reste visible à gauche.
   try {
     const baseW = Number(window.UI_CONFIG?.panel?.width ?? 400);
     const panelW = Math.round(baseW * 1.25); // cohérent avec ton panel élargi
     const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
     const extra = 30;
 
-    const paddingRight = panelW + panelM + extra;
+    // On veut que le marqueur apparaisse à gauche => on pousse le centre vers la droite
+    const offsetX = Math.round((panelW + panelM + extra) / 2);
 
     const targetZoom = Number(window.ARRIVAL_ZOOM ?? 4.2);
     const targetPitch = Number(window.BASE_PITCH ?? 20);
 
+    const p = map.project(coords); // coords = [lng, lat]
+    const newCenter = map.unproject([p.x + offsetX, p.y]).toArray();
+
     map.easeTo({
-      center: coords,
+      center: newCenter,
       zoom: Math.max(map.getZoom(), targetZoom),
       pitch: Math.max(map.getPitch(), targetPitch),
       bearing: map.getBearing(),
-      padding: { top: 40, left: 40, bottom: 40, right: paddingRight },
       duration: 850,
       essential: true
     });
-  } catch {}
+  } catch (e) {
+    // fallback simple si project/unproject échoue
+    try {
+      map.easeTo({ center: coords, duration: 650, essential: true });
+    } catch {}
+  }
 }
 
 function zoomCluster(feature) {
