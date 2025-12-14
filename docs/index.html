@@ -51,15 +51,17 @@
 
     /* Panel à droite : il ne superpose plus la map */
     #panelWrap {
-      width: 420px;                /* largeur stable */
-      max-width: 44vw;
+      flex: 0 0 min(420px, 38vw); /* largeur réelle contrôlée */
       height: 100%;
       background: transparent;
-      display: none;               /* caché par défaut */
-      padding: 10px;
-      box-sizing: border-box;
+      display: none;
+      padding: 8px;              /* padding réduit */
+      box-sizing: border-box;    /* 🔑 CRUCIAL */
+      overflow: hidden;          /* empêche tout débordement */
     }
-    #panelWrap.is-open { display: block; }
+    #panelWrap.is-open {
+      display: block;
+    }
 
     /* Panel note */
     #notePanel {
