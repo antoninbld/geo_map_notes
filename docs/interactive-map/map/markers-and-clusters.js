@@ -4,52 +4,41 @@
 // Rôle :
 // - Créer / maintenir la source GeoJSON "notes"
 // - Gérer clusters + points isolés
-// - Gérer les interactions (clic / survol)
+// - Gérer interactions (clic / hover)
+// - Recentrer la vue en tenant compte du panel (padding right)
 // - Fournir resolveNoteURL()
 // ======================================================
 
 import { map } from './globe-setup.js';
 
-
 // ========= CONSTANTES =========
-
 const NOTES_SOURCE_ID = 'notes';
 
 const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
 const EVENTS_BASE   = NOTE_RAW_BASE;
 const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
 
+// Layers manipulés par ce module (utile pour queryRenderedFeatures)
+const INTERACTIVE_LAYERS = ['clusters', 'cluster-count', 'unclustered-point'];
 
 // ========= ÉTAT =========
-
 let selectedId = null;
 let interactionsBound = false;
 
-
 // ========= SOURCE + COUCHES =========
-
 export async function ensureNotesSourceAndLayers() {
-  await loadDataFromJSON(); // allData, idToItem
+  // Dépendance existante dans ton projet : charge allData + idToItem
+  await loadDataFromJSON();
 
-  const features = allData.map(item => ({
+  const features = (allData || []).map(item => ({
     type: 'Feature',
-    geometry: {
-      type: 'Point',
-      coordinates: [item.lon, item.lat]
-    },
-    properties: {
-      id: item.id,
-      title: item.title
-    }
+    geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+    properties: { id: item.id, title: item.title }
   }));
 
-  const geojson = {
-    type: 'FeatureCollection',
-    features
-  };
+  const geojson = { type: 'FeatureCollection', features };
 
   const src = map.getSource(NOTES_SOURCE_ID);
-
   if (!src) {
     map.addSource(NOTES_SOURCE_ID, {
       type: 'geojson',
@@ -67,9 +56,7 @@ export async function ensureNotesSourceAndLayers() {
   bindInteractionsOnce();
 }
 
-
 // ========= COUCHES =========
-
 function ensureLayers() {
   if (!map.getLayer('clusters')) {
     map.addLayer({
@@ -143,9 +130,7 @@ function ensureLayers() {
   }
 }
 
-
 // ========= URL NOTES =========
-
 export function resolveNoteURL(noteId) {
   const id = String(noteId);
 
@@ -161,9 +146,7 @@ export function resolveNoteURL(noteId) {
   return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(id)}.md`;
 }
 
-
 // ========= INTERACTIONS =========
-
 function bindInteractionsOnce() {
   if (interactionsBound) return;
   interactionsBound = true;
@@ -173,12 +156,19 @@ function bindInteractionsOnce() {
 }
 
 function onMapClick(e) {
-  const hits = map.queryRenderedFeatures(e.point);
+  // On interroge uniquement nos layers (évite de cliquer des overlays)
+  const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
+  const hits = layers.length
+    ? map.queryRenderedFeatures(e.point, { layers })
+    : [];
 
-  const cluster = hits.find(f =>
-    f.properties?.cluster || f.properties?.point_count != null
-  );
+  if (!hits.length) {
+    // clic dans le vide -> optionnel : fermer le panel
+    window.__closeNotePanel?.();
+    return;
+  }
 
+  const cluster = hits.find(f => f.properties?.cluster || f.properties?.point_count != null);
   if (cluster) {
     zoomCluster(cluster);
     return;
@@ -187,58 +177,69 @@ function onMapClick(e) {
   const point = hits.find(f => f.layer?.id === 'unclustered-point');
   if (point) {
     selectPoint(point);
-    return;
   }
-
 }
 
 function onMapHover(e) {
-  const layers = ['clusters', 'cluster-count', 'unclustered-point']
-    .filter(id => map.getLayer(id));
+  const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
 
   let hits = [];
   if (layers.length) {
-    try {
-      hits = map.queryRenderedFeatures(e.point, { layers });
-    } catch {}
+    try { hits = map.queryRenderedFeatures(e.point, { layers }); } catch {}
   }
 
   map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
 }
 
-
 // ========= ACTIONS =========
-
 function selectPoint(feature) {
   const id = feature.properties.id;
   const coords = feature.geometry.coordinates;
 
+  // 1) Feature-state selection (visuel)
   if (selectedId !== null) {
-    map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false });
+    try {
+      map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false });
+    } catch {}
   }
 
-  map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true });
+  try {
+    map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true });
+  } catch {}
+
   selectedId = id;
 
-  openSummaryInPanel(id);
+  // 2) Ouvre le panel (script global)
+  window.openSummaryInPanel?.(id);
 
+  // 3) Recentre + décale pour laisser le panel à droite
+  //    => padding.right pousse le point vers la gauche à l'écran.
   try {
-    const panelW = UI_CONFIG?.panel?.width ?? 400;
-    const panelM = UI_CONFIG?.panel?.marginRight ?? 10;
+    const baseW = Number(window.UI_CONFIG?.panel?.width ?? 400);
+    const panelW = Math.round(baseW * 1.25); // cohérent avec ton panel élargi
+    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
+    const extra = 30;
+
+    const paddingRight = panelW + panelM + extra;
+
+    const targetZoom = Number(window.ARRIVAL_ZOOM ?? 4.2);
+    const targetPitch = Number(window.BASE_PITCH ?? 20);
 
     map.easeTo({
       center: coords,
-      zoom: ARRIVAL_ZOOM,
-      padding: { top: 20, left: 20, bottom: 20, right: panelW + panelM + 10 },
-      duration: 600,
-      pitch: Math.max(map.getPitch(), BASE_PITCH)
+      zoom: Math.max(map.getZoom(), targetZoom),
+      pitch: Math.max(map.getPitch(), targetPitch),
+      bearing: map.getBearing(),
+      padding: { top: 40, left: 40, bottom: 40, right: paddingRight },
+      duration: 850,
+      essential: true
     });
   } catch {}
 }
 
 function zoomCluster(feature) {
   const src = map.getSource(NOTES_SOURCE_ID);
-  const id  = feature.properties.cluster_id;
+  const clusterId = feature.properties.cluster_id;
   const center = feature.geometry.coordinates;
 
   if (!src?.getClusterExpansionZoom) {
@@ -246,8 +247,13 @@ function zoomCluster(feature) {
     return;
   }
 
-  src.getClusterExpansionZoom(id, (err, zoom) => {
+  src.getClusterExpansionZoom(clusterId, (err, zoom) => {
     if (err) return;
-    map.easeTo({ center, zoom: Math.min(zoom + 1, 18), duration: 600 });
+    map.easeTo({
+      center,
+      zoom: Math.min(zoom + 1, 18),
+      duration: 600,
+      essential: true
+    });
   });
 }
