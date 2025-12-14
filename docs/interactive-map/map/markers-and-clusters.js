@@ -175,11 +175,6 @@ function bindInteractionsOnce() {
 function onMapClick(e) {
   const hits = map.queryRenderedFeatures(e.point);
 
-  if (!hits.length) {
-    clearLinks?.();
-    return;
-  }
-
   const cluster = hits.find(f =>
     f.properties?.cluster || f.properties?.point_count != null
   );
@@ -195,7 +190,6 @@ function onMapClick(e) {
     return;
   }
 
-  clearLinks?.();
 }
 
 function onMapHover(e) {
