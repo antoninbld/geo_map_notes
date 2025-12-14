@@ -8,25 +8,73 @@
   <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
+
   <!-- Turf -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-  <!-- Three.js -->
+
+  <!-- Three.js (si utilisé par tes arcs) -->
   <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
-    <!-- Marked (Markdown) -->
+
+  <!-- Marked (Markdown) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <!-- Overlay pays (géométries réelles) -->
+
+  <!-- Overlay pays (⚠️ garde le bon chemin selon ton projet) -->
   <script src="countries-overlay.js"></script>
 
   <style>
     html, body { margin:0; padding:0; height:100%; }
+    body { overflow:hidden; }
+
+    /* Layout principal : MAP à gauche + PANEL à droite */
+    #app {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      background: #fff;
+    }
+
+    /* Conteneur map : prend toute la place disponible */
+    #mapWrap {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0; /* important en flex */
+    }
+
     #map {
-      width:100%; height:100%;
+      width: 100%;
+      height: 100%;
       background: radial-gradient(circle at 50% 45%, #cfe4ff 0%, #e9f3ff 60%, #fff 100%);
     }
     #map.dark {
       background: radial-gradient(circle at 50% 45%, #0a0f1f 0%, #0d1b2a 60%, #000 100%);
     }
 
+    /* Panel à droite : il ne superpose plus la map */
+    #panelWrap {
+      width: 420px;                /* largeur stable */
+      max-width: 44vw;
+      height: 100%;
+      background: transparent;
+      display: none;               /* caché par défaut */
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #panelWrap.is-open { display: block; }
+
+    /* Panel note */
+    #notePanel {
+      height: calc(100vh - 20px);
+      width: 100%;
+      overflow: auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      padding: 0;
+      display: block; /* le wrapper gère l’affichage */
+      font-family: system-ui;
+    }
+
+    /* Boutons + UI existante (identique à ton fichier) */
     .btn{
       display:inline-block;margin-top:6px;padding:8px 10px;
       background:#1e90ff;color:#fff;border:none;border-radius:8px;
@@ -34,6 +82,7 @@
       box-shadow:0 2px 8px rgba(30,144,255,.35);
     }
     .btn:hover{filter:brightness(.95);}
+
     .maplibregl-popup{max-width:300px;font-family:system-ui,sans-serif;}
 
     .maplibregl-ctrl.filters-ctrl .filters-btn{
@@ -53,6 +102,7 @@
       font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
     }
     .panel-toggle[aria-expanded="true"]{display:none;}
+
     .map-panel{
       position:absolute;top:10px;left:10px;z-index:10;width:260px;
       background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
@@ -72,10 +122,12 @@
       padding:4px 8px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);
     }
     .panel-close:hover{filter:brightness(.95);}
+
     #mapPanelToggle,
     .maplibregl-ctrl.filters-ctrl .filters-btn,
     .maplibregl-ctrl-zoom-in,
     .maplibregl-ctrl-zoom-out{border:1px solid #000;}
+
     .panel-group{padding:10px 12px 0;}
     .panel-subtitle{
       font-size:11px;letter-spacing:.04em;text-transform:uppercase;
@@ -120,102 +172,137 @@
     .maplibregl-ctrl-group>button:hover,
     .filters-ctrl .filters-btn:hover{filter:brightness(.95);}
 
-    .marker--active{
-      background:#0d8f06!important;transform:scale(1.12);
-      box-shadow:0 0 0 2px #fff,0 2px 10px rgba(0,0,0,.35);
-    }
     #npRotateBtn{display:none;font-size:18px;}
     #npRotateBtn:hover{transform:scale(1.06);}
     #npRotateBtn.is-on{background:#facc15;color:#000;}
   </style>
 </head>
-<body>
-  <div id="map"></div>
 
-  <!-- Panneau de lecture -->
-  <div id="notePanel" style="position:absolute;right:10px;top:10px;width:400px;max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:0;display:none;z-index:12;font-family:system-ui;">
-    <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22; position:sticky; top:0; z-index:20;box-shadow:0 4px 8px rgba(0,0,0,.35);">
-      <button id="npClose" type="button" aria-label="Fermer" style="position:absolute;top:8px;right:10px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);">✖</button>
-      <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
-      <div id="npMeta"  style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;"><span id="npIcon" style="font-size:14px;line-height:1">📍</span><span id="npPlace">Pays, ville</span></div>
-      <div id="npDate"  style="font-size:12px;opacity:.8;display:flex;align-items:center;gap:6px;margin-top:2px;"><span id="npDateIcon" style="font-size:14px;line-height:1">🕓</span><span id="npDateText"></span></div>
-      <div id="npEntities" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
-      <div id="npRecap" style="margin-top:6px;font-weight:600;font-style:italic;"></div>
-      <a id="npRecapToggle" href="#" style="display:none;"></a>
+<body>
+  <div id="app">
+    <div id="mapWrap">
+      <div id="map"></div>
+
+      <!-- Panneau "Map views" (reste sur la map) -->
+      <button id="mapPanelToggle" class="panel-toggle" aria-expanded="false" aria-controls="mapPanel" title="Afficher/masquer les options carte">🗺️</button>
+      <aside id="mapPanel" class="map-panel panel-hidden" aria-label="Options de carte">
+        <header class="panel-header">
+          <span class="panel-title">Map views</span>
+          <button id="mapPanelClose" class="panel-close" aria-label="Masquer le panneau">✕</button>
+        </header>
+        <section class="panel-group">
+          <div class="panel-subtitle">Style</div>
+          <div class="radio-row">
+            <label class="radio-pill"><input type="radio" name="basemap" value="streets" checked><span>Streets</span></label>
+            <label class="radio-pill"><input type="radio" name="basemap" value="light"><span>Light</span></label>
+            <label class="radio-pill"><input type="radio" name="basemap" value="dark"><span>Dark</span></label>
+          </div>
+        </section>
+        <section class="panel-actions">
+          <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
+          <button id="recenterWorld"  class="btn" type="button">Recentrer Monde</button>
+        </section>
+      </aside>
+
+      <!-- Panneau Filtres -->
+      <div id="filtersPanel" class="filters-panel s-panel">
+        <h3>Filtres</h3>
+        <div class="row"><label>Recherche</label><input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" /></div>
+        <div class="row"><label>Tags</label><div id="tagsBox" class="tags"></div></div>
+        <div class="row">
+          <label>Pays</label>
+          <select id="filterCountry" multiple size="6" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:6px;"></select>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button id="selectAllCountries" class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
+            <button id="clearAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="filters-actions">
+            <button class="filters-apply" id="applyFilters"   type="button">Appliquer</button>
+            <button class="filters-reset" id="resetFilters"   type="button">Réinitialiser</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div id="npWrapper" style="padding:6px 6px;">
-      <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
-        <div id="npSummary" style="font-size:14px;line-height:1.55;margin-bottom:8px;"></div>
-        <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
-      </div>
-      <div id="npLinksWrap" style="margin-top:10px;">
-        <div style="font-weight:700;margin:8px 0 6px;">Liens sortants</div>
-        <div id="npLinks" style="font-size:14px;"></div>
-        <div style="margin-top:8px;display:flex;gap:8px;">
-          <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
-          <button id="btnClearEntityFocus" type="button" style="margin-left:8px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">Afficher tout</button>
+    <!-- Wrapper panel à droite -->
+    <div id="panelWrap">
+      <div id="notePanel">
+        <div id="npHeader" style="background:#facc15;padding:10px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid #0f172a22; position:sticky; top:0; z-index:20;box-shadow:0 4px 8px rgba(0,0,0,.35);">
+          <button id="npClose" type="button" aria-label="Fermer" style="position:absolute;top:8px;right:10px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);">✖</button>
+          <div id="npTitle" style="font-size:16px;font-weight:700;">Titre</div>
+          <div id="npMeta"  style="font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:4px;"><span id="npIcon" style="font-size:14px;line-height:1">📍</span><span id="npPlace">Pays, ville</span></div>
+          <div id="npDate"  style="font-size:12px;opacity:.8;display:flex;align-items:center;gap:6px;margin-top:2px;"><span id="npDateIcon" style="font-size:14px;line-height:1">🕓</span><span id="npDateText"></span></div>
+          <div id="npEntities" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+          <div id="npRecap" style="margin-top:6px;font-weight:600;font-style:italic;"></div>
+          <a id="npRecapToggle" href="#" style="display:none;"></a>
+        </div>
+
+        <div id="npWrapper" style="padding:6px 6px;">
+          <div id="npCard" style="border:1px solid #0f172a22;border-radius:10px;padding:10px;background:#fef9c3;">
+            <div id="npSummary" style="font-size:14px;line-height:1.55;margin-bottom:8px;"></div>
+            <div id="npMd" style="font-size:14px;line-height:1.55;"></div>
+          </div>
+          <div id="npLinksWrap" style="margin-top:10px;">
+            <div style="font-weight:700;margin:8px 0 6px;">Liens sortants</div>
+            <div id="npLinks" style="font-size:14px;"></div>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+              <button id="npFit"  type="button" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">🔎 Voir les liés</button>
+              <button id="btnClearEntityFocus" type="button" style="margin-left:8px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">Afficher tout</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Panneau "Map views" -->
-  <button id="mapPanelToggle" class="panel-toggle" aria-expanded="false" aria-controls="mapPanel" title="Afficher/masquer les options carte">🗺️</button>
-  <aside id="mapPanel" class="map-panel panel-hidden" aria-label="Options de carte">
-    <header class="panel-header">
-      <span class="panel-title">Map views</span>
-      <button id="mapPanelClose" class="panel-close" aria-label="Masquer le panneau">✕</button>
-    </header>
-    <section class="panel-group">
-      <div class="panel-subtitle">Style</div>
-      <div class="radio-row">
-        <label class="radio-pill"><input type="radio" name="basemap" value="streets" checked><span>Streets</span></label>
-        <label class="radio-pill"><input type="radio" name="basemap" value="light"><span>Light</span></label>
-        <label class="radio-pill"><input type="radio" name="basemap" value="dark"><span>Dark</span></label>
-      </div>
-    </section>
-    <section class="panel-actions">
-      <button id="recenterEurope" class="btn" type="button">Recentrer Europe</button>
-      <button id="recenterWorld"  class="btn" type="button">Recentrer Monde</button>
-    </section>
-  </aside>
+  <!-- Config / data -->
+  <script src="interactive-map/config/config-and-helpers.js"></script>
+  <script src="interactive-map/data/data-loading-and-index.js"></script>
 
-  <!-- Panneau Filtres -->
-  <div id="filtersPanel" class="filters-panel s-panel">
-    <h3>Filtres</h3>
-    <div class="row"><label>Recherche</label><input type="text" id="filterQuery" placeholder="Titre, lieu, résumé…" /></div>
-    <div class="row"><label>Tags</label><div id="tagsBox" class="tags"></div></div>
-    <div class="row">
-      <label>Pays</label>
-      <select id="filterCountry" multiple size="6" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:6px;"></select>
-      <div style="display:flex;gap:8px;margin-top:6px;">
-        <button id="selectAllCountries" class="filters-reset" type="button" style="flex:1;">Tout sélectionner</button>
-        <button id="clearAllCountries"  class="filters-reset" type="button" style="flex:1;">Tout désélectionner</button>
-      </div>
-    </div>
-    <div class="row">
-      <div class="filters-actions">
-        <button class="filters-apply" id="applyFilters"   type="button">Appliquer</button>
-        <button class="filters-reset" id="resetFilters"   type="button">Réinitialiser</button>
-      </div>
-    </div>
-  </div>
+  <!-- Entités / arcs -->
+  <script src="interactive-map/entities/constellations-and-arcs.js"></script>
 
-<!-- Config / data -->
-<script src="interactive-map/config/config-and-helpers.js"></script>
-<script src="interactive-map/data/data-loading-and-index.js"></script>
+  <!-- UI -->
+  <script src="interactive-map/panel/note-panel.js"></script>
+  <script src="interactive-map/filters/filters.js"></script>
 
-<!-- Entités / arcs -->
-<script src="interactive-map/entities/constellations-and-arcs.js"></script>
+  <!-- POINT D’ENTRÉE UNIQUE -->
+  <script type="module" src="interactive-map/interactive-map.js"></script>
 
-<!-- UI -->
-<script src="interactive-map/panel/note-panel.js"></script>
-<script src="interactive-map/filters/filters.js"></script>
+  <!-- Petit glue : afficher/masquer le wrapper de panel en même temps que notePanel -->
+  <script>
+    // note-panel.js gère display du panel, ici on synchronise le wrapper flex
+    (function () {
+      const wrap = document.getElementById('panelWrap');
+      const panel = document.getElementById('notePanel');
+      const closeBtn = document.getElementById('npClose');
 
-<!-- POINT D’ENTRÉE UNIQUE -->
-<script type="module" src="interactive-map/interactive-map.js"></script>
+      function openWrap() {
+        wrap.classList.add('is-open');
+        // la map a changé de taille => resize MapLibre
+        try { window.map?.resize?.(); } catch {}
+      }
+      function closeWrap() {
+        wrap.classList.remove('is-open');
+        try { window.map?.resize?.(); } catch {}
+      }
 
+      // Si ton JS ouvre le panel en mettant display:block, on ouvre aussi le wrap
+      const obs = new MutationObserver(() => {
+        if (panel && panel.offsetParent !== null) openWrap();
+      });
+      if (panel) obs.observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
 
+      // Au clic sur X : fermer wrapper
+      if (closeBtn) closeBtn.addEventListener('click', () => closeWrap());
+
+      // Si tu fermes via ESC, note-panel.js cache le panel : on ferme aussi le wrap
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeWrap();
+      });
+    })();
+  </script>
 </body>
 </html>
