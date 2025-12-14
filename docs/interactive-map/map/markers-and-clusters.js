@@ -202,46 +202,57 @@ function selectPoint(feature) {
       map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false });
     } catch {}
   }
-
   try {
     map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true });
   } catch {}
-
   selectedId = id;
 
   // 2) Ouvre le panel (script global)
   window.openSummaryInPanel?.(id);
 
-  // 3) Recentre + décale (robuste) pour laisser le panel à droite
-  //    On décale le "centre" en pixels pour que le marqueur reste visible à gauche.
+  // 3) Recentre + décale (précis) + zoom maîtrisé
   try {
-    const baseW = Number(window.UI_CONFIG?.panel?.width ?? 400);
-    const panelW = Math.round(baseW * 1.25); // cohérent avec ton panel élargi
-    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
-    const extra = 30;
+    // --- largeur réelle du panel (plus précis que UI_CONFIG) ---
+    const panelEl = document.getElementById('notePanel');
+    const panelW = panelEl ? panelEl.getBoundingClientRect().width : Number(window.UI_CONFIG?.panel?.width ?? 400) * 1.25;
 
-    // On veut que le marqueur apparaisse à gauche => on pousse le centre vers la droite
+    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
+    const extra = 24;
+
+    // décalage : la moitié du panel suffit généralement
     const offsetX = Math.round((panelW + panelM + extra) / 2);
 
-    const targetZoom = Number(window.ARRIVAL_ZOOM ?? 4.2);
-    const targetPitch = Number(window.BASE_PITCH ?? 20);
+    // --- zoom/pitch maîtrisés ---
+    const currentZoom = map.getZoom();
 
-    const p = map.project(coords); // coords = [lng, lat]
+    // cible douce pour le globe (ajuste à ton goût)
+    const desiredZoom = Number(window.ARRIVAL_ZOOM ?? 3.2);
+
+    // clamp : évite zoom trop fort ou trop faible
+    const minZoom = 2.6;
+    const maxZoom = 4.0;
+    const targetZoom = Math.min(maxZoom, Math.max(minZoom, Math.max(currentZoom, desiredZoom)));
+
+    const currentPitch = map.getPitch();
+    const desiredPitch = Number(window.BASE_PITCH ?? 18);
+    const maxPitch = 35;
+    const targetPitch = Math.min(maxPitch, Math.max(currentPitch, desiredPitch));
+
+    // --- offset robuste en pixels ---
+    const p = map.project(coords);
     const newCenter = map.unproject([p.x + offsetX, p.y]).toArray();
 
     map.easeTo({
       center: newCenter,
-      zoom: Math.max(map.getZoom(), targetZoom),
-      pitch: Math.max(map.getPitch(), targetPitch),
+      zoom: targetZoom,
+      pitch: targetPitch,
       bearing: map.getBearing(),
       duration: 850,
       essential: true
     });
-  } catch (e) {
-    // fallback simple si project/unproject échoue
-    try {
-      map.easeTo({ center: coords, duration: 650, essential: true });
-    } catch {}
+  } catch {
+    // fallback simple
+    try { map.easeTo({ center: coords, zoom: 3.2, duration: 650, essential: true }); } catch {}
   }
 }
 
