@@ -80,15 +80,11 @@
 #notePanel {
   width: 100%;
   height: 100%;
-  margin: 0 !important;
-  padding: 8px;              /* confort visuel */
+  padding: 8px;
   background: #fff;
-  overflow: auto;
+  overflow-y: auto;
   overflow-x: hidden;
-
-  border-radius: 12px 0 0 12px;
-  box-shadow: none;          /* optionnel : enlève l’ombre qui peut “flotter” */
-  font-family: system-ui, sans-serif;
+  box-sizing: border-box;
 }
 
     /* Empêche les longues chaînes (markdown, tags, etc.) de dépasser */
