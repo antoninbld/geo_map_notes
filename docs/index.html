@@ -87,6 +87,22 @@
       font-family: system-ui;
     }
 
+    /* Empêche les longues chaînes (markdown, tags, etc.) de dépasser */
+    #notePanel,
+    #notePanel * {
+      max-width: 100%;
+      overflow-wrap: anywhere;   /* le plus efficace */
+      word-break: break-word;    /* fallback */
+      white-space: normal;       /* force le wrapping */
+    }
+    
+    /* Sécurité ciblée sur les zones texte */
+    #npRecap, #npSummary, #npMd {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+
     /* Boutons + UI existante (identique à ton fichier) */
     .btn{
       display:inline-block;margin-top:6px;padding:8px 10px;
