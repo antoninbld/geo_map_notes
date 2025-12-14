@@ -55,6 +55,8 @@ export const map = new maplibregl.Map({
   antialias: true
 });
 
+// Expose la map pour les scripts non-modules (note-panel, links-layer, etc.)
+window.map = map;
 
 // ========= GLOBE =========
 
