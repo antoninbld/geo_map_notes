@@ -31,37 +31,43 @@
 
   // ---------- DATA access (robuste) ----------
   function getItemById(noteId) {
-    const id = String(noteId);
-
     const idx = window.idToItem;
-
+  
+    // On teste plusieurs formes de clé (important si Map indexée par number)
+    const raw = noteId;
+    const str = String(noteId);
+    const num = Number.isFinite(Number(noteId)) ? Number(noteId) : null;
+  
     // Cas 1 : Map
     if (idx && typeof idx.get === 'function') {
-      const v = idx.get(id);
+      let v = idx.get(raw);
       if (v) return v;
+  
+      v = idx.get(str);
+      if (v) return v;
+  
+      if (num !== null) {
+        v = idx.get(num);
+        if (v) return v;
+      }
     }
-
-    // Cas 2 : objet { [id]: item }
-    if (idx && typeof idx === 'object' && Object.prototype.hasOwnProperty.call(idx, id)) {
-      return idx[id];
+  
+    // Cas 2 : objet { [id]: item } (les clés sont forcément string)
+    if (idx && typeof idx === 'object' && idx !== null) {
+      if (Object.prototype.hasOwnProperty.call(idx, str)) return idx[str];
     }
-
+  
     // Cas 3 : fallback dans allData (array)
     const arr = window.allData;
     if (Array.isArray(arr)) {
-      return arr.find(x => String(x?.id) === id) || null;
+      return arr.find(x => String(x?.id) === str) || null;
     }
-
+  
     return null;
   }
 
   function hasId(id) {
-    const idx = window.idToItem;
-    const key = String(id);
-
-    if (idx && typeof idx.has === 'function') return idx.has(key);       // Map
-    if (idx && typeof idx === 'object') return key in idx;              // objet
-    return !!getItemById(key);                                          // fallback
+    return !!getItemById(id);
   }
 
   // ---------- Wiki links ----------
