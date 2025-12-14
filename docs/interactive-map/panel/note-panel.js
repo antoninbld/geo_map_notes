@@ -1,15 +1,15 @@
 // ======================================================
-// NOTE PANEL (script global)
+// NOTE PANEL (script global, robuste)
 // Dépendances attendues :
 // - window.map (MapLibre Map)  <-- exposée dans globe-setup.js : window.map = map
 // - marked (CDN)
-// - idToItem, allData (data-loading-and-index.js)
+// - idToItem, allData (data-loading-and-index.js) : peut être sur window OU variables globales
 // - UI_CONFIG (config-and-helpers.js)
 // ======================================================
 
 (() => {
   const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_notes/main/docs/notes';
-  const EVENTS_BASE   = NOTE_RAW_BASE;
+  const EVENTS_BASE = NOTE_RAW_BASE;
   const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
 
   const NOTES_SOURCE_ID = 'notes';
@@ -17,11 +17,23 @@
   const DEFAULT_PANEL_WIDTH = 400;
   const DEFAULT_PANEL_MARGIN_RIGHT = 10;
 
-  const NOTE_CACHE  = new Map(); // noteId -> parsed
+  const NOTE_CACHE = new Map();  // noteId -> parsed
   const LINKS_CACHE = new Map(); // noteId -> [ids]
 
-  // ---------- DOM helpers ----------
+  // ---------- DOM ----------
   const $id = (id) => document.getElementById(id);
+
+  // ---------- Globals access (IMPORTANT) ----------
+  // idToItem/allData peuvent être des "globals lexicaux" (const/let) => pas sur window.*
+  function getIndex() {
+    if (typeof idToItem !== 'undefined') return idToItem;
+    return window.idToItem;
+  }
+
+  function getAllData() {
+    if (typeof allData !== 'undefined') return allData;
+    return window.allData;
+  }
 
   function getPanelDims() {
     const w = parseInt((window.UI_CONFIG?.panel?.width ?? DEFAULT_PANEL_WIDTH), 10);
@@ -29,40 +41,39 @@
     return { w, m };
   }
 
-  // ---------- DATA access (robuste) ----------
+  // ---------- Data lookup (robuste Map / objet / array, clés string/number) ----------
   function getItemById(noteId) {
-    const idx = window.idToItem;
-  
-    // On teste plusieurs formes de clé (important si Map indexée par number)
+    const idx = getIndex();
+
     const raw = noteId;
     const str = String(noteId);
     const num = Number.isFinite(Number(noteId)) ? Number(noteId) : null;
-  
-    // Cas 1 : Map
+
+    // Map
     if (idx && typeof idx.get === 'function') {
       let v = idx.get(raw);
       if (v) return v;
-  
+
       v = idx.get(str);
       if (v) return v;
-  
+
       if (num !== null) {
         v = idx.get(num);
         if (v) return v;
       }
     }
-  
-    // Cas 2 : objet { [id]: item } (les clés sont forcément string)
+
+    // Objet { [id]: item }
     if (idx && typeof idx === 'object' && idx !== null) {
       if (Object.prototype.hasOwnProperty.call(idx, str)) return idx[str];
     }
-  
-    // Cas 3 : fallback dans allData (array)
-    const arr = window.allData;
+
+    // Fallback allData array
+    const arr = getAllData();
     if (Array.isArray(arr)) {
       return arr.find(x => String(x?.id) === str) || null;
     }
-  
+
     return null;
   }
 
@@ -70,7 +81,7 @@
     return !!getItemById(id);
   }
 
-  // ---------- Wiki links ----------
+  // ---------- Wiki links [[id]] / [[id|label]] ----------
   function transformWikiLinks(md) {
     if (!md) return '';
     return String(md).replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_m, id, label) => {
@@ -112,7 +123,7 @@
     return { meta, body };
   }
 
-  // ---------- Extraction section "## Résumé" ----------
+  // ---------- Section "## Résumé" ----------
   function splitSummarySection(mdText) {
     const text = String(mdText ?? '');
     const lines = text.split('\n');
@@ -259,19 +270,20 @@
 
   // ---------- Note parsing ----------
   async function fetchAndParseNote(noteId) {
-    if (NOTE_CACHE.has(noteId)) return NOTE_CACHE.get(noteId);
+    const key = String(noteId);
+    if (NOTE_CACHE.has(key)) return NOTE_CACHE.get(key);
 
-    const url = resolveNoteURL(noteId);
+    const url = resolveNoteURL(key);
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return { error: res.status };
 
     const mdRaw = await res.text();
     const { meta, body } = parseAndStripFrontMatter(mdRaw);
     const { summaryMd, bodyMd } = splitSummarySection(body);
-    const links = await getOutgoingLinks(noteId, mdRaw);
+    const links = await getOutgoingLinks(key, mdRaw);
 
     const parsed = { meta, body, summaryMd, bodyMd, links, mdRaw };
-    NOTE_CACHE.set(noteId, parsed);
+    NOTE_CACHE.set(key, parsed);
     return parsed;
   }
 
@@ -279,43 +291,45 @@
   async function openSummaryInPanel(noteId) {
     const map = window.map;
     if (!map) {
-      console.error('window.map is missing. (Expose it from globe-setup.js: window.map = map)');
+      console.error('window.map is missing. Add: window.map = map in globe-setup.js');
       return;
     }
 
-    const item = getItemById(noteId); // ✅ FIX recap data.json
+    const id = String(noteId);
+    const item = getItemById(id);
 
-    const $panel   = $id('notePanel');
-    const $title   = $id('npTitle');
-    const $place   = $id('npPlace');
+    const $panel = $id('notePanel');
+    const $title = $id('npTitle');
+    const $place = $id('npPlace');
     const $dateTxt = $id('npDateText');
-    const $sum     = $id('npSummary');
-    const $md      = $id('npMd');
-    const $links   = $id('npLinks');
-    const $fit     = $id('npFit');
+    const $sum = $id('npSummary');
+    const $md = $id('npMd');
+    const $links = $id('npLinks');
+    const $fit = $id('npFit');
 
     if (!$panel || !$title || !$place || !$sum || !$md || !$links) {
       console.error('Note panel elements missing in DOM');
       return;
     }
 
-    // reset
+    // reset UI
     $sum.innerHTML = '';
     $md.innerHTML = '';
     $links.innerHTML = '';
     renderEntityChips([]);
 
-    // Header + recap depuis data.json
-    $title.textContent = item?.title || String(noteId);
+    // header from data.json
+    $title.textContent = item?.title || id;
     $place.textContent = item?.locationName || '';
     if ($dateTxt) $dateTxt.textContent = '';
 
-    setRecapText(item?.recap || ''); // ✅ recap
+    // ✅ Recap depuis data.json
+    setRecapText(item?.recap || '');
 
     // fetch md
     let parsed;
     try {
-      parsed = await fetchAndParseNote(noteId);
+      parsed = await fetchAndParseNote(id);
     } catch (e) {
       console.error('Error loading note', e);
       $md.innerHTML = `<em style="color:#888;">Note complète indisponible</em>`;
@@ -339,7 +353,7 @@
 
       if ($dateTxt && meta?.date) $dateTxt.textContent = formatDateByConfig(meta.date);
 
-      // fallback recap front-matter si data.json vide
+      // fallback recap (front-matter) si data.json vide
       const recapWrap = $id('npRecap');
       if ((!recapWrap?.textContent?.trim()) && meta?.recap) setRecapText(meta.recap);
 
@@ -355,19 +369,19 @@
         : transformWikiLinks(finalBody);
     }
 
-    // liens sortants list
+    // outgoing list
     if (!outgoing.length) {
       $links.innerHTML = '<div style="color:#888;">Aucun lien sortant</div>';
     } else {
-      const html = outgoing.map(id => {
-        const it = getItemById(id);
-        const label = it?.title || id;
-        return `<li><a href="note.html?id=${encodeURIComponent(id)}" class="internal-link">${label}</a></li>`;
+      const html = outgoing.map(toId => {
+        const it = getItemById(toId);
+        const label = it?.title || toId;
+        return `<li><a href="note.html?id=${encodeURIComponent(toId)}" class="internal-link">${label}</a></li>`;
       }).join('');
       $links.innerHTML = `<ul style="margin:0; padding-left:18px;">${html}</ul>`;
     }
 
-    // afficher panel
+    // show panel
     $panel.style.display = 'block';
     try {
       const { w } = getPanelDims();
@@ -377,21 +391,21 @@
     // highlight
     try {
       const prev = window.__selectedId;
-      if (prev != null && prev !== noteId) {
+      if (prev != null && prev !== id) {
         map.setFeatureState({ source: NOTES_SOURCE_ID, id: prev }, { selected: false });
       }
-      map.setFeatureState({ source: NOTES_SOURCE_ID, id: noteId }, { selected: true });
-      window.__selectedId = noteId;
+      map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true });
+      window.__selectedId = id;
     } catch {}
 
-    // internal links in panel
+    // internal links click
     $panel.querySelectorAll('a[href^="note.html?id="]').forEach(a => {
       a.classList.add('internal-link');
       a.onclick = (e) => {
         e.preventDefault();
         const href = a.getAttribute('href') || '';
-        const id = decodeURIComponent((href.split('id=')[1] || '').trim());
-        if (id) openSummaryInPanel(id);
+        const nextId = decodeURIComponent((href.split('id=')[1] || '').trim());
+        if (nextId) openSummaryInPanel(nextId);
       };
     });
 
@@ -400,7 +414,7 @@
       $fit.onclick = () => {
         const bounds = new maplibregl.LngLatBounds();
 
-        const from = getItemById(noteId);
+        const from = getItemById(id);
         if (from) bounds.extend([from.lon, from.lat]);
 
         outgoing.forEach(lid => {
