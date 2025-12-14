@@ -2,11 +2,11 @@
 // MODULE — MARKERS & CLUSTERS (ES MODULE)
 // ======================================================
 // Rôle :
-// - Créer / maintenir la source GeoJSON "notes"
-// - Gérer clusters + points isolés
-// - Gérer interactions (clic / hover)
-// - Recentrer la vue en tenant compte du panel (padding right)
-// - Fournir resolveNoteURL()
+// - Source "notes" + clusters
+// - Interactions (clic / hover)
+// - Ouverture du panel
+// - Centrage strict sur le point + zoom fixe
+// - Décalage de la MAP (conteneur) pour ne pas passer sous le panel
 // ======================================================
 
 import { map } from './globe-setup.js';
@@ -18,16 +18,22 @@ const NOTE_RAW_BASE = 'https://raw.githubusercontent.com/antoninbld/geo_map_note
 const EVENTS_BASE   = NOTE_RAW_BASE;
 const ENTITIES_BASE = `${NOTE_RAW_BASE}/entities`;
 
-// Layers manipulés par ce module (utile pour queryRenderedFeatures)
 const INTERACTIVE_LAYERS = ['clusters', 'cluster-count', 'unclustered-point'];
+
+// Zoom/pitch “au clic” (très dézoomé comme demandé)
+const CLICK_VIEW = {
+  zoom: 1.9,    // ✅ beaucoup plus dézoomé (baisse encore si besoin: 1.6)
+  pitch: 10,    // doux
+  duration: 900
+};
 
 // ========= ÉTAT =========
 let selectedId = null;
 let interactionsBound = false;
 
+
 // ========= SOURCE + COUCHES =========
 export async function ensureNotesSourceAndLayers() {
-  // Dépendance existante dans ton projet : charge allData + idToItem
   await loadDataFromJSON();
 
   const features = (allData || []).map(item => ({
@@ -56,6 +62,7 @@ export async function ensureNotesSourceAndLayers() {
   bindInteractionsOnce();
 }
 
+
 // ========= COUCHES =========
 function ensureLayers() {
   if (!map.getLayer('clusters')) {
@@ -79,14 +86,7 @@ function ensureLayers() {
       filter: ['has', 'point_count'],
       layout: {
         'text-field': '{point_count_abbreviated}',
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          0, 12,
-          6, 14,
-          10, 16
-        ],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 0, 12, 6, 14, 10, 16],
         'text-anchor': 'center',
         'text-allow-overlap': true
       },
@@ -107,20 +107,17 @@ function ensureLayers() {
       paint: {
         'circle-color': [
           'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          '#37cc12',
+          ['boolean', ['feature-state', 'selected'], false], '#37cc12',
           '#ff2d2d'
         ],
         'circle-radius': [
           'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          10,
+          ['boolean', ['feature-state', 'selected'], false], 10,
           6
         ],
         'circle-opacity': [
           'case',
-          ['boolean', ['feature-state', 'dim'], false],
-          0.25,
+          ['boolean', ['feature-state', 'dim'], false], 0.25,
           1
         ],
         'circle-stroke-width': 2,
@@ -129,6 +126,7 @@ function ensureLayers() {
     });
   }
 }
+
 
 // ========= URL NOTES =========
 export function resolveNoteURL(noteId) {
@@ -146,6 +144,35 @@ export function resolveNoteURL(noteId) {
   return `${ENTITIES_BASE}/${sub}/${encodeURIComponent(id)}.md`;
 }
 
+
+// ========= LAYOUT : “décaler la map” sans déplacer le point =========
+// On ne touche PAS au contenu (pas d'offset/padding). On réduit la largeur du conteneur.
+// => le point reste centré, et le panel ne recouvre plus la map.
+function applyMapLayoutForPanel(isOpen) {
+  const mapEl = document.getElementById('map');
+  const panelEl = document.getElementById('notePanel');
+  if (!mapEl || !panelEl) return;
+
+  if (!mapEl.dataset.fullWidth) {
+    // mémorise la largeur initiale (au cas où)
+    mapEl.dataset.fullWidth = mapEl.style.width || '';
+  }
+
+  if (isOpen) {
+    const panelW = panelEl.getBoundingClientRect().width || 0;
+    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
+    const extra = 10;
+
+    const cut = Math.max(0, Math.round(panelW + panelM + extra));
+    mapEl.style.width = `calc(100% - ${cut}px)`;
+  } else {
+    mapEl.style.width = mapEl.dataset.fullWidth || '';
+  }
+
+  try { map.resize(); } catch {}
+}
+
+
 // ========= INTERACTIONS =========
 function bindInteractionsOnce() {
   if (interactionsBound) return;
@@ -156,15 +183,14 @@ function bindInteractionsOnce() {
 }
 
 function onMapClick(e) {
-  // On interroge uniquement nos layers (évite de cliquer des overlays)
   const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
-  const hits = layers.length
-    ? map.queryRenderedFeatures(e.point, { layers })
-    : [];
+  const hits = layers.length ? map.queryRenderedFeatures(e.point, { layers }) : [];
 
   if (!hits.length) {
     // clic dans le vide -> optionnel : fermer le panel
     window.__closeNotePanel?.();
+    // et on remet la map pleine largeur
+    applyMapLayoutForPanel(false);
     return;
   }
 
@@ -175,76 +201,48 @@ function onMapClick(e) {
   }
 
   const point = hits.find(f => f.layer?.id === 'unclustered-point');
-  if (point) {
-    selectPoint(point);
-  }
+  if (point) selectPoint(point);
 }
 
 function onMapHover(e) {
   const layers = INTERACTIVE_LAYERS.filter(id => map.getLayer(id));
-
   let hits = [];
   if (layers.length) {
     try { hits = map.queryRenderedFeatures(e.point, { layers }); } catch {}
   }
-
   map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
 }
+
 
 // ========= ACTIONS =========
 function selectPoint(feature) {
   const id = feature.properties.id;
   const coords = feature.geometry.coordinates;
 
-  // 1) Feature-state selection (visuel)
+  // 1) Visuel sélection
   if (selectedId !== null) {
-    try {
-      map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false });
-    } catch {}
+    try { map.setFeatureState({ source: NOTES_SOURCE_ID, id: selectedId }, { selected: false }); } catch {}
   }
-  try {
-    map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true });
-  } catch {}
+  try { map.setFeatureState({ source: NOTES_SOURCE_ID, id }, { selected: true }); } catch {}
   selectedId = id;
 
-  // 2) Ouvre le panel
+  // 2) Ouvrir le panel
   window.openSummaryInPanel?.(id);
 
-  // 3) Centrage EXACT sur le point + gros dézoom + décalage à gauche (offset)
+  // 3) Décaler la MAP (conteneur) pour ne pas passer sous le panel
+  applyMapLayoutForPanel(true);
+
+  // 4) Centrage STRICT sur le point + zoom fixe (très dézoomé)
   try {
-    // largeur réelle du panel (plus fiable)
-    const panelEl = document.getElementById('notePanel');
-    const panelW = panelEl ? panelEl.getBoundingClientRect().width : 520; // fallback
-    const panelM = Number(window.UI_CONFIG?.panel?.marginRight ?? 10);
-    const extra = 30;
-
-    // Le point doit apparaître à gauche => on décale le "centre écran" vers la gauche
-    const offsetX = Math.round((panelW + panelM + extra) / 2);
-
-    // Gros dézoom (ajuste si tu veux encore plus loin)
-    const desiredZoom = 2.1;   // <<< beaucoup plus dézoomé
-    const minZoom = 1.7;
-    const maxZoom = 2.6;
-    const targetZoom = Math.min(maxZoom, Math.max(minZoom, desiredZoom));
-
-    // Pitch doux (sinon impression de zoom/agressif)
-    const targetPitch = 12;
-
     map.easeTo({
-      center: coords,                 // ✅ centre EXACT = coords du point
-      zoom: targetZoom,
-      pitch: targetPitch,
+      center: coords,                 // ✅ centre = coords strict
+      zoom: CLICK_VIEW.zoom,          // ✅ zoom fixé
+      pitch: CLICK_VIEW.pitch,
       bearing: map.getBearing(),
-      offset: [-offsetX, 0],          // ✅ place le point à gauche (sans changer "center")
-      duration: 900,
+      duration: CLICK_VIEW.duration,
       essential: true
     });
-  } catch {
-    // fallback simple (sans offset)
-    try {
-      map.easeTo({ center: coords, zoom: 2.1, pitch: 12, duration: 900, essential: true });
-    } catch {}
-  }
+  } catch {}
 }
 
 function zoomCluster(feature) {
@@ -253,7 +251,7 @@ function zoomCluster(feature) {
   const center = feature.geometry.coordinates;
 
   if (!src?.getClusterExpansionZoom) {
-    map.easeTo({ center, zoom: map.getZoom() + 2, duration: 500 });
+    map.easeTo({ center, zoom: map.getZoom() + 1, duration: 500, essential: true });
     return;
   }
 
